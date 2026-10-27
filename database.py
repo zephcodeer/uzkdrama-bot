@@ -314,6 +314,23 @@ async def get_latest_doramas(limit: int = 10, offset: int = 0):
             return [dict(r) for r in rows]
 
 
+
+async def get_ongoing_doramas():
+    """Hozirda davom etayotgan (Ongoing) barcha seriallar va ularning yuklangan qismlari soni."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT d.id, d.code, d.title, d.total_episodes, d.status, d.poster_url,
+                   COUNT(e.id) as uploaded_episodes
+            FROM doramas d
+            LEFT JOIN episodes e ON d.id = e.dorama_id
+            WHERE d.status = 'Ongoing' OR LOWER(d.status) LIKE '%ongo%'
+            GROUP BY d.id
+            ORDER BY d.code ASC
+        """) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
 async def get_top_doramas(limit: int = 10, offset: int = 0):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row

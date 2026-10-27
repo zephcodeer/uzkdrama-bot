@@ -948,6 +948,49 @@ async def cb_admin_reject(call: CallbackQuery, bot: Bot):
 # ---------------------------------------------------------------------------
 # Admin Panel & Ommaviy Xabar (Broadcast)
 # ---------------------------------------------------------------------------
+
+@router.message(Command("ongoing"))
+@router.callback_query(F.data == "admin_ongoing_list")
+async def handle_admin_ongoing_list(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    if user_id != config.ADMIN_ID:
+        if isinstance(event, CallbackQuery):
+            await event.answer("Siz admin emassiz!", show_alert=True)
+        return
+
+    doramas = await db.get_ongoing_doramas()
+    if not doramas:
+        text = (
+            f"{ce('bell')} <b>Hozirda davom etayotgan (Ongoing) seriallar yo'q.</b>\n\n"
+            f"Barcha seriallar to'liq tugallangan."
+        )
+        await render_text_screen(event, text, reply_markup=kb.admin_panel_kb())
+        if isinstance(event, CallbackQuery):
+            await event.answer()
+        return
+
+    text = (
+        f"{ce('green_circle')} <b>DAVOM ETAYOTGAN (ONGOING) SERIALlar:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Hozirda <b>{len(doramas)} ta</b> serial faol davom etmoqda:\n\n"
+    )
+    for i, d in enumerate(doramas, 1):
+        text += (
+            f"<b>{i}. [{d['code']}] {d['title']}</b>\n"
+            f"   └ 🎬 Yuklangan: <b>{d['uploaded_episodes']} ta</b> qism\n"
+        )
+
+    text += (
+        f"\n━━━━━━━━━━━━━━━━━━\n"
+        f"💡 <i>Yangi qism chiqqanda, menga serial kodi va Telegram linklarini bersangiz, darhol yangi qismlarni qo'shib qo'yaman!</i>"
+    )
+
+    markup = kb.ongoing_doramas_kb(doramas)
+    await render_text_screen(event, text, reply_markup=markup)
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+
 @router.message(Command("admin"))
 @router.callback_query(F.data == "menu_admin")
 async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext):
@@ -1273,7 +1316,7 @@ async def main():
 
         # Faqat admin uchun maxsus /update buyrug'i
         try:
-            admin_commands = commands + [BotCommand(command="update", description="🚀 GitHub'dan yangilash va qayta ishga tushirish")]
+            admin_commands = commands + [BotCommand(command="update", description="🚀 GitHub'dan yangilash"), BotCommand(command="ongoing", description="🟢 Davom etayotgan seriallar")]
             await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=config.ADMIN_ID))
         except Exception as e:
             logger.warning(f"Admin buyruqlarini sozlashda ogohlantirish: {e}")

@@ -263,6 +263,13 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
+            text="🟢 Ongoing (Davom etayotganlar)",
+            callback_data="admin_ongoing_list",
+            icon_custom_emoji_id=ICON_SERIES
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
             text="GitHub'dan Yangilash (Git Pull)",
             callback_data="admin_git_update",
             icon_custom_emoji_id=ICON_SPARKLE
@@ -448,6 +455,34 @@ def admin_order_kb(order_id: int, user_id: int, days: int) -> InlineKeyboardMark
             text="Rad etish",
             callback_data=f"admin_reject:{order_id}:{user_id}",
             icon_custom_emoji_id=ICON_CROSS_RED
+        )
+    )
+    return builder.as_markup()
+
+
+def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for d in doramas:
+        code = d.get('code', d.get('id', ''))
+        title = d.get("title", "Noma'lum")
+        uploaded = d.get('uploaded_episodes', d.get('total_episodes', 0))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"🟢 [{code}] {title} ({uploaded}-qism)",
+                callback_data=f"view_dorama:{d['id']}",
+                icon_custom_emoji_id=ICON_ACTION
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="👑 Admin Panel",
+            callback_data="menu_admin",
+            icon_custom_emoji_id=ICON_VIP
+        ),
+        InlineKeyboardButton(
+            text="Bosh menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
         )
     )
     return builder.as_markup()
