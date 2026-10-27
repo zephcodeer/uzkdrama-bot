@@ -549,14 +549,14 @@ def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
         uploaded = d.get('uploaded_episodes', d.get('total_episodes', 0))
         builder.row(
             InlineKeyboardButton(
-                text=f"🟢 [{code}] {title} ({uploaded}-qism)",
+                text=f"[{code}] {title} ({uploaded}-qism)",
                 callback_data=f"view_dorama:{d['id']}",
                 icon_custom_emoji_id=ICON_ACTION
             )
         )
     builder.row(
         InlineKeyboardButton(
-            text="👑 Admin Panel",
+            text="Admin Panel",
             callback_data="menu_admin",
             icon_custom_emoji_id=ICON_CROWN
         ),
@@ -575,31 +575,31 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     # Mintaqalar va Olamlar
     builder.row(
         InlineKeyboardButton(
-            text=f"🇰🇷 Janubiy Koreya ({counts.get('korea', 0)})",
+            text=f"Janubiy Koreya ({counts.get('korea', 0)})",
             callback_data="cat:korea:0",
             icon_custom_emoji_id=ICON_KOREA
         ),
         InlineKeyboardButton(
-            text=f"🇨🇳 Xitoy ({counts.get('china', 0)})",
+            text=f"Xitoy ({counts.get('china', 0)})",
             callback_data="cat:china:0",
             icon_custom_emoji_id=ICON_CHINA
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"🇹🇷 Turkiya ({counts.get('turk', 0)})",
+            text=f"Turkiya ({counts.get('turk', 0)})",
             callback_data="cat:turk:0",
             icon_custom_emoji_id=ICON_TURK
         ),
         InlineKeyboardButton(
-            text=f"🦸‍♂️ Marvel & DC ({counts.get('marvel', 0)})",
+            text=f"Marvel & DC ({counts.get('marvel', 0)})",
             callback_data="cat:marvel:0",
             icon_custom_emoji_id=ICON_MARVEL
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"🎬 Xorij & Gollivud ({counts.get('foreign', 0)})",
+            text=f"Xorij & Gollivud ({counts.get('foreign', 0)})",
             callback_data="cat:foreign:0",
             icon_custom_emoji_id=ICON_FOREIGN
         )
@@ -608,43 +608,43 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     # Asosiy Janrlar
     builder.row(
         InlineKeyboardButton(
-            text=f"💥 Jangari ({counts.get('genre_action', 0)})",
+            text=f"Jangari ({counts.get('genre_action', 0)})",
             callback_data="cat:genre_action:0",
             icon_custom_emoji_id=ICON_GENRE_ACTION
         ),
         InlineKeyboardButton(
-            text=f"💖 Romantika ({counts.get('genre_romance', 0)})",
+            text=f"Romantika ({counts.get('genre_romance', 0)})",
             callback_data="cat:genre_romance:0",
             icon_custom_emoji_id=ICON_GENRE_ROMANCE
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"🧠 Triller ({counts.get('genre_thriller', 0)})",
+            text=f"Triller ({counts.get('genre_thriller', 0)})",
             callback_data="cat:genre_thriller:0",
             icon_custom_emoji_id=ICON_GENRE_THRILLER
         ),
         InlineKeyboardButton(
-            text=f"🔮 Fentezi ({counts.get('genre_fantasy', 0)})",
+            text=f"Fentezi ({counts.get('genre_fantasy', 0)})",
             callback_data="cat:genre_fantasy:0",
             icon_custom_emoji_id=ICON_GENRE_FANTASY
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"😂 Komediya ({counts.get('genre_comedy', 0)})",
+            text=f"Komediya ({counts.get('genre_comedy', 0)})",
             callback_data="cat:genre_comedy:0",
             icon_custom_emoji_id=ICON_GENRE_COMEDY
         ),
         InlineKeyboardButton(
-            text=f"🧟 Zombi / Dahshat ({counts.get('genre_horror', 0)})",
+            text=f"Zombi & Dahshat ({counts.get('genre_horror', 0)})",
             callback_data="cat:genre_horror:0",
             icon_custom_emoji_id=ICON_GENRE_HORROR
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"👑 Tarixiy ({counts.get('genre_historical', 0)})",
+            text=f"Tarixiy ({counts.get('genre_historical', 0)})",
             callback_data="cat:genre_historical:0",
             icon_custom_emoji_id=ICON_GENRE_HISTORICAL
         )
