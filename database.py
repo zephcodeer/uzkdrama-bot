@@ -674,7 +674,7 @@ CATEGORY_QUERIES = {
     "china": ("Xitoy Serial va Doramalari", "WHERE category = 'china' OR country = 'Xitoy'"),
     "turk": ("Turk Serial va Kinolari", "WHERE category = 'turk' OR country = 'Turkiya'"),
     "marvel": ("Marvel & DC Kinolari", "WHERE category = 'marvel' OR genre LIKE '%Marvel%' OR title LIKE '%Marvel%'"),
-    "foreign": ("Xorij va Gollivud Kinolari", "WHERE category = 'foreign' OR country LIKE '%AQSH%' OR country LIKE '%Gollivud%'"),
+    "foreign": ("Xorij va Gollivud Kinolari", "WHERE category = 'foreign' OR country LIKE '%AQSH%' OR country LIKE '%Gollivud%' OR country LIKE '%Yaponiya%' OR country LIKE '%Filippin%'"),
     "genre_action": ("Jangari & Ekshn", "WHERE genre LIKE '%Jangari%' OR genre LIKE '%Ekshn%'"),
     "genre_romance": ("Romantika & Melodrama", "WHERE genre LIKE '%Romantika%' OR genre LIKE '%Melodrama%'"),
     "genre_thriller": ("Triller & Kriminal", "WHERE genre LIKE '%Triller%' OR genre LIKE '%Detektiv%' OR genre LIKE '%Kriminal%'"),
