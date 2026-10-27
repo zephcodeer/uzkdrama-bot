@@ -336,15 +336,30 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
     d = await db.get_dorama_by_id(dorama_id)
     title = d["title"] if d else "Dorama"
 
-    episodes = await db.get_episodes(dorama_id)
-    has_next = any(e['episode_number'] == ep_num + 1 for e in episodes)
+# Birlashgan qismlarni (1-2 qism) hisoblash
+    display_items = kb.build_display_episodes(episodes)
+    current_item = next((it for it in display_items if it['start_ep'] <= ep_num <= it['end_ep']), None)
+    
+    if current_item:
+        ep_label = current_item['label']
+        await db.save_last_watched(user_id, dorama_id, current_item['end_ep'])
+        next_item = next((it for it in display_items if it['start_ep'] > current_item['end_ep']), None)
+        has_next = next_item is not None
+        next_ep_target = next_item['start_ep'] if next_item else None
+    else:
+        ep_label = f"{ep_num}-qism"
+        await db.save_last_watched(user_id, dorama_id, ep_num)
+        has_next = any(e['episode_number'] == ep_num + 1 for e in episodes)
+        next_ep_target = ep_num + 1 if has_next else None
+
     bookmarked = await db.is_bookmarked(user_id, dorama_id)
 
     player_markup = kb.episode_player_kb(
         dorama_id=dorama_id,
         current_ep=ep_num,
         has_next=has_next,
-        bookmarked=bookmarked
+        bookmarked=bookmarked,
+        next_ep=next_ep_target
     )
 
     quality_badge = f"{ce('lightning')} 1080p Full HD" if ep.get("quality") == "1080p" else "720p HD"
@@ -356,7 +371,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
             from_chat_id=config.STORAGE_CHANNEL_ID,
             message_id=ep["channel_message_id"],
             caption=(
-                f"{ce('film')} <b>«{title}» — {ep_num}-qism</b> [{quality_badge}]\n"
+                f"{ce('film')} <b>«{title}» — {ep_label}</b> [{quality_badge}]\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ce('popcorn')} <i>Yoqimli tomosha!</i>\n"
                 f"{ce('sparkles')} @{(await bot.get_me()).username}"

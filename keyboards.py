@@ -143,6 +143,44 @@ def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_n
     return builder.as_markup()
 
 
+
+def build_display_episodes(episodes: list) -> list:
+    """
+    Bitta video faylga bir nechta qism birlashtirilgan bo'lsa (masalan: 1-2 qism, 5-6 qism),
+    ularni avtomatik bitta tugmaga birlashtiradi.
+    """
+    from collections import defaultdict
+    msg_to_eps = defaultdict(list)
+    for ep in episodes:
+        msg_to_eps[ep['channel_message_id']].append(ep['episode_number'])
+
+    grouped = []
+    seen = set()
+    for ep in episodes:
+        msg_id = ep['channel_message_id']
+        if msg_id in seen:
+            continue
+        seen.add(msg_id)
+
+        eps = msg_to_eps[msg_id]
+        min_ep = min(eps)
+        max_ep = max(eps)
+        if len(eps) > 1 and max_ep > min_ep:
+            label = f"{min_ep}-{max_ep}-qism"
+        else:
+            label = f"{min_ep}-qism"
+
+        grouped.append({
+            'start_ep': min_ep,
+            'end_ep': max_ep,
+            'label': label,
+            'channel_message_id': msg_id,
+            'episode_number': min_ep,
+            'quality': ep.get('quality', '1080p')
+        })
+    return grouped
+
+
 def dorama_detail_kb(
     dorama_id: int,
     episodes: list,
@@ -155,30 +193,33 @@ def dorama_detail_kb(
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
+    display_items = build_display_episodes(episodes)
+    total_items = len(display_items)
+
     # 1. Davom etish tugmasi
     if last_watched:
-        next_ep = last_watched + 1 if any(ep['episode_number'] == last_watched + 1 for ep in episodes) else last_watched
-        builder.row(
-            InlineKeyboardButton(
-                text=f"Davom etish: {next_ep}-qism",
-                callback_data=f"get_ep:{dorama_id}:{next_ep}",
-                icon_custom_emoji_id=ICON_PLAY
+        next_item = next((it for it in display_items if it['end_ep'] > last_watched), None)
+        if next_item:
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"Davom etish: {next_item['label']}",
+                    callback_data=f"get_ep:{dorama_id}:{next_item['start_ep']}",
+                    icon_custom_emoji_id=ICON_PLAY
+                )
             )
-        )
 
-    total_eps = len(episodes)
     start_idx = page * per_page
     end_idx = start_idx + per_page
-    curr_eps = episodes[start_idx:end_idx]
+    curr_items = display_items[start_idx:end_idx]
 
     # Qismlar tugmalari (har qatorda 5 tadan)
     row = []
-    for ep in curr_eps:
-        watched_mark = " ✓" if last_watched and ep['episode_number'] <= last_watched else ""
+    for item in curr_items:
+        watched_mark = " ✓" if last_watched and item['end_ep'] <= last_watched else ""
         row.append(
             InlineKeyboardButton(
-                text=f"{ep['episode_number']}-qism{watched_mark}",
-                callback_data=f"get_ep:{dorama_id}:{ep['episode_number']}"
+                text=f"{item['label']}{watched_mark}",
+                callback_data=f"get_ep:{dorama_id}:{item['start_ep']}"
             )
         )
         if len(row) == 5:
@@ -197,7 +238,7 @@ def dorama_detail_kb(
                 icon_custom_emoji_id=ICON_ARROW_LEFT
             )
         )
-    if end_idx < total_eps:
+    if end_idx < total_items:
         nav_buttons.append(
             InlineKeyboardButton(
                 text="Keyingi",
@@ -308,24 +349,38 @@ def episode_player_kb(
     dorama_id: int,
     current_ep: int,
     has_next: bool = False,
-    bookmarked: bool = False
+    bookmarked: bool = False,
+    next_ep: int | None = None
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    if has_next:
-        builder.row(
+
+    next_target = next_ep if next_ep is not None else (current_ep + 1)
+    nav_row = []
+    if current_ep > 1:
+        nav_row.append(
             InlineKeyboardButton(
-                text=f"Keyingi qism ({current_ep + 1}-qism)",
-                callback_data=f"get_ep:{dorama_id}:{current_ep + 1}",
-                icon_custom_emoji_id=ICON_PLAY
+                text="Oldingi qism",
+                callback_data=f"get_ep:{dorama_id}:{current_ep - 1}",
+                icon_custom_emoji_id=ICON_ARROW_LEFT
             )
         )
+    if has_next:
+        nav_row.append(
+            InlineKeyboardButton(
+                text="Keyingi qism",
+                callback_data=f"get_ep:{dorama_id}:{next_target}",
+                icon_custom_emoji_id=ICON_ARROW_RIGHT
+            )
+        )
+    if nav_row:
+        builder.row(*nav_row)
 
     bm_text = "Saqlangan" if bookmarked else "Saqlab qo'yish"
     builder.row(
         InlineKeyboardButton(
             text="Barcha qismlar",
             callback_data=f"view_dorama:{dorama_id}",
-            icon_custom_emoji_id=ICON_ACTION
+            icon_custom_emoji_id=ICON_SERIES
         ),
         InlineKeyboardButton(
             text=bm_text,
@@ -335,12 +390,7 @@ def episode_player_kb(
     )
     builder.row(
         InlineKeyboardButton(
-            text="VIP A'zolik",
-            callback_data="menu_vip",
-            icon_custom_emoji_id=ICON_CROWN
-        ),
-        InlineKeyboardButton(
-            text="Bosh sahifa",
+            text="Bosh menyu",
             callback_data="menu_home",
             icon_custom_emoji_id=ICON_HOME
         )
