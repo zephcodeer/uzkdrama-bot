@@ -672,7 +672,7 @@ async def process_numeric_code(message: Message, state: FSMContext, bot: Bot):
         )
 
 
-@router.message(StateFilter(None, BotStates.waiting_for_query), F.text)
+@router.message(StateFilter(None, BotStates.waiting_for_query), F.text, ~F.text.startswith('/'))
 async def process_search_query(message: Message, state: FSMContext, bot: Bot):
     if message.text.startswith("/"):
         return
@@ -971,6 +971,8 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
     if user_id != config.ADMIN_ID:
         if isinstance(event, CallbackQuery):
             await event.answer("Siz admin emassiz!", show_alert=True)
+        else:
+            await event.answer("⚠️ Siz admin emassiz!")
         return
 
     doramas = await db.get_ongoing_doramas()
@@ -1014,6 +1016,8 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
     if user_id != config.ADMIN_ID:
         if isinstance(event, CallbackQuery):
             await event.answer("Siz admin emassiz!", show_alert=True)
+        else:
+            await event.answer("⚠️ Siz admin emassiz!")
         return
 
     stats = await db.get_stats()
@@ -1188,6 +1192,8 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
     if user_id != config.ADMIN_ID:
         if isinstance(event, CallbackQuery):
             await event.answer("Siz admin emassiz!", show_alert=True)
+        else:
+            await event.answer("⚠️ Siz admin emassiz!")
         return
 
     if isinstance(event, CallbackQuery):
