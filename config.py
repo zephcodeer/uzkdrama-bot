@@ -21,6 +21,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "bd182e04").strip()
 
 DB_PATH = BASE_DIR / "doramas.db"
+USER_DB_PATH = BASE_DIR / "userdata.db"
 TEMP_DIR = BASE_DIR / "temp_downloads"
 TEMP_DIR.mkdir(exist_ok=True)
 

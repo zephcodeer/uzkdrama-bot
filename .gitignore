@@ -29,3 +29,7 @@ mover_test.html
 *.jpg
 !posters/*.jpg
 !clean_poster.jpg
+
+# User Database & Persistent State (NEVER TOUCHED BY GIT)
+userdata.db
+userdata.db*
