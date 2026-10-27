@@ -15,7 +15,7 @@ STORAGE_CHANNEL_ID_RAW = os.getenv("STORAGE_CHANNEL_ID", "").strip()
 STORAGE_CHANNEL_ID = int(STORAGE_CHANNEL_ID_RAW) if STORAGE_CHANNEL_ID_RAW.lstrip("-").isdigit() else 0
 
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
-ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 0
+ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 7141955036
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "bd182e04").strip()
