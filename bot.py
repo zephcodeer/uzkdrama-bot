@@ -411,6 +411,52 @@ async def handle_menu_trigger(message: Message, state: FSMContext):
     await message.answer(text, reply_markup=kb.main_menu_kb(is_admin=is_admin), parse_mode=ParseMode.HTML)
 
 
+
+@router.message(Command("categories"))
+@router.callback_query(F.data == "menu_categories")
+async def handle_categories_menu(event: Message | CallbackQuery):
+    counts = await db.get_category_counts()
+    text = (
+        f"{ce('film')} <b>KINO VA SERIAL KATEGORIYALARI:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Qaysi yo'nalishdagi film va seriallarni tomosha qilmoqchisiz?\n\n"
+        f"<i>Quyidagi bo'limlardan birini tanlang:</i>"
+    )
+    markup = kb.categories_hub_kb(counts)
+    await render_text_screen(event, text, reply_markup=markup)
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+
+@router.callback_query(F.data.startswith("cat:"))
+async def cb_category_view(call: CallbackQuery):
+    parts = call.data.split(":")
+    cat_key = parts[1]
+    page = int(parts[2]) if len(parts) > 2 else 0
+
+    limit = 8
+    offset = page * limit
+    cat_title, doramas = await db.get_doramas_by_category(cat_key, limit=limit + 1, offset=offset)
+
+    if not doramas:
+        text = (
+            f"{ce('bell')} <b>{cat_title}</b> bo'limida hozircha kinolar mavjud emas.\n\n"
+            f"<i>Ushbu bo'limga tez orada yangi premyeralar yuklanadi!</i>"
+        )
+        await render_text_screen(call, text, reply_markup=kb.categories_hub_kb(await db.get_category_counts()))
+        await safe_answer(call)
+        return
+
+    has_next = len(doramas) > limit
+    curr_doramas = doramas[:limit]
+
+    text = f"{ce('film')} <b>{cat_title.upper()} ({page + 1}-sahifa):</b>"
+    # Prefix includes category key for pagination
+    markup = kb.doramas_list_kb(curr_doramas, prefix=f"cat:{cat_key}", page=page, has_next=has_next)
+    await render_text_screen(call, text, reply_markup=markup)
+    await safe_answer(call)
+
+
 @router.message(Command("search"))
 @router.message(F.text.in_(["🔍 Qidirish", "🔍 Qidiruv"]))
 async def handle_search_trigger(message: Message, state: FSMContext):
@@ -1324,6 +1370,7 @@ async def main():
         commands = [
             BotCommand(command="start", description="🎬 Botni qayta ishga tushirish"),
             BotCommand(command="menu", description="📱 Asosiy menyuni ochish"),
+            BotCommand(command="categories", description="📁 Kategoriyalar va Janrlar"),
             BotCommand(command="search", description="🔍 Dorama qidirish (nomi yoki kodi)"),
             BotCommand(command="top", description="🔥 Eng ko'p ko'rilgan doramalar"),
             BotCommand(command="bookmarks", description="⭐️ Saqlangan doramalaringiz"),

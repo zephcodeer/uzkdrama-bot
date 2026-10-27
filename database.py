@@ -45,6 +45,7 @@ async def init_db():
             pass
 
         for col_sql in [
+            "ALTER TABLE doramas ADD COLUMN category TEXT DEFAULT 'korea';", 
             "ALTER TABLE doramas ADD COLUMN status TEXT DEFAULT 'Ongoing';",
             "ALTER TABLE doramas ADD COLUMN country TEXT DEFAULT 'Janubiy Koreya';",
             "ALTER TABLE doramas ADD COLUMN actors TEXT DEFAULT '';",
@@ -626,3 +627,42 @@ async def get_stats():
             "total_episodes": total_episodes,
             "total_views": total_views,
         }
+
+
+CATEGORY_QUERIES = {
+    "korea": ("Janubiy Koreya Doramalari", "WHERE category = 'korea' OR country = 'Janubiy Koreya'"),
+    "turk": ("Turk Serial va Kinolari", "WHERE category = 'turk' OR country = 'Turkiya'"),
+    "marvel": ("Marvel & DC Kinolari", "WHERE category = 'marvel' OR genre LIKE '%Marvel%' OR title LIKE '%Marvel%'"),
+    "foreign": ("Xorij va Gollivud Kinolari", "WHERE category = 'foreign' OR country LIKE '%AQSH%' OR country LIKE '%Gollivud%'"),
+    "genre_action": ("Jangari & Ekshn", "WHERE genre LIKE '%Jangari%' OR genre LIKE '%Ekshn%'"),
+    "genre_romance": ("Romantika & Melodrama", "WHERE genre LIKE '%Romantika%' OR genre LIKE '%Melodrama%'"),
+    "genre_thriller": ("Triller & Kriminal", "WHERE genre LIKE '%Triller%' OR genre LIKE '%Detektiv%' OR genre LIKE '%Kriminal%'"),
+    "genre_fantasy": ("Fentezi & Fantastika", "WHERE genre LIKE '%Fentezi%' OR genre LIKE '%Fantastika%'"),
+    "genre_comedy": ("Komediya", "WHERE genre LIKE '%Komediya%'"),
+    "genre_horror": ("Zombi & Dahshat", "WHERE genre LIKE '%Dahshat%' OR genre LIKE '%Zombi%'"),
+    "genre_historical": ("Tarixiy Filmlar", "WHERE genre LIKE '%Tarixiy%'")
+}
+
+async def get_category_counts() -> dict:
+    """Barcha kategoriya va janrlardagi kinolar sonini qaytaradi."""
+    counts = {}
+    async with aiosqlite.connect(DB_PATH) as db:
+        for cat_key, (name, where_clause) in CATEGORY_QUERIES.items():
+            async with db.execute(f"SELECT COUNT(*) FROM doramas {where_clause}") as cursor:
+                row = await cursor.fetchone()
+                counts[cat_key] = row[0] if row else 0
+    return counts
+
+async def get_doramas_by_category(cat_key: str, limit: int = 8, offset: int = 0) -> tuple[str, list]:
+    """Kategoriya yoki janr bo'yicha saralab olish."""
+    meta = CATEGORY_QUERIES.get(cat_key, ("Kategoriya", ""))
+    title, where_clause = meta
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        sql = f"""SELECT * FROM doramas 
+                  {where_clause}
+                  ORDER BY views DESC, id DESC
+                  LIMIT ? OFFSET ?"""
+        async with db.execute(sql, (limit, offset)) as cursor:
+            rows = await cursor.fetchall()
+            return title, [dict(r) for r in rows]

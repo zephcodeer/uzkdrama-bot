@@ -8,6 +8,7 @@ ICON_FIRE = "5251329454801710673"      # Top doramalar
 ICON_SEARCH = "5411377339458145570"    # Qidiruv (Duck)
 ICON_STATS = "6154657967317717391"     # Statistika (Green Chart)
 ICON_ACTION = "5368653135101310687"    # Kino / Dorama (Action)
+ICON_SERIES = "5368653135101310687"    # Seriallar / Kategoriyalar
 ICON_SPARKLE = "5451636889717062286"   # Ulashish (Sparkles)
 ICON_CROWN = "5431505596316665041"     # Admin / Premium (Crown)
 ICON_BELL = "5258342814273513092"      # Bildirishnoma (Golden Bell)
@@ -51,40 +52,44 @@ def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
             icon_custom_emoji_id=ICON_POPCORN
         ),
         InlineKeyboardButton(
+            text="Kategoriyalar",
+            callback_data="menu_categories",
+            icon_custom_emoji_id=ICON_SERIES
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
             text="Top Ko'rilganlar",
             callback_data="menu_top",
             icon_custom_emoji_id=ICON_FIRE
         ),
-    )
-    builder.row(
         InlineKeyboardButton(
             text="Qidirish (yoki kod)",
             callback_data="menu_search",
             icon_custom_emoji_id=ICON_SEARCH
         ),
+    )
+    builder.row(
         InlineKeyboardButton(
             text="Mening Sevimlilarim",
             callback_data="menu_bookmarks",
             icon_custom_emoji_id=ICON_BOOKMARK
         ),
-    )
-
-    row3 = [
         InlineKeyboardButton(
             text="Statistika",
             callback_data="menu_stats",
             icon_custom_emoji_id=ICON_STATS
-        )
-    ]
+        ),
+    )
+
     if is_admin:
-        row3.append(
+        builder.row(
             InlineKeyboardButton(
                 text="Admin Panel",
                 callback_data="menu_admin",
                 icon_custom_emoji_id=ICON_CROWN
             )
         )
-    builder.row(*row3)
 
     builder.row(
         InlineKeyboardButton(
@@ -133,13 +138,27 @@ def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_n
     if nav_buttons:
         builder.row(*nav_buttons)
 
-    builder.row(
-        InlineKeyboardButton(
-            text="Bosh sahifa",
-            callback_data="menu_home",
-            icon_custom_emoji_id=ICON_HOME
+    if prefix.startswith("cat:"):
+        builder.row(
+            InlineKeyboardButton(
+                text="Kategoriyalar",
+                callback_data="menu_categories",
+                icon_custom_emoji_id=ICON_SERIES
+            ),
+            InlineKeyboardButton(
+                text="Bosh menyu",
+                callback_data="menu_home",
+                icon_custom_emoji_id=ICON_HOME
+            )
         )
-    )
+    else:
+        builder.row(
+            InlineKeyboardButton(
+                text="Bosh sahifa",
+                callback_data="menu_home",
+                icon_custom_emoji_id=ICON_HOME
+            )
+        )
     return builder.as_markup()
 
 
@@ -531,6 +550,83 @@ def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
         ),
         InlineKeyboardButton(
             text="Bosh menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
+    counts = counts or {}
+    builder = InlineKeyboardBuilder()
+
+    # Mintaqalar va Olamlar
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🇰🇷 Janubiy Koreya ({counts.get('korea', 70)})",
+            callback_data="cat:korea:0",
+            icon_custom_emoji_id=ICON_ACTION
+        ),
+        InlineKeyboardButton(
+            text=f"🇹🇷 Turkiya ({counts.get('turk', 1)})",
+            callback_data="cat:turk:0",
+            icon_custom_emoji_id=ICON_ACTION
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🦸‍♂️ Marvel & DC ({counts.get('marvel', 0)})",
+            callback_data="cat:marvel:0",
+            icon_custom_emoji_id=ICON_SPARKLE
+        ),
+        InlineKeyboardButton(
+            text=f"🎬 Xorij & Gollivud ({counts.get('foreign', 0)})",
+            callback_data="cat:foreign:0",
+            icon_custom_emoji_id=ICON_POPCORN
+        )
+    )
+
+    # Asosiy Janrlar
+    builder.row(
+        InlineKeyboardButton(
+            text=f"💥 Jangari ({counts.get('genre_action', 0)})",
+            callback_data="cat:genre_action:0"
+        ),
+        InlineKeyboardButton(
+            text=f"💖 Romantika ({counts.get('genre_romance', 0)})",
+            callback_data="cat:genre_romance:0"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🧠 Triller ({counts.get('genre_thriller', 0)})",
+            callback_data="cat:genre_thriller:0"
+        ),
+        InlineKeyboardButton(
+            text=f"🔮 Fentezi ({counts.get('genre_fantasy', 0)})",
+            callback_data="cat:genre_fantasy:0"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"😂 Komediya ({counts.get('genre_comedy', 0)})",
+            callback_data="cat:genre_comedy:0"
+        ),
+        InlineKeyboardButton(
+            text=f"🧟 Zombi / Dahshat ({counts.get('genre_horror', 0)})",
+            callback_data="cat:genre_horror:0"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"👑 Tarixiy ({counts.get('genre_historical', 0)})",
+            callback_data="cat:genre_historical:0"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Bosh Menyu",
             callback_data="menu_home",
             icon_custom_emoji_id=ICON_HOME
         )
