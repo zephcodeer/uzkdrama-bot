@@ -20,7 +20,9 @@ from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message, FSInputFile, ErrorEvent, BotCommand, MenuButtonCommands, ReplyKeyboardRemove
+import sqlite3
+import subprocess
+from aiogram.types import CallbackQuery, Message, FSInputFile, ErrorEvent, BotCommand, BotCommandScopeChat, MenuButtonCommands, ReplyKeyboardRemove
 
 import config
 import database as db
@@ -1010,6 +1012,157 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
     await status_msg.edit_text(report, parse_mode=ParseMode.HTML)
 
 
+
+def execute_git_update() -> tuple[bool, str]:
+    """
+    GitHub'dan so'nggi yangilanishlarni (git pull) xavfsiz tortib oladi.
+    Foydalanuvchilar ma'lumotlarini (users, bookmarks, history, vip) to'liq zaxiralab,
+    yangi doramalar va kod bilan xatosiz birlashtiradi.
+    """
+    base_dir = config.BASE_DIR
+    db_path = config.DB_PATH
+
+    # 1. Git mavjudligini tekshirish
+    try:
+        ver = subprocess.run(["git", "--version"], cwd=base_dir, capture_output=True, text=True, timeout=10)
+        if ver.returncode != 0:
+            return False, "Git serverda o'rnatilmagan yoki topilmadi."
+    except Exception as e:
+        return False, f"Git tekshirishda xatolik: {e}"
+
+    # 2. Serverdagi foydalanuvchilar va buyurtmalarni zaxiralash
+    user_tables = ['users', 'bookmarks', 'user_history', 'dorama_subscribers', 'vip_orders']
+    user_data = {}
+
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            for tbl in user_tables:
+                try:
+                    cursor.execute(f"SELECT * FROM {tbl}")
+                    cols = [d[0] for d in cursor.description]
+                    rows = cursor.fetchall()
+                    user_data[tbl] = (cols, rows)
+                except Exception:
+                    pass
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Foydalanuvchilar ma'lumotlarini zaxiralashda ogohlantirish: {e}")
+
+    # 3. Git ishchi nusxasini tozalash (git pull ga xalaqit bermasligi uchun)
+    try:
+        subprocess.run(["git", "checkout", "HEAD", "--", "doramas.db"], cwd=base_dir, capture_output=True, timeout=15)
+    except Exception:
+        pass
+
+    # 4. Git pull origin main ni ishga tushirish
+    try:
+        pull_proc = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            timeout=90
+        )
+        stdout = (pull_proc.stdout or "").strip()
+        stderr = (pull_proc.stderr or "").strip()
+
+        if pull_proc.returncode != 0:
+            err_msg = stderr if stderr else stdout
+            return False, f"Git pull xatoligi (kod {pull_proc.returncode}):\n{err_msg[:400]}"
+
+    except subprocess.TimeoutExpired:
+        return False, "Git pull 90 soniya ichida yakunlanmadi (Timeout)."
+    except Exception as e:
+        return False, f"Git pull jarayonida kutilmagan xatolik: {e}"
+
+    # 5. Zaxiralangan foydalanuvchilar ma'lumotlarini yangilangan doramas.db ga qayta yozish
+    if user_data and os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            for tbl, (cols, rows) in user_data.items():
+                if not rows:
+                    continue
+                placeholders = ",".join(["?"] * len(cols))
+                col_names = ",".join(cols)
+                cursor.executemany(f"INSERT OR REPLACE INTO {tbl} ({col_names}) VALUES ({placeholders})", rows)
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Foydalanuvchilar ma'lumotlarini tiklashda xatolik: {e}")
+
+    # 6. Yangilanish bor-yo'qligini tekshirish
+    if "Already up to date" in stdout or "Already up-to-date" in stdout:
+        return True, "ALREADY_UP_TO_DATE"
+
+    return True, stdout
+
+
+@router.message(Command("update"))
+@router.callback_query(F.data == "admin_git_update")
+async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
+    user_id = event.from_user.id
+    if user_id != config.ADMIN_ID:
+        if isinstance(event, CallbackQuery):
+            await event.answer("Siz admin emassiz!", show_alert=True)
+        return
+
+    if isinstance(event, CallbackQuery):
+        await event.answer("⏳ Yangilanish tekshirilmoqda...")
+        status_msg = await event.message.answer(
+            f"{ce('sparkles')} <b>GitHub'dan yangilanishlar tekshirilmoqda...</b>\n<i>Iltimos, kuting...</i>",
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        status_msg = await event.answer(
+            f"{ce('sparkles')} <b>GitHub'dan yangilanishlar tekshirilmoqda...</b>\n<i>Iltimos, kuting...</i>",
+            parse_mode=ParseMode.HTML
+        )
+
+    success, result_text = await asyncio.to_thread(execute_git_update)
+
+    if not success:
+        await status_msg.edit_text(
+            f"{ce('cross_red')} <b>Yangilashda xatolik yuz berdi:</b>\n\n"
+            f"<code>{result_text}</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    if result_text == "ALREADY_UP_TO_DATE":
+        await status_msg.edit_text(
+            f"{ce('check_green')} <b>Bot allaqachon eng so'nggi versiyada!</b>\n\n"
+            f"GitHub omborida yangi o'zgarishlar mavjud emas.",
+            reply_markup=kb.admin_panel_kb(),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    # Muvaffaqiyatli yangilandi
+    summary_lines = [line.strip() for line in result_text.splitlines() if line.strip()][:6]
+    summary = "\n".join(summary_lines)
+
+    await status_msg.edit_text(
+        f"{ce('party')} <b>YANGILANISH MUVAFFAQIYATLI YUKLANDI!</b>\n\n"
+        f"<b>Git hisoboti:</b>\n"
+        f"<code>{summary}</code>\n\n"
+        f"🔄 <b>Bot 2 soniyada qayta ishga tushadi...</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+    await asyncio.sleep(2)
+    try:
+        await bot.session.close()
+    except Exception:
+        pass
+
+    # Yangi kod va ma'lumotlar bilan botni qayta ishga tushirish (In-place process replace)
+    restart_args = [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:]
+    os.execv(sys.executable, restart_args)
+
+
 @router.message(Command("help", "menu"))
 async def cmd_help_menu(message: Message, state: FSMContext):
     await state.clear()
@@ -1087,6 +1240,14 @@ async def main():
         await bot.set_my_commands(commands)
         await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
         print("✅ Telegram doimiy 'Menu' tugmasi va buyruqlar to'liq o'rnatildi.")
+
+        # Faqat admin uchun maxsus /update buyrug'i
+        try:
+            admin_commands = commands + [BotCommand(command="update", description="🚀 GitHub'dan yangilash va qayta ishga tushirish")]
+            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=config.ADMIN_ID))
+        except Exception as e:
+            logger.warning(f"Admin buyruqlarini sozlashda ogohlantirish: {e}")
+
     except Exception as e:
         logger.warning(f"Menyu tugmasini sozlashda xatolik: {e}")
 

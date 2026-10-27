@@ -263,6 +263,13 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
+            text="GitHub'dan Yangilash (Git Pull)",
+            callback_data="admin_git_update",
+            icon_custom_emoji_id=ICON_SPARKLE
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
             text="To'liq Statistika",
             callback_data="menu_stats",
             icon_custom_emoji_id=ICON_STATS
