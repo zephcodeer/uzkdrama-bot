@@ -1022,6 +1022,19 @@ def execute_git_update() -> tuple[bool, str]:
     base_dir = config.BASE_DIR
     db_path = config.DB_PATH
 
+    # Agar configda GITHUB_TOKEN bo'lsa, remote origin ni avtomatik tokenli URL ga o'rnatish
+    github_token = getattr(config, "GITHUB_TOKEN", "")
+    if github_token:
+        try:
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", f"https://{github_token}@github.com/zephcodeer/uzkdrama-bot.git"],
+                cwd=base_dir,
+                capture_output=True,
+                timeout=10
+            )
+        except Exception as e:
+            logger.warning(f"Git remote url o'rnatishda ogohlantirish: {e}")
+
     # 1. Git mavjudligini tekshirish
     try:
         ver = subprocess.run(["git", "--version"], cwd=base_dir, capture_output=True, text=True, timeout=10)
