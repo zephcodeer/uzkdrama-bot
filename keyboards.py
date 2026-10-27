@@ -1,0 +1,446 @@
+from urllib.parse import quote
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+# Foydalanuvchi taqdim etgan va tasdiqlangan Premium Custom Emoji ID lari
+ICON_POPCORN = "5371081166013078244"   # Yangi doramalar
+ICON_FIRE = "5251329454801710673"      # Top doramalar
+ICON_SEARCH = "5411377339458145570"    # Qidiruv (Duck)
+ICON_STATS = "6154657967317717391"     # Statistika (Green Chart)
+ICON_ACTION = "5368653135101310687"    # Kino / Dorama (Action)
+ICON_SPARKLE = "5451636889717062286"   # Ulashish (Sparkles)
+ICON_CROWN = "5431505596316665041"     # Admin / Premium (Crown)
+ICON_BELL = "5258342814273513092"      # Bildirishnoma (Golden Bell)
+ICON_BOOKMARK = "5190683945351535076"  # Sevimlilar (Star Eyes)
+ICON_NUMBER = "5262556520788273962"    # Kino kodi (Red Numbers)
+ICON_BROADCAST = "5429295161333007624" # Ommaviy xabar (Duck Megaphone)
+ICON_PLAY = "5348125953090403204"      # Davom etish / Play
+
+# Yangi animatsiyali ikonka ID lari
+ICON_LOCK = "5206432422194849059"
+ICON_UNLOCK = "5465443379917629504"
+ICON_FRIENDS = "5453957997418004470"
+ICON_TARGET = "5350460637182993292"
+ICON_PARTY = "5208541126583136130"
+ICON_USER = "5408846628763217930"
+ICON_DIAMOND = "5229173741451230931"
+ICON_CARD = "5445353829304387411"
+ICON_CAMERA = "5235837920081887219"
+ICON_PACKAGE = "5854908544712707500"
+ICON_CASH = "6033106828018062225"
+ICON_CALENDAR = "5429242943120623604"
+ICON_CHECK_GREEN = "5462919317832082236"
+ICON_CROSS_RED = "6032903688949862892"
+ICON_HOME = "5208782954716733247"
+ICON_ARROW_LEFT = "5379889851879410922"
+ICON_ARROW_RIGHT = "5213297128553590938"
+ICON_BACK = "5352759161945867747"
+ICON_CLIPBOARD = "6107099184563754673"
+ICON_RED_CIRCLE = "5364250321176505463"
+ICON_BELL_OFF = "5244807637157029775"
+ICON_BULB = "5422439311196834318"
+ICON_MAILBOX = "5350421256627838238"
+
+
+def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Barcha Doramalar",
+            callback_data="menu_latest:0",
+            icon_custom_emoji_id=ICON_POPCORN
+        ),
+        InlineKeyboardButton(
+            text="Top Ko'rilganlar",
+            callback_data="menu_top",
+            icon_custom_emoji_id=ICON_FIRE
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Qidirish (yoki kod)",
+            callback_data="menu_search",
+            icon_custom_emoji_id=ICON_SEARCH
+        ),
+        InlineKeyboardButton(
+            text="Mening Sevimlilarim",
+            callback_data="menu_bookmarks",
+            icon_custom_emoji_id=ICON_BOOKMARK
+        ),
+    )
+
+    row3 = [
+        InlineKeyboardButton(
+            text="Statistika",
+            callback_data="menu_stats",
+            icon_custom_emoji_id=ICON_STATS
+        )
+    ]
+    if is_admin:
+        row3.append(
+            InlineKeyboardButton(
+                text="Admin Panel",
+                callback_data="menu_admin",
+                icon_custom_emoji_id=ICON_CROWN
+            )
+        )
+    builder.row(*row3)
+
+    builder.row(
+        InlineKeyboardButton(
+            text="VIP A'zolik (Qulflarsiz)",
+            callback_data="menu_vip",
+            icon_custom_emoji_id=ICON_CROWN
+        )
+    )
+
+    return builder.as_markup()
+
+
+def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_next: bool = False) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for d in doramas:
+        code_str = f"[{d.get('code', d.get('id', ''))}] " if d.get('code') else ""
+        ep_count = d.get('total_episodes')
+        ep_str = f" ({ep_count} qism)" if ep_count else ""
+        title = d.get('title', 'Noma\'lum')
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{code_str}{title}{ep_str}",
+                callback_data=f"view_dorama:{d['id']}",
+                icon_custom_emoji_id=ICON_ACTION
+            )
+        )
+
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="Orqaga",
+                callback_data=f"{prefix}:{page - 1}",
+                icon_custom_emoji_id=ICON_ARROW_LEFT
+            )
+        )
+    if has_next:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="Keyingisi",
+                callback_data=f"{prefix}:{page + 1}",
+                icon_custom_emoji_id=ICON_ARROW_RIGHT
+            )
+        )
+
+    if nav_buttons:
+        builder.row(*nav_buttons)
+
+    builder.row(
+        InlineKeyboardButton(
+            text="Bosh sahifa",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def dorama_detail_kb(
+    dorama_id: int,
+    episodes: list,
+    bot_username: str = "",
+    page: int = 0,
+    per_page: int = 15,
+    last_watched: int | None = None,
+    bookmarked: bool = False,
+    subscribed: bool = False
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+
+    # 1. Davom etish tugmasi
+    if last_watched:
+        next_ep = last_watched + 1 if any(ep['episode_number'] == last_watched + 1 for ep in episodes) else last_watched
+        builder.row(
+            InlineKeyboardButton(
+                text=f"Davom etish: {next_ep}-qism",
+                callback_data=f"get_ep:{dorama_id}:{next_ep}",
+                icon_custom_emoji_id=ICON_PLAY
+            )
+        )
+
+    total_eps = len(episodes)
+    start_idx = page * per_page
+    end_idx = start_idx + per_page
+    curr_eps = episodes[start_idx:end_idx]
+
+    # Qismlar tugmalari (har qatorda 5 tadan)
+    row = []
+    for ep in curr_eps:
+        watched_mark = " ✓" if last_watched and ep['episode_number'] <= last_watched else ""
+        row.append(
+            InlineKeyboardButton(
+                text=f"{ep['episode_number']}-qism{watched_mark}",
+                callback_data=f"get_ep:{dorama_id}:{ep['episode_number']}"
+            )
+        )
+        if len(row) == 5:
+            builder.row(*row)
+            row = []
+    if row:
+        builder.row(*row)
+
+    # Sahifalash
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="Oldingi",
+                callback_data=f"ep_page:{dorama_id}:{page - 1}",
+                icon_custom_emoji_id=ICON_ARROW_LEFT
+            )
+        )
+    if end_idx < total_eps:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="Keyingi",
+                callback_data=f"ep_page:{dorama_id}:{page + 1}",
+                icon_custom_emoji_id=ICON_ARROW_RIGHT
+            )
+        )
+
+    if nav_buttons:
+        builder.row(*nav_buttons)
+
+    # Xatcho'p va Bildirishnoma
+    bm_text = "Saqlangan" if bookmarked else "Saqlab qo'yish"
+    sub_text = "O'chirish" if subscribed else "Yangi qismlarni kuzatish"
+
+    builder.row(
+        InlineKeyboardButton(
+            text=bm_text,
+            callback_data=f"toggle_bm:{dorama_id}",
+            icon_custom_emoji_id=ICON_BOOKMARK
+        ),
+        InlineKeyboardButton(
+            text=sub_text,
+            callback_data=f"toggle_sub:{dorama_id}",
+            icon_custom_emoji_id=ICON_BELL
+        ),
+    )
+
+    # Ulashish tugmasi
+    dorama_link = f"https://t.me/{bot_username}?start=d_{dorama_id}"
+    share_msg = "Zo'r dorama topdim! Birga ko'ramiz:"
+    share_url = f"https://t.me/share/url?url={quote(dorama_link, safe='')}&text={quote(share_msg)}"
+    builder.row(
+        InlineKeyboardButton(
+            text="Do'stlarga ulashish",
+            url=share_url,
+            icon_custom_emoji_id=ICON_SPARKLE
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Bosh Menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        ),
+        InlineKeyboardButton(
+            text="Orqaga",
+            callback_data="menu_latest:0",
+            icon_custom_emoji_id=ICON_BACK
+        )
+    )
+    return builder.as_markup()
+
+
+def admin_panel_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Ommaviy Xabar (Broadcast)",
+            callback_data="admin_broadcast",
+            icon_custom_emoji_id=ICON_BROADCAST
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="To'liq Statistika",
+            callback_data="menu_stats",
+            icon_custom_emoji_id=ICON_STATS
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Bosh menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def back_to_menu_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Bosh menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def episode_player_kb(
+    dorama_id: int,
+    current_ep: int,
+    has_next: bool = False,
+    bookmarked: bool = False
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if has_next:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"Keyingi qism ({current_ep + 1}-qism)",
+                callback_data=f"get_ep:{dorama_id}:{current_ep + 1}",
+                icon_custom_emoji_id=ICON_PLAY
+            )
+        )
+
+    bm_text = "Saqlangan" if bookmarked else "Saqlab qo'yish"
+    builder.row(
+        InlineKeyboardButton(
+            text="Barcha qismlar",
+            callback_data=f"view_dorama:{dorama_id}",
+            icon_custom_emoji_id=ICON_ACTION
+        ),
+        InlineKeyboardButton(
+            text=bm_text,
+            callback_data=f"toggle_bm:{dorama_id}",
+            icon_custom_emoji_id=ICON_BOOKMARK
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="VIP A'zolik",
+            callback_data="menu_vip",
+            icon_custom_emoji_id=ICON_CROWN
+        ),
+        InlineKeyboardButton(
+            text="Bosh sahifa",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def episode_lock_kb(dorama_id: int, user_id: int, bot_username: str, current_refs: int = 0, needed_refs: int = 1) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+    share_msg = "Men eng zo'r Koreys doramalarini shu botda tomosha qilyapman! Sen ham kir: "
+    share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={quote(share_msg)}"
+
+    req_total = current_refs + needed_refs
+    builder.row(
+        InlineKeyboardButton(
+            text=f"Do'stlarni taklif qilish ({current_refs}/{req_total})",
+            url=share_url,
+            icon_custom_emoji_id=ICON_FRIENDS
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="VIP A'zolik (9 000 so'm)",
+            callback_data="menu_vip",
+            icon_custom_emoji_id=ICON_CROWN
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Barcha qismlar ro'yxati",
+            callback_data=f"view_dorama:{dorama_id}",
+            icon_custom_emoji_id=ICON_CLIPBOARD
+        ),
+        InlineKeyboardButton(
+            text="Bosh Menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def vip_plans_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="1 oylik — 9 000 so'm",
+            callback_data="buy_vip:1m",
+            icon_custom_emoji_id=ICON_DIAMOND
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="6 oylik — 34 000 so'm",
+            callback_data="buy_vip:6m",
+            icon_custom_emoji_id=ICON_DIAMOND
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="1 yillik — 49 000 so'm",
+            callback_data="buy_vip:1y",
+            icon_custom_emoji_id=ICON_DIAMOND
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Cheksiz — 79 000 so'm",
+            callback_data="buy_vip:life",
+            icon_custom_emoji_id=ICON_CROWN
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Orqaga",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_BACK
+        )
+    )
+    return builder.as_markup()
+
+
+def vip_payment_method_kb(plan: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="To'lov chekini yuborish",
+            callback_data=f"submit_receipt:{plan}",
+            icon_custom_emoji_id=ICON_CAMERA
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Boshqa tarif tanlash",
+            callback_data="menu_vip",
+            icon_custom_emoji_id=ICON_BACK
+        )
+    )
+    return builder.as_markup()
+
+
+def admin_order_kb(order_id: int, user_id: int, days: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Tasdiqlash (+VIP)",
+            callback_data=f"admin_approve:{order_id}:{user_id}:{days}",
+            icon_custom_emoji_id=ICON_CHECK_GREEN
+        ),
+        InlineKeyboardButton(
+            text="Rad etish",
+            callback_data=f"admin_reject:{order_id}:{user_id}",
+            icon_custom_emoji_id=ICON_CROSS_RED
+        )
+    )
+    return builder.as_markup()

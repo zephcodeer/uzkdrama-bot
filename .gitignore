@@ -1,0 +1,31 @@
+# Secrets & Credentials (MUHIM: Hech qachon ochiqqa chiqmasin)
+.env
+*.session
+*.session-journal
+
+# Python Bytecode & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Logs & Diagnostics
+*.log
+overnight_ingest.log
+channel_inventory.txt
+
+# Temp & Media Cache Folders
+temp_*/
+*.wav
+*.mp4
+*.html
+mover_direct_audio.wav
+mover_test.html
+
+# Ignore root-level test images, but PRESERVE posters
+*.png
+*.jpg
+!posters/*.jpg
+!clean_poster.jpg
