@@ -11,7 +11,7 @@ ICON_ACTION = "5368653135101310687"    # Kino / Dorama (Action)
 ICON_SERIES = "5368653135101310687"    # Seriallar / Kategoriyalar
 ICON_SPARKLE = "5451636889717062286"   # Ulashish (Sparkles)
 ICON_CROWN = "5431505596316665041"     # Admin / Premium (Crown)
-ICON_VIP = "5431505596316665041"       # VIP / Crown
+ICON_VIP = "5229011542011299168"       # VIP Yangi Ajoyib Crown
 ICON_BELL = "5258342814273513092"      # Bildirishnoma (Golden Bell)
 ICON_BOOKMARK = "5190683945351535076"  # Sevimlilar (Star Eyes)
 ICON_NUMBER = "5262556520788273962"    # Kino kodi (Red Numbers)
@@ -42,6 +42,30 @@ ICON_RED_CIRCLE = "5364250321176505463"
 ICON_BELL_OFF = "5244807637157029775"
 ICON_BULB = "5422439311196834318"
 ICON_MAILBOX = "5350421256627838238"
+
+# Foydalanuvchi taqdim etgan toifalar, janrlar va tizim animatsiyalari
+ICON_GENRE_ACTION = "5415803084213329506"       # 💥 Jangari
+ICON_GENRE_ROMANCE = "5465540480538254161"      # 💖 Romantika
+ICON_GENRE_THRILLER = "5239965074415701227"     # 🧠 Triller
+ICON_GENRE_FANTASY = "5350367161514732241"      # 🔮 Fentezi
+ICON_GENRE_COMEDY = "5249007745805328497"       # 😂 Komediya
+ICON_GENRE_HORROR = "5190680981824085932"       # 🧟 Zombi / Dahshat
+ICON_GENRE_HISTORICAL = "5210952531676516344"   # 👑 Tarixiy toj
+ICON_SCROLL = "5388922215347534633"             # 📜 Pergament
+ICON_MARVEL = "5292113682560458323"             # 🦸‍♂️ Marvel & DC
+ICON_KOREA = "5460922127974672624"              # 🇰🇷 Janubiy Koreya
+ICON_CHINA = "5447548939844725331"              # 🇨🇳 Xitoy
+ICON_TURK = "5229155784192965272"               # 🇹🇷 Turkiya
+ICON_FOREIGN = "5886574861844746216"            # 🎬 Xorij & Gollivud
+ICON_WARNING = "5462935376714802451"            # ⚠️ Ogohlantirish
+ICON_LOADING = "5451732530048802485"            # ⏳ Kutilmoqda
+ICON_RESTART = "5127377673596700174"            # 🔄 Qayta yuklash
+ICON_ROCKET = "6041761071155386269"             # 🚀 Deploy
+ICON_FOLDER = "5433653135799228968"             # 📁 Papka
+ICON_INFO = "5334544901428229844"               # ℹ️ Ma'lumot
+ICON_NUM_1 = "5456269518751948393"              # 1️⃣ Bosqich
+ICON_NUM_2 = "5456250195694080809"              # 2️⃣ Bosqich
+ICON_NUM_3 = "5456382802809347478"              # 3️⃣ Bosqich
 
 def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -95,7 +119,7 @@ def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="VIP A'zolik (Qulflarsiz)",
             callback_data="menu_vip",
-            icon_custom_emoji_id=ICON_CROWN
+            icon_custom_emoji_id=ICON_VIP
         )
     )
 
@@ -471,7 +495,7 @@ def vip_plans_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="Cheksiz — 79 000 so'm",
             callback_data="buy_vip:life",
-            icon_custom_emoji_id=ICON_CROWN
+            icon_custom_emoji_id=ICON_VIP
         )
     )
     builder.row(
@@ -553,31 +577,31 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text=f"🇰🇷 Janubiy Koreya ({counts.get('korea', 0)})",
             callback_data="cat:korea:0",
-            icon_custom_emoji_id=ICON_ACTION
+            icon_custom_emoji_id=ICON_KOREA
         ),
         InlineKeyboardButton(
             text=f"🇨🇳 Xitoy ({counts.get('china', 0)})",
             callback_data="cat:china:0",
-            icon_custom_emoji_id=ICON_ACTION
+            icon_custom_emoji_id=ICON_CHINA
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"🇹🇷 Turkiya ({counts.get('turk', 0)})",
             callback_data="cat:turk:0",
-            icon_custom_emoji_id=ICON_ACTION
+            icon_custom_emoji_id=ICON_TURK
         ),
         InlineKeyboardButton(
             text=f"🦸‍♂️ Marvel & DC ({counts.get('marvel', 0)})",
             callback_data="cat:marvel:0",
-            icon_custom_emoji_id=ICON_SPARKLE
+            icon_custom_emoji_id=ICON_MARVEL
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"🎬 Xorij & Gollivud ({counts.get('foreign', 0)})",
             callback_data="cat:foreign:0",
-            icon_custom_emoji_id=ICON_POPCORN
+            icon_custom_emoji_id=ICON_FOREIGN
         )
     )
 
@@ -585,37 +609,44 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(
             text=f"💥 Jangari ({counts.get('genre_action', 0)})",
-            callback_data="cat:genre_action:0"
+            callback_data="cat:genre_action:0",
+            icon_custom_emoji_id=ICON_GENRE_ACTION
         ),
         InlineKeyboardButton(
             text=f"💖 Romantika ({counts.get('genre_romance', 0)})",
-            callback_data="cat:genre_romance:0"
+            callback_data="cat:genre_romance:0",
+            icon_custom_emoji_id=ICON_GENRE_ROMANCE
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"🧠 Triller ({counts.get('genre_thriller', 0)})",
-            callback_data="cat:genre_thriller:0"
+            callback_data="cat:genre_thriller:0",
+            icon_custom_emoji_id=ICON_GENRE_THRILLER
         ),
         InlineKeyboardButton(
             text=f"🔮 Fentezi ({counts.get('genre_fantasy', 0)})",
-            callback_data="cat:genre_fantasy:0"
+            callback_data="cat:genre_fantasy:0",
+            icon_custom_emoji_id=ICON_GENRE_FANTASY
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"😂 Komediya ({counts.get('genre_comedy', 0)})",
-            callback_data="cat:genre_comedy:0"
+            callback_data="cat:genre_comedy:0",
+            icon_custom_emoji_id=ICON_GENRE_COMEDY
         ),
         InlineKeyboardButton(
             text=f"🧟 Zombi / Dahshat ({counts.get('genre_horror', 0)})",
-            callback_data="cat:genre_horror:0"
+            callback_data="cat:genre_horror:0",
+            icon_custom_emoji_id=ICON_GENRE_HORROR
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"👑 Tarixiy ({counts.get('genre_historical', 0)})",
-            callback_data="cat:genre_historical:0"
+            callback_data="cat:genre_historical:0",
+            icon_custom_emoji_id=ICON_GENRE_HISTORICAL
         )
     )
     builder.row(

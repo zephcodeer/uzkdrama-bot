@@ -318,8 +318,8 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
             f"{ce('target')} <b>{ep_num}-qismni ochish uchun talab:</b> <b>{req_refs} ta</b> do'st "
             f"<i>(Yana <b>{needed} ta</b> do'st kerak)</i>.\n\n"
             f"<b>2 ta yo'ldan birini tanlang:</b>\n"
-            f"1️⃣ <b>Do'stingizni taklif qiling:</b> Havolangiz orqali har bir kirgan do'stingiz navbatdagi qismni ochadi!\n"
-            f"2️⃣ <b>VIP A'zolik oling:</b> Atigi 9 000 so'm — barcha qismlarni bir zumda, do'st taklif qilmasdan 1080p sifatda ko'ring.\n"
+            f"{ce('num_1')} <b>Do'stingizni taklif qiling:</b> Havolangiz orqali har bir kirgan do'stingiz navbatdagi qismni ochadi!\n"
+            f"{ce('num_2')} <b>VIP A'zolik oling:</b> Atigi 9 000 so'm — barcha qismlarni bir zumda, do'st taklif qilmasdan 1080p sifatda ko'ring.\n"
             f"━━━━━━━━━━━━━━━━━━"
         )
         await bot.send_message(
@@ -1103,7 +1103,7 @@ async def handle_set_vip_command(message: Message):
     days = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 30
 
     if not target_id_str.isdigit():
-        await message.answer("⚠️ Format noto'g'ri! Masalan: <code>/vip 123456789 30</code>")
+        await message.answer(f"{ce('warning')} Format noto'g'ri! Masalan: <code>/vip 123456789 30</code>")
         return
 
     target_id = int(target_id_str)
@@ -1157,7 +1157,7 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
 
     await state.clear()
     user_ids = await db.get_all_user_ids()
-    status_msg = await message.answer(f"⏳ Ommaviy xabar yuborilmoqda ({len(user_ids)} kishiga)...")
+    status_msg = await message.answer(f"{ce('loading')} Ommaviy xabar yuborilmoqda ({len(user_ids)} kishiga)...")
 
     sent = 0
     failed = 0
@@ -1329,7 +1329,7 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
         f"{ce('party')} <b>YANGILANISH MUVAFFAQIYATLI YUKLANDI!</b>\n\n"
         f"<b>Git hisoboti:</b>\n"
         f"<code>{summary}</code>\n\n"
-        f"🔄 <b>Bot 2 soniyada qayta ishga tushadi...</b>",
+        f"{ce('restart')} <b>Bot 2 soniyada qayta ishga tushadi...</b>",
         parse_mode=ParseMode.HTML
     )
 

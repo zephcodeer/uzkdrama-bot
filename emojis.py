@@ -148,6 +148,86 @@ CUSTOM_EMOJIS = {
 
     # 42. Pochta qutisi / Yuborildi (Mailbox)
     "mailbox": ("5350421256627838238", "📬"),
+
+    # === YANGI FOYDALANUVCHI ANIMATED EMOJILARI ===
+    # 43. Jangari / Portlash (Genre Action)
+    "genre_action": ("5415803084213329506", "💥"),
+    "boom": ("5415803084213329506", "💥"),
+
+    # 44. Romantika / Yurak (Genre Romance)
+    "genre_romance": ("5465540480538254161", "💖"),
+    "heart": ("5465540480538254161", "💖"),
+
+    # 45. Triller / Miya (Genre Thriller)
+    "genre_thriller": ("5239965074415701227", "🧠"),
+    "brain": ("5239965074415701227", "🧠"),
+
+    # 46. Fentezi / Sehrli shar (Genre Fantasy)
+    "genre_fantasy": ("5350367161514732241", "🔮"),
+    "crystal_ball": ("5350367161514732241", "🔮"),
+
+    # 47. Komediya / Kulgi (Genre Comedy)
+    "genre_comedy": ("5249007745805328497", "😂"),
+    "laugh": ("5249007745805328497", "😂"),
+
+    # 48. Zombi / Dahshat (Genre Horror)
+    "genre_horror": ("5190680981824085932", "🧟"),
+    "zombie": ("5190680981824085932", "🧟"),
+
+    # 49. Tarixiy / Pergament (Scroll & History)
+    "scroll": ("5388922215347534633", "📜"),
+    "history_scroll": ("5388922215347534633", "📜"),
+
+    # 50. Tarixiy Toj (History Crown)
+    "genre_historical": ("5210952531676516344", "👑"),
+    "crown_history": ("5210952531676516344", "👑"),
+
+    # 51. Yangi Ajoyib VIP Toj (VIP Crown)
+    "vip": ("5229011542011299168", "👑"),
+    "vip_crown": ("5229011542011299168", "👑"),
+
+    # 52. Marvel & DC Superqahramon (Marvel Superhero)
+    "marvel": ("5292113682560458323", "🦸‍♂️"),
+    "hero": ("5292113682560458323", "🦸‍♂️"),
+
+    # 53. Davlat Bayroqlari (Flags)
+    "korea": ("5460922127974672624", "🇰🇷"),
+    "flag_korea": ("5460922127974672624", "🇰🇷"),
+    "china": ("5447548939844725331", "🇨🇳"),
+    "flag_china": ("5447548939844725331", "🇨🇳"),
+    "turk": ("5229155784192965272", "🇹🇷"),
+    "flag_turk": ("5229155784192965272", "🇹🇷"),
+
+    # 54. Yangi Xorij & Kinematografiya (Cinema / Foreign)
+    "foreign": ("5886574861844746216", "🎬"),
+    "cinema": ("5886574861844746216", "🎬"),
+
+    # 55. Ogohlantirish (Warning)
+    "warning": ("5462935376714802451", "⚠️"),
+    "alert": ("5462935376714802451", "⚠️"),
+
+    # 56. Kutilmoqda / Jarayonda (Loading Hourglass)
+    "loading": ("5451732530048802485", "⏳"),
+    "wait": ("5451732530048802485", "⏳"),
+
+    # 57. Qayta yuklash (Restart / Refresh)
+    "restart": ("5127377673596700174", "🔄"),
+    "refresh": ("5127377673596700174", "🔄"),
+
+    # 58. Yangilanish / Raketa (Rocket Deploy)
+    "rocket": ("6041761071155386269", "🚀"),
+    "deploy": ("6041761071155386269", "🚀"),
+
+    # 59. Kategoriyalar Papkasi (Folder)
+    "folder": ("5433653135799228968", "📁"),
+
+    # 60. Ma'lumot / Yordam (Info)
+    "info": ("5334544901428229844", "ℹ️"),
+
+    # 61. Bosqich Raqamlari (Step Numbers 1-3)
+    "num_1": ("5456269518751948393", "1️⃣"),
+    "num_2": ("5456250195694080809", "2️⃣"),
+    "num_3": ("5456382802809347478", "3️⃣"),
 }
 
 
