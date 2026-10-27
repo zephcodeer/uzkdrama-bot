@@ -680,6 +680,16 @@ async def process_search_query(message: Message, state: FSMContext, bot: Bot):
             )
             return
 
+    # 5-talab: Kamida 2 ta harfdan iborat so'zlarnigina qidirish tekshiruvi
+    if len(query) < 2:
+        await message.answer(
+            f"{ce('bell')} <b>Iltimos, qidirish uchun kamida 2 ta harfdan iborat so'z kiriting!</b>\n\n"
+            f"<i>Masalan: <code>Doktor</code> yoki <code>101</code></i>",
+            reply_markup=kb.back_to_menu_kb(),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
     results = await db.search_doramas(query, limit=10)
     if not results:
         text = (

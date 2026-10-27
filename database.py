@@ -222,43 +222,83 @@ async def get_episode(dorama_id: int, ep_num: int):
 
 
 async def search_doramas(query: str, limit: int = 10, offset: int = 0):
+    """
+    Qidiruv talablari:
+    1. Faqat kino nomi (title) va kalit so'zlar/janr bo'yicha (description butunlay chiqarib tashlangan).
+    2. Case-insensitive qidiruv.
+    3. Fuzzy search threshold kamida 80% (0.80).
+    4. Natijalar aniqlik darajasi bo'yicha saralangan (to'liq mos kelganlar -> qisman mos kelganlar -> fuzzy).
+    5. Strip/trim qilingan va kamida 2 ta harf bo'lishi shart.
+    """
     import difflib
+    import re
+
+    q = (query or "").strip()
+    if len(q) < 2:
+        return []
+
+    q_lower = q.lower()
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        q_clean = query.strip()
-        like_q = f"%{q_clean}%"
-
-        # 1. To'g'ridan-to'g'ri qidiruv (Title, Genre, Kod)
-        async with db.execute(
-            """SELECT * FROM doramas 
-               WHERE title LIKE ? OR genre LIKE ? OR CAST(code AS TEXT) LIKE ?
-               ORDER BY views DESC, id DESC
-               LIMIT ? OFFSET ?""",
-            (like_q, like_q, like_q, limit, offset)
-        ) as cursor:
-            rows = await cursor.fetchall()
-            if rows:
-                return [dict(r) for r in rows]
-
-        # 2. Fuzzy va so'zma-so'z qidiruv (Xatolar uchun, masalan: mafa -> mafia, xx -> x)
-        async with db.execute("SELECT * FROM doramas ORDER BY views DESC") as cursor:
+        # Description ustuni olinmaydi
+        async with db.execute("""
+            SELECT id, code, title, slug, genre, year, poster_url, total_episodes, views, status, country, actors
+            FROM doramas
+        """) as cursor:
             all_doramas = [dict(r) for r in await cursor.fetchall()]
 
-        fuzzy_matches = []
-        q_lower = q_clean.lower()
-        for d in all_doramas:
-            # Agar query harflari ketma-ket uchrasa yoki o'xshash bo'lsa
-            title_lower = d["title"].lower()
-            if q_lower in title_lower:
-                fuzzy_matches.append(d)
-                continue
+    scored_doramas = []
 
-            words = re.split(r"[\s,.-]+", title_lower)
-            close = difflib.get_close_matches(q_lower, words, n=1, cutoff=0.55)
-            if close or (len(q_lower) >= 3 and difflib.SequenceMatcher(None, q_lower, title_lower).ratio() > 0.4):
-                fuzzy_matches.append(d)
+    for d in all_doramas:
+        title = d.get("title") or ""
+        title_lower = title.lower()
+        genre_lower = (d.get("genre") or "").lower()
+        code_str = str(d.get("code") or "")
 
-        return fuzzy_matches[offset:offset + limit]
+        score = 0.0
+
+        # 1. To'liq kod mosligi
+        if q_lower == code_str:
+            score = 100.0
+        # 2. To'liq nom mosligi
+        elif q_lower == title_lower:
+            score = 95.0
+        # 3. Nom aynan shu so'z bilan boshlansa (Prefix)
+        elif title_lower.startswith(q_lower):
+            score = 90.0
+        # 4. Nom ichida alohida so'z sifatida to'liq uchrasa (Word match)
+        elif re.search(r'\b' + re.escape(q_lower) + r'\b', title_lower):
+            score = 80.0
+        # 5. Nom ichida qism sifatida uchrasa (Substring match, case-insensitive)
+        elif q_lower in title_lower:
+            score = 70.0
+        # 6. Kalit so'z / janr bo'yicha mos kelsa
+        elif q_lower in genre_lower:
+            score = 50.0
+        else:
+            # 7. Fuzzy search (Threshold kamida 80% - 0.80)
+            words = [w for w in re.split(r"[\s,.-]+", title_lower) if w]
+            best_word_ratio = 0.0
+            for w in words:
+                r = difflib.SequenceMatcher(None, q_lower, w).ratio()
+                if r > best_word_ratio:
+                    best_word_ratio = r
+
+            full_ratio = difflib.SequenceMatcher(None, q_lower, title_lower).ratio()
+            best_ratio = max(best_word_ratio, full_ratio)
+
+            if best_ratio >= 0.80:
+                score = best_ratio * 45.0  # 36.0 - 45.0 ball
+
+        if score > 0:
+            scored_doramas.append((score, d.get("views", 0), d))
+
+    # 4-talab: Aniqlik darajasi (Score DESC), keyin ko'rishlar soni (Views DESC) bo'yicha saralash
+    scored_doramas.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+    sorted_results = [item[2] for item in scored_doramas]
+    return sorted_results[offset:offset + limit]
 
 
 async def get_latest_doramas(limit: int = 10, offset: int = 0):
