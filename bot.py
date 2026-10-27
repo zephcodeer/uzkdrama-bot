@@ -1166,14 +1166,21 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
     )
 
     await asyncio.sleep(2)
-    try:
-        await bot.session.close()
-    except Exception:
-        pass
+    sys.stdout.flush()
+    sys.stderr.flush()
 
-    # Yangi kod va ma'lumotlar bilan botni qayta ishga tushirish (In-place process replace)
-    restart_args = [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:]
-    os.execv(sys.executable, restart_args)
+    # Yangi kod va ma'lumotlar bilan botni qayta ishga tushirish
+    executable = sys.executable
+    args = [executable] + sys.argv
+    try:
+        os.execvp(executable, args)
+    except Exception as e:
+        logger.error(f"os.execvp xatosi: {e}. os.execv sinab ko'rilmoqda...")
+        try:
+            os.execv(executable, args)
+        except Exception as e2:
+            logger.error(f"os.execv ham xato berdi: {e2}. Process exit qilinmoqda...")
+            os._exit(0)
 
 
 @router.message(Command("help", "menu"))
