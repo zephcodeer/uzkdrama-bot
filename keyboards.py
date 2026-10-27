@@ -534,7 +534,7 @@ def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="👑 Admin Panel",
             callback_data="menu_admin",
-            icon_custom_emoji_id=ICON_VIP
+            icon_custom_emoji_id=ICON_CROWN
         ),
         InlineKeyboardButton(
             text="Bosh menyu",
