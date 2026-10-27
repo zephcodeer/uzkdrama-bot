@@ -222,14 +222,27 @@ async def get_episode(dorama_id: int, ep_num: int):
             return dict(row) if row else None
 
 
+def normalize_search_text(text: str) -> str:
+    """Apostroflar va maxsus belgilarni tozalash (o'rgimchak -> orgimchak, yolg'on -> yolgon)."""
+    t = re.sub(r"['`‘’ʻʼ]", "", (text or "").lower())
+    t = re.sub(r"[\-_/()[\].,:;!?+]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def get_search_tokens(text: str) -> list[str]:
+    norm = normalize_search_text(text)
+    return [w for w in norm.split() if len(w) >= 2]
+
+
 async def search_doramas(query: str, limit: int = 10, offset: int = 0):
     """
     Qidiruv talablari:
     1. Faqat kino nomi (title) va kalit so'zlar/janr bo'yicha (description butunlay chiqarib tashlangan).
-    2. Case-insensitive qidiruv.
-    3. Fuzzy search threshold kamida 80% (0.80).
-    4. Natijalar aniqlik darajasi bo'yicha saralangan (to'liq mos kelganlar -> qisman mos kelganlar -> fuzzy).
-    5. Strip/trim qilingan va kamida 2 ta harf bo'lishi shart.
+    2. Case-insensitive qidiruv va apostroflarga chidamli (o'rgimchak -> orgimchak).
+    3. Ko'p so'zli va yil bilan qidirishni to'liq qo'llab-quvvatlaydi (masalan: "orgimchak odam 2026").
+    4. Fuzzy search threshold kamida 80% (0.80).
+    5. Natijalar aniqlik darajasi bo'yicha saralangan (to'liq mos kelganlar -> qisman mos kelganlar -> fuzzy).
+    6. Strip/trim qilingan va kamida 2 ta harf bo'lishi shart.
     """
     import difflib
     import re
@@ -239,10 +252,11 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
         return []
 
     q_lower = q.lower()
+    q_norm = normalize_search_text(q)
+    q_tokens = get_search_tokens(q)
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        # Description ustuni olinmaydi
         async with db.execute("""
             SELECT id, code, title, slug, genre, year, poster_url, total_episodes, views, status, country, actors
             FROM doramas
@@ -254,50 +268,70 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
     for d in all_doramas:
         title = d.get("title") or ""
         title_lower = title.lower()
+        title_norm = normalize_search_text(title)
+        title_tokens = get_search_tokens(title)
+
         genre_lower = (d.get("genre") or "").lower()
+        genre_norm = normalize_search_text(d.get("genre") or "")
         code_str = str(d.get("code") or "")
+        year_str = str(d.get("year") or "")
 
         score = 0.0
 
         # 1. To'liq kod mosligi
-        if q_lower == code_str:
+        if q_lower == code_str or q_norm == code_str:
             score = 100.0
         # 2. To'liq nom mosligi
-        elif q_lower == title_lower:
+        elif q_lower == title_lower or q_norm == title_norm:
             score = 95.0
         # 3. Nom aynan shu so'z bilan boshlansa (Prefix)
-        elif title_lower.startswith(q_lower):
+        elif title_lower.startswith(q_lower) or title_norm.startswith(q_norm):
             score = 90.0
-        # 4. Nom ichida alohida so'z sifatida to'liq uchrasa (Word match)
-        elif re.search(r'\b' + re.escape(q_lower) + r'\b', title_lower):
-            score = 80.0
-        # 5. Nom ichida qism sifatida uchrasa (Substring match, case-insensitive)
-        elif q_lower in title_lower:
-            score = 70.0
-        # 6. Kalit so'z / janr bo'yicha mos kelsa
-        elif q_lower in genre_lower:
-            score = 50.0
-        else:
-            # 7. Fuzzy search (Threshold kamida 80% - 0.80)
-            words = [w for w in re.split(r"[\s,.-]+", title_lower) if w]
-            best_word_ratio = 0.0
-            for w in words:
-                r = difflib.SequenceMatcher(None, q_lower, w).ratio()
-                if r > best_word_ratio:
-                    best_word_ratio = r
+        # 4. Nom ichida to'liq uchrasa (Substring)
+        elif q_norm in title_norm or q_lower in title_lower:
+            score = 85.0
+        # 5. Tokenlar (So'zlar) bo'yicha ko'p so'zli qidiruv ("orgimchak odam 2026", "temir odam 2")
+        elif q_tokens and title_tokens:
+            matched_tokens = 0
+            has_distinct = False
+            for qt in q_tokens:
+                if qt == year_str and len(year_str) >= 4:
+                    matched_tokens += 1
+                    continue
+                if qt in title_tokens:
+                    matched_tokens += 1
+                    if len(qt) >= 4:
+                        has_distinct = True
+                    continue
+                for tt in title_tokens:
+                    if (len(qt) >= 4 and tt.startswith(qt)) or (len(tt) >= 4 and qt.startswith(tt)):
+                        matched_tokens += 1
+                        has_distinct = True
+                        break
+                    if len(qt) >= 4 and len(tt) >= 4:
+                        if difflib.SequenceMatcher(None, qt, tt).ratio() >= 0.80:
+                            matched_tokens += 1
+                            has_distinct = True
+                            break
 
-            full_ratio = difflib.SequenceMatcher(None, q_lower, title_lower).ratio()
-            best_ratio = max(best_word_ratio, full_ratio)
+            match_ratio = matched_tokens / len(q_tokens)
+            if has_distinct and match_ratio >= 0.5:
+                score = 65.0 + (match_ratio * 15.0)
 
-            if best_ratio >= 0.80:
-                score = best_ratio * 45.0  # 36.0 - 45.0 ball
+        if score == 0.0:
+            # 6. Kalit so'z / janr mosligi
+            if q_lower in genre_lower or q_norm in genre_norm:
+                score = 50.0
+            else:
+                # 7. Fuzzy search butun sarlavha bo'yicha (kamida 80% - 0.80)
+                full_ratio = difflib.SequenceMatcher(None, q_norm, title_norm).ratio()
+                if full_ratio >= 0.80:
+                    score = full_ratio * 45.0
 
         if score > 0:
             scored_doramas.append((score, d.get("views", 0), d))
 
-    # 4-talab: Aniqlik darajasi (Score DESC), keyin ko'rishlar soni (Views DESC) bo'yicha saralash
     scored_doramas.sort(key=lambda x: (x[0], x[1]), reverse=True)
-
     sorted_results = [item[2] for item in scored_doramas]
     return sorted_results[offset:offset + limit]
 

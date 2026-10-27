@@ -336,7 +336,8 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
     d = await db.get_dorama_by_id(dorama_id)
     title = d["title"] if d else "Dorama"
 
-# Birlashgan qismlarni (1-2 qism) hisoblash
+    episodes = await db.get_episodes(dorama_id)
+    # Birlashgan qismlarni (1-2 qism) hisoblash
     display_items = kb.build_display_episodes(episodes)
     current_item = next((it for it in display_items if it['start_ep'] <= ep_num <= it['end_ep']), None)
     
