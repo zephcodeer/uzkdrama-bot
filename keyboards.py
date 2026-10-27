@@ -11,6 +11,7 @@ ICON_ACTION = "5368653135101310687"    # Kino / Dorama (Action)
 ICON_SERIES = "5368653135101310687"    # Seriallar / Kategoriyalar
 ICON_SPARKLE = "5451636889717062286"   # Ulashish (Sparkles)
 ICON_CROWN = "5431505596316665041"     # Admin / Premium (Crown)
+ICON_VIP = "5431505596316665041"       # VIP / Crown
 ICON_BELL = "5258342814273513092"      # Bildirishnoma (Golden Bell)
 ICON_BOOKMARK = "5190683945351535076"  # Sevimlilar (Star Eyes)
 ICON_NUMBER = "5262556520788273962"    # Kino kodi (Red Numbers)
@@ -41,7 +42,6 @@ ICON_RED_CIRCLE = "5364250321176505463"
 ICON_BELL_OFF = "5244807637157029775"
 ICON_BULB = "5422439311196834318"
 ICON_MAILBOX = "5350421256627838238"
-
 
 def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -100,7 +100,6 @@ def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     )
 
     return builder.as_markup()
-
 
 def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_next: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -161,8 +160,6 @@ def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_n
         )
     return builder.as_markup()
 
-
-
 def build_display_episodes(episodes: list) -> list:
     """
     Bitta video faylga bir nechta qism birlashtirilgan bo'lsa (masalan: 1-2 qism, 5-6 qism),
@@ -198,7 +195,6 @@ def build_display_episodes(episodes: list) -> list:
             'quality': ep.get('quality', '1080p')
         })
     return grouped
-
 
 def dorama_detail_kb(
     dorama_id: int,
@@ -311,7 +307,6 @@ def dorama_detail_kb(
     )
     return builder.as_markup()
 
-
 def admin_panel_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -351,7 +346,6 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
     )
     return builder.as_markup()
 
-
 def back_to_menu_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -362,7 +356,6 @@ def back_to_menu_kb() -> InlineKeyboardMarkup:
         )
     )
     return builder.as_markup()
-
 
 def episode_player_kb(
     dorama_id: int,
@@ -416,7 +409,6 @@ def episode_player_kb(
     )
     return builder.as_markup()
 
-
 def episode_lock_kb(dorama_id: int, user_id: int, bot_username: str, current_refs: int = 0, needed_refs: int = 1) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
@@ -451,7 +443,6 @@ def episode_lock_kb(dorama_id: int, user_id: int, bot_username: str, current_ref
         )
     )
     return builder.as_markup()
-
 
 def vip_plans_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -492,7 +483,6 @@ def vip_plans_kb() -> InlineKeyboardMarkup:
     )
     return builder.as_markup()
 
-
 def vip_payment_method_kb(plan: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -511,7 +501,6 @@ def vip_payment_method_kb(plan: str) -> InlineKeyboardMarkup:
     )
     return builder.as_markup()
 
-
 def admin_order_kb(order_id: int, user_id: int, days: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -527,7 +516,6 @@ def admin_order_kb(order_id: int, user_id: int, days: int) -> InlineKeyboardMark
         )
     )
     return builder.as_markup()
-
 
 def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -556,7 +544,6 @@ def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
     )
     return builder.as_markup()
 
-
 def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     counts = counts or {}
     builder = InlineKeyboardBuilder()
@@ -564,22 +551,29 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     # Mintaqalar va Olamlar
     builder.row(
         InlineKeyboardButton(
-            text=f"🇰🇷 Janubiy Koreya ({counts.get('korea', 70)})",
+            text=f"🇰🇷 Janubiy Koreya ({counts.get('korea', 0)})",
             callback_data="cat:korea:0",
             icon_custom_emoji_id=ICON_ACTION
         ),
         InlineKeyboardButton(
-            text=f"🇹🇷 Turkiya ({counts.get('turk', 1)})",
-            callback_data="cat:turk:0",
+            text=f"🇨🇳 Xitoy ({counts.get('china', 0)})",
+            callback_data="cat:china:0",
             icon_custom_emoji_id=ICON_ACTION
         )
     )
     builder.row(
         InlineKeyboardButton(
+            text=f"🇹🇷 Turkiya ({counts.get('turk', 0)})",
+            callback_data="cat:turk:0",
+            icon_custom_emoji_id=ICON_ACTION
+        ),
+        InlineKeyboardButton(
             text=f"🦸‍♂️ Marvel & DC ({counts.get('marvel', 0)})",
             callback_data="cat:marvel:0",
             icon_custom_emoji_id=ICON_SPARKLE
-        ),
+        )
+    )
+    builder.row(
         InlineKeyboardButton(
             text=f"🎬 Xorij & Gollivud ({counts.get('foreign', 0)})",
             callback_data="cat:foreign:0",

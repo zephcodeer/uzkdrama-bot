@@ -670,7 +670,8 @@ async def get_stats():
 
 
 CATEGORY_QUERIES = {
-    "korea": ("Janubiy Koreya Doramalari", "WHERE category = 'korea' OR country = 'Janubiy Koreya'"),
+    "korea": ("Janubiy Koreya Doramalari", "WHERE category = 'korea' OR country = 'Janubiy Koreya'"),
+    "china": ("Xitoy Serial va Doramalari", "WHERE category = 'china' OR country = 'Xitoy'"),
     "turk": ("Turk Serial va Kinolari", "WHERE category = 'turk' OR country = 'Turkiya'"),
     "marvel": ("Marvel & DC Kinolari", "WHERE category = 'marvel' OR genre LIKE '%Marvel%' OR title LIKE '%Marvel%'"),
     "foreign": ("Xorij va Gollivud Kinolari", "WHERE category = 'foreign' OR country LIKE '%AQSH%' OR country LIKE '%Gollivud%'"),
