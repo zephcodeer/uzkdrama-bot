@@ -2095,208 +2095,84 @@ async def cb_admin_broadcast_promo(call: CallbackQuery, bot: Bot):
 
 
 def execute_git_update() -> tuple[bool, str]:
-
     """
-
-    GitHub'dan so'nggi yangilanishlarni (git pull) xavfsiz tortib oladi.
-
-    Foydalanuvchilar ma'lumotlarini (users, bookmarks, history, vip) to'liq zaxiralab,
-
-    yangi doramalar va kod bilan xatosiz birlashtiradi.
-
+    GitHub'dan so'nggi yangilanishlarni (git fetch + reset --hard) xavfsiz tortib oladi.
+    Foydalanuvchilar ma'lumotlarini (userdata.db) to'liq saqlab,
+    yangi doramalar, posterlar va kod bilan benuqson sinxronlaydi.
     """
-
     base_dir = config.BASE_DIR
-
-    db_path = config.DB_PATH
-
-
-
-    # Agar configda GITHUB_TOKEN bo'lsa, remote origin ni avtomatik tokenli URL ga o'rnatish
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
 
     github_token = getattr(config, "GITHUB_TOKEN", "")
-
-    if github_token:
-
-        try:
-
-            subprocess.run(
-
-                ["git", "remote", "set-url", "origin", f"https://{github_token}@github.com/zephcodeer/uzkdrama-bot.git"],
-
-                cwd=base_dir,
-
-                capture_output=True,
-
-                timeout=10
-
-            )
-
-        except Exception as e:
-
-            logger.warning(f"Git remote url o'rnatishda ogohlantirish: {e}")
-
-
+    origin_url = f"https://{github_token}@github.com/zephcodeer/uzkdrama-bot.git" if github_token else "https://github.com/zephcodeer/uzkdrama-bot.git"
 
     # 1. Git mavjudligini tekshirish
-
     try:
-
-        ver = subprocess.run(["git", "--version"], cwd=base_dir, capture_output=True, text=True, timeout=10)
-
+        ver = subprocess.run(["git", "--version"], cwd=base_dir, capture_output=True, text=True, timeout=10, env=env)
         if ver.returncode != 0:
-
             return False, "Git serverda o'rnatilmagan yoki topilmadi."
-
     except Exception as e:
-
         return False, f"Git tekshirishda xatolik: {e}"
 
-
-
-    # 2. Serverdagi foydalanuvchilar va buyurtmalarni zaxiralash
-
-    user_tables = ['users', 'bookmarks', 'user_history', 'dorama_subscribers', 'vip_orders']
-
-    user_data = {}
-
-
-
-    if os.path.exists(db_path):
-
-        try:
-
-            conn = sqlite3.connect(db_path)
-
-            cursor = conn.cursor()
-
-            for tbl in user_tables:
-
-                try:
-
-                    cursor.execute(f"SELECT * FROM {tbl}")
-
-                    cols = [d[0] for d in cursor.description]
-
-                    rows = cursor.fetchall()
-
-                    user_data[tbl] = (cols, rows)
-
-                except Exception:
-
-                    pass
-
-            conn.close()
-
-        except Exception as e:
-
-            logger.warning(f"Foydalanuvchilar ma'lumotlarini zaxiralashda ogohlantirish: {e}")
-
-
-
-    # 3. Git ishchi nusxasini tozalash (git pull ga xalaqit bermasligi uchun)
-
+    # 2. Origin URL ni o'rnatish
     try:
-
-        subprocess.run(["git", "checkout", "HEAD", "--", "doramas.db"], cwd=base_dir, capture_output=True, timeout=15)
-
-    except Exception:
-
-        pass
-
-
-
-    # 4. Git pull origin main ni ishga tushirish
-
-    try:
-
-        pull_proc = subprocess.run(
-
-            ["git", "pull", "origin", "main"],
-
-            cwd=base_dir,
-
-            capture_output=True,
-
-            text=True,
-
-            timeout=90
-
-        )
-
-        stdout = (pull_proc.stdout or "").strip()
-
-        stderr = (pull_proc.stderr or "").strip()
-
-
-
-        if pull_proc.returncode != 0:
-
-            err_msg = stderr if stderr else stdout
-
-            return False, f"Git pull xatoligi (kod {pull_proc.returncode}):\n{err_msg[:400]}"
-
-
-
-    except subprocess.TimeoutExpired:
-
-        return False, "Git pull 90 soniya ichida yakunlanmadi (Timeout)."
-
+        subprocess.run(["git", "remote", "set-url", "origin", origin_url], cwd=base_dir, capture_output=True, timeout=10, env=env)
     except Exception as e:
+        logger.warning(f"Git remote url o'rnatishda ogohlantirish: {e}")
 
-        return False, f"Git pull jarayonida kutilmagan xatolik: {e}"
+    # 3. Git fetch origin main
+    try:
+        fetch_proc = subprocess.run(
+            ["git", "fetch", "origin", "main"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env
+        )
+        if fetch_proc.returncode != 0:
+            err = (fetch_proc.stderr or fetch_proc.stdout or "").strip()
+            return False, f"Git fetch xatoligi (kod {fetch_proc.returncode}):\n{err[:400]}"
+    except subprocess.TimeoutExpired:
+        return False, "Git fetch 30 soniya ichida javob bermadi (Timeout)."
+    except Exception as e:
+        return False, f"Git fetch kutilmagan xatolik: {e}"
 
+    # 4. Git reset --hard origin/main (userdata.db .gitignore da, mutlaqo tegilmaydi)
+    try:
+        reset_proc = subprocess.run(
+            ["git", "reset", "--hard", "origin/main"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            env=env
+        )
+        if reset_proc.returncode != 0:
+            err = (reset_proc.stderr or reset_proc.stdout or "").strip()
+            return False, f"Git reset xatoligi (kod {reset_proc.returncode}):\n{err[:400]}"
+        stdout = (reset_proc.stdout or "").strip()
+    except subprocess.TimeoutExpired:
+        return False, "Git reset 20 soniya ichida yakunlanmadi (Timeout)."
+    except Exception as e:
+        return False, f"Git reset kutilmagan xatolik: {e}"
 
+    # 5. Git log ma'lumotini olish
+    try:
+        log_proc = subprocess.run(
+            ["git", "log", "-1", "--pretty=format:%h - %s (%cd)", "--date=short"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env
+        )
+        commit_info = (log_proc.stdout or "").strip()
+    except Exception:
+        commit_info = "Noma'lum commit"
 
-    # 5. Zaxiralangan foydalanuvchilar ma'lumotlarini yangilangan doramas.db ga qayta yozish
-
-    if user_data and os.path.exists(db_path):
-
-        try:
-
-            conn = sqlite3.connect(db_path)
-
-            cursor = conn.cursor()
-
-            for tbl, (cols, rows) in user_data.items():
-
-                if not rows:
-
-                    continue
-
-                placeholders = ",".join(["?"] * len(cols))
-
-                col_names = ",".join(cols)
-
-                cursor.executemany(f"INSERT OR REPLACE INTO {tbl} ({col_names}) VALUES ({placeholders})", rows)
-
-            conn.commit()
-
-            conn.close()
-
-        except Exception as e:
-
-            logger.error(f"Foydalanuvchilar ma'lumotlarini tiklashda xatolik: {e}")
-
-
-
-    # 6. Yangilanish bor-yo'qligini tekshirish
-
-    if "Already up to date" in stdout or "Already up-to-date" in stdout:
-
-        return True, "ALREADY_UP_TO_DATE"
-
-
-
-    return True, stdout
-
-
-
-
-
-@router.message(Command("update"))
-
-@router.callback_query(F.data == "admin_git_update")
+    return True, f"Muvaffaqiyatli yangilandi!\n\nSo'nggi versiya: {commit_info}\n\nBot 2 soniyadan so'ng yangi kod va baza bilan qayta ishga tushadi."
 
 async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
 
