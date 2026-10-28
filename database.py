@@ -22,6 +22,25 @@ def slugify(text: str) -> str:
 
 
 
+async def apply_sqlite_pragmas(db: aiosqlite.Connection):
+    """RAM va diskni maksimal darajada tejash uchun SQLite sozlamalari."""
+    await db.execute("PRAGMA cache_size = -2000;")
+    await db.execute("PRAGMA temp_store = MEMORY;")
+    await db.execute("PRAGMA mmap_size = 0;")
+    await db.execute("PRAGMA wal_autocheckpoint = 100;")
+
+
+async def optimize_db():
+    """RAM va diskni bo'shatish uchun SQLite bazalarini optimizatsiya qiladi."""
+    for path in [DB_PATH, USER_DB_PATH]:
+        try:
+            async with aiosqlite.connect(path) as db:
+                await db.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                await db.execute("PRAGMA optimize;")
+        except Exception:
+            pass
+
+
 async def init_db():
     """Baza tuzilmasini yaratish va yangilash (WAL rejimida)."""
     # 1. Kontent bazasi (doramas.db - Kinolar va Qismlar katalogi)
