@@ -28,7 +28,7 @@ async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute("PRAGMA journal_mode = WAL;")
-        await db.execute("PRAGMA synchronous = NORMAL;")
+        await db.execute("PRAGMA synchronous = NORMAL;"); await apply_sqlite_pragmas(db)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS doramas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +84,7 @@ async def init_db():
     async with aiosqlite.connect(USER_DB_PATH) as udb:
         await udb.execute("PRAGMA foreign_keys = ON;")
         await udb.execute("PRAGMA journal_mode = WAL;")
-        await udb.execute("PRAGMA synchronous = NORMAL;")
+        await udb.execute("PRAGMA synchronous = NORMAL;"); await apply_sqlite_pragmas(udb)
         await udb.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

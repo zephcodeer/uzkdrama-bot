@@ -116,7 +116,7 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
             )
         )
 
-    vip_label = "🎁 Aksiya: Barcha Qismlar Bepul!" if is_promo else "VIP A'zolik (Qulflarsiz)"
+    vip_label = "Aksiya: Barcha Qismlar Bepul!" if is_promo else "VIP A'zolik (Qulflarsiz)"
     vip_icon = ICON_GIFT if is_promo else ICON_VIP
     builder.row(
         InlineKeyboardButton(
@@ -132,7 +132,7 @@ def promo_free_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="🎬 Kinolarni Ko'rish",
+            text="Kinolarni Ko'rish",
             callback_data="menu_latest:0",
             icon_custom_emoji_id=ICON_POPCORN
         ),
@@ -361,21 +361,29 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
-            text="🟢 Ongoing (Davom etayotganlar)",
+            text="Ongoing (Davom etayotganlar)",
             callback_data="admin_ongoing_list",
-            icon_custom_emoji_id=ICON_SERIES
+            icon_custom_emoji_id=ICON_ACTION
         )
     )
 
     promo_active = promo_info.get("is_active", True) if promo_info else True
     user_cnt = promo_info.get("user_count", 0) if promo_info else 0
     limit = promo_info.get("min_users", 100) if promo_info else 100
-    st_text = f"🟢 Aksiya Rejimi ({user_cnt}/{limit} odam)" if promo_active else f"🔴 VIP Rejimi ({user_cnt}/{limit} odam)"
+    st_text = f"Aksiya Rejimi: Bepul ({user_cnt}/{limit})" if promo_active else f"VIP Rejimi: Yopiq ({user_cnt}/{limit})"
+    st_icon = ICON_GIFT if promo_active else ICON_LOCK
     builder.row(
         InlineKeyboardButton(
             text=st_text,
             callback_data="admin_toggle_promo",
-            icon_custom_emoji_id=ICON_VIP
+            icon_custom_emoji_id=st_icon
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Aksiya Xabarini Tarqatish",
+            callback_data="admin_broadcast_promo",
+            icon_custom_emoji_id=ICON_BROADCAST
         )
     )
 

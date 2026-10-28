@@ -1,3 +1,17 @@
+
+import gc
+
+async def memory_cleanup_loop():
+    """Har 15 daqiqada RAM va SQLite xotirasini tozalaydi (OOM kill oldini olish uchun)."""
+    while True:
+        await asyncio.sleep(900)
+        try:
+            gc.collect()
+            await db.optimize_db()
+            logger.info("RAM va SQLite keshi muvaffaqiyatli tozalandi.")
+        except Exception:
+            pass
+
 import asyncio
 
 import logging
@@ -825,7 +839,7 @@ async def handle_menu_trigger(message: Message, state: FSMContext):
 
     is_promo = await db.is_promo_free_mode()
     if is_promo:
-        text += f"\n\n🎁 <i>Hozirda barcha kinolar va seriallar 100% BEPUL!</i>"
+        text += f"\n\n{ce('gift')} <i>Hozirda barcha kinolar va seriallar 100% BEPUL!</i>"
     await message.answer(text, reply_markup=kb.main_menu_kb(is_admin=is_admin, is_promo=is_promo), parse_mode=ParseMode.HTML)
 
 
@@ -1039,7 +1053,7 @@ async def handle_vip_trigger(message: Message, state: FSMContext):
             vip_status_text = f"{ce('crown')} Cheksiz (Lifetime) VIP Faol"
 
     text = (
-        f"{ce('diamond')} <b>💎VIP💎 obuna muddatini tanlang:</b>\n\n"
+        f"{ce('diamond')} <b>VIP obuna muddatini tanlang:</b>\n\n"
         f"<blockquote>VIP obunachilar majburiy obunasiz, do'st chaqirmasdan va yopiq dramalarni 1080p Full HD sifatda cheklovsiz ko'radi.</blockquote>\n\n"
         f"{ce('user')} Sizning holatingiz: <b>{vip_status_text}</b>"
     )
@@ -1076,7 +1090,7 @@ async def cb_menu_vip(call: CallbackQuery, state: FSMContext):
             vip_status_text = f"{ce('crown')} Cheksiz (Lifetime) VIP Faol"
 
     text = (
-        f"{ce('diamond')} <b>💎VIP💎 obuna muddatini tanlang:</b>\n\n"
+        f"{ce('diamond')} <b>VIP obuna muddatini tanlang:</b>\n\n"
         f"<blockquote>VIP obunachilar majburiy obunasiz, do'st chaqirmasdan va yopiq dramalarni 1080p Full HD sifatda cheklovsiz ko'radi.</blockquote>\n\n"
         f"{ce('user')} Sizning holatingiz: <b>{vip_status_text}</b>"
     )
@@ -1496,7 +1510,7 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
 
         else:
 
-            await event.answer("⚠️ Siz admin emassiz!")
+            await event.answer(f"{ce('warning')} Siz admin emassiz!")
 
         return
 
@@ -1540,7 +1554,7 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
 
             f"<b>{i}. [{d['code']}] {d['title']}</b>\n"
 
-            f"   └ 🎬 Yuklangan: <b>{d['uploaded_episodes']} ta</b> qism\n"
+            f"   └ {ce('tray')} Yuklangan: <b>{d['uploaded_episodes']} ta</b> qism\n"
 
         )
 
@@ -1586,7 +1600,7 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
 
         else:
 
-            await event.answer("⚠️ Siz admin emassiz!")
+            await event.answer(f"{ce('warning')} Siz admin emassiz!")
 
         return
 
@@ -1615,7 +1629,7 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
 
 
     promo_status = await db.get_promo_status()
-    st_text = "🟢 FAOL (Barcha qismlar bepul)" if promo_status["is_active"] else "🔴 O'CHIRILGAN (VIP talab qilinadi)"
+    st_text = f"{ce('green_circle')} FAOL (Barcha qismlar bepul)" if promo_status["is_active"] else f"{ce('red_circle')} O'CHIRILGAN (VIP talab qilinadi)"
     text += f"\n🎁 <b>Aksiya Rejimi:</b> {st_text} ({promo_status['user_count']}/{promo_status['min_users']} ta)\n\nQuyidagi amallardan birini tanlang:"
     await render_text_screen(event, text, reply_markup=kb.admin_panel_kb(promo_info=promo_status))
 
@@ -1701,9 +1715,9 @@ async def handle_my_vip_command(message: Message):
 
             f"{ce('crown')} <b>Sizning VIP maqomingiz: FAOLLASHTIRILGAN!</b>\n\n"
 
-            f"📅 Amal qilish muddati: <b>{until}</b>\n"
+            f"{ce('calendar')} Amal qilish muddati: <b>{until}</b>\n"
 
-            f"✨ Barcha qismlar qulflarsiz, do'st taklif qilmasdan ochiq."
+            f"{ce('sparkles')} Barcha qismlar qulflarsiz, do'st taklif qilmasdan ochiq."
 
         )
 
@@ -1840,7 +1854,7 @@ async def handle_promo_command(message: Message):
             await message.answer(f"{ce('target')} <b>VIP yoqilish chegarasi {arg} ta foydalanuvchiga o'zgartirildi!</b>")
     else:
         st = await db.get_promo_status()
-        st_text = "🟢 FAOL (Barcha qismlar bepul)" if st["is_active"] else "🔴 O'CHIRILGAN (VIP talab qilinadi)"
+        st_text = f"{ce('green_circle')} FAOL (Barcha qismlar bepul)" if st["is_active"] else f"{ce('red_circle')} O'CHIRILGAN (VIP talab qilinadi)"
         await message.answer(
             f"{ce('diamond')} <b>AKSIYA REJIMI STATISTIKASI:</b>\n\n"
             f"Holati: <b>{st_text}</b>\n"
@@ -1863,11 +1877,11 @@ async def cb_admin_toggle_promo(call: CallbackQuery):
     new_override = "0" if st["is_active"] else "1"
     await db.set_system_setting("promo_free_override", new_override)
     updated = await db.get_promo_status()
-    alert = "🟢 Bepul aksiya yoqildi! (Barcha qismlar bepul)" if updated["is_active"] else "🔴 VIP paywall yoqildi!"
+    alert = "Bepul aksiya yoqildi! (Barcha qismlar bepul)" if updated["is_active"] else "VIP paywall yoqildi!"
     await safe_answer(call, alert, show_alert=True)
     
     stats = await db.get_stats()
-    st_text = "🟢 FAOL (Barcha qismlar bepul)" if updated["is_active"] else "🔴 O'CHIRILGAN (VIP talab qilinadi)"
+    st_text = f"{ce('green_circle')} FAOL (Barcha qismlar bepul)" if updated["is_active"] else f"{ce('red_circle')} O'CHIRILGAN (VIP talab qilinadi)"
     text = (
         f"{ce('crown')} <b>ADMIN BOSHQARUV PANELI:</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -1875,10 +1889,41 @@ async def cb_admin_toggle_promo(call: CallbackQuery):
         f"{ce('film')} <b>Doramalar:</b> {stats['total_doramas']} ta\n"
         f"{ce('tv')} <b>Yuklangan qismlar:</b> {stats['total_episodes']} ta\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🎁 <b>Aksiya Rejimi:</b> {st_text} ({updated['user_count']}/{updated['min_users']} ta)\n\n"
+        f"{ce('gift')} <b>Aksiya Rejimi:</b> {st_text} ({updated['user_count']}/{updated['min_users']} ta)\n\n"
         f"Quyidagi amallardan birini tanlang:"
     )
     await render_text_screen(call, text, reply_markup=kb.admin_panel_kb(promo_info=updated))
+
+
+@router.callback_query(F.data == "admin_broadcast_promo")
+async def cb_admin_broadcast_promo(call: CallbackQuery, bot: Bot):
+    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    await safe_answer(call, "Aksiya xabari barcha foydalanuvchilarga yuborilmoqda...", show_alert=True)
+
+    user_ids = await db.get_all_user_ids()
+    text = (
+        f"{ce('party')} <b>MAXSUS AKSIYA: BARCHA QISMLAR 100% BEPUL!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('gift')} Hurmatli foydalanuvchi! Botingizda barcha serial va kinolarning <b>barcha qismlari mutlaqo bepul</b> ochildi!\n\n"
+        f"{ce('check_green')} Do'st taklif qilish shart emas\n"
+        f"{ce('check_green')} Hech qanday VIP to'lovi talab qilinmaydi\n"
+        f"{ce('check_green')} 1-qismdan oxirgi qismgacha barchasi cheklovsiz ochiq!\n\n"
+        f"<i>Botimizdan maroqli foydalaning va sevimli kinolaringizdan zavqlaning! {ce('popcorn')}</i>"
+    )
+    sent_cnt = 0
+    for uid in user_ids:
+        if uid == call.from_user.id:
+            continue
+        try:
+            await bot.send_message(uid, text, reply_markup=kb.promo_free_kb(), parse_mode=ParseMode.HTML)
+            sent_cnt += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            pass
+    await call.message.answer(f"{ce('check_green')} <b>Aksiya xabari {sent_cnt} ta foydalanuvchiga muvaffaqiyatli yetkazildi!</b>")
+
 
 
 
@@ -2098,7 +2143,7 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
 
         else:
 
-            await event.answer("⚠️ Siz admin emassiz!")
+            await event.answer(f"{ce('warning')} Siz admin emassiz!")
 
         return
 
@@ -2106,7 +2151,7 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
 
     if isinstance(event, CallbackQuery):
 
-        await event.answer("⏳ Yangilanish tekshirilmoqda...")
+        await event.answer("Yangilanish tekshirilmoqda...")
 
         status_msg = await event.message.answer(
 
@@ -2408,6 +2453,7 @@ async def main():
 
         await bot.delete_webhook(drop_pending_updates=True)
 
+        asyncio.create_task(memory_cleanup_loop())
         await dp.start_polling(bot)
 
     finally:
