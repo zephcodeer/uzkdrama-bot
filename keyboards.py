@@ -67,7 +67,7 @@ ICON_NUM_1 = "5456269518751948393"              # 1️⃣ Bosqich
 ICON_NUM_2 = "5456250195694080809"              # 2️⃣ Bosqich
 ICON_NUM_3 = "5456382802809347478"              # 3️⃣ Bosqich
 
-def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
@@ -115,9 +115,10 @@ def main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
             )
         )
 
+    vip_label = "🎁 Aksiya: Barcha Qismlar Bepul!" if is_promo else "VIP A'zolik (Qulflarsiz)"
     builder.row(
         InlineKeyboardButton(
-            text="VIP A'zolik (Qulflarsiz)",
+            text=vip_label,
             callback_data="menu_vip",
             icon_custom_emoji_id=ICON_VIP
         )
@@ -331,7 +332,7 @@ def dorama_detail_kb(
     )
     return builder.as_markup()
 
-def admin_panel_kb() -> InlineKeyboardMarkup:
+def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
@@ -347,6 +348,19 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
             icon_custom_emoji_id=ICON_SERIES
         )
     )
+
+    promo_active = promo_info.get("is_active", True) if promo_info else True
+    user_cnt = promo_info.get("user_count", 0) if promo_info else 0
+    limit = promo_info.get("min_users", 100) if promo_info else 100
+    st_text = f"🟢 Aksiya Rejimi ({user_cnt}/{limit} odam)" if promo_active else f"🔴 VIP Rejimi ({user_cnt}/{limit} odam)"
+    builder.row(
+        InlineKeyboardButton(
+            text=st_text,
+            callback_data="admin_toggle_promo",
+            icon_custom_emoji_id=ICON_VIP
+        )
+    )
+
     builder.row(
         InlineKeyboardButton(
             text="GitHub'dan Yangilash (Git Pull)",

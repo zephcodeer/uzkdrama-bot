@@ -135,6 +135,14 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        await udb.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+        """)
+        await udb.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('promo_free_override', 'auto');")
+        await udb.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('min_users_for_vip', '100');")
         for col_sql in [
             "ALTER TABLE users ADD COLUMN referrals_count INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL;",
@@ -167,6 +175,68 @@ async def init_db():
                     await udb.commit()
     except Exception:
         pass
+
+
+# --- Tizim Sozlamalari va Bepul Aksiya Rejimi (System Settings & Promo Mode) ---
+
+async def get_system_setting(key: str, default: str = "") -> str:
+    """Tizim sozlamasini o'qish (userdata.db)."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        async with udb.execute("SELECT value FROM system_settings WHERE key = ?", (key,)) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else default
+
+
+async def set_system_setting(key: str, value: str):
+    """Tizim sozlamasini yozish (userdata.db)."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await udb.execute("""
+            INSERT INTO system_settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (key, str(value)))
+        await udb.commit()
+
+
+async def is_promo_free_mode() -> bool:
+    """
+    Vaqtinchalik barcha qismlar bepul bo'lgan aksiya rejimi.
+    Foydalanuvchilar soni 100 taga yetguncha (yoki admin majburiy yoqsa) faol bo'ladi.
+    """
+    override = await get_system_setting("promo_free_override", "auto")
+    if override in ("1", "on"):
+        return True
+    if override in ("0", "off"):
+        return False
+
+    min_users_str = await get_system_setting("min_users_for_vip", "100")
+    min_users = int(min_users_str) if min_users_str.isdigit() else 100
+
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        async with udb.execute("SELECT COUNT(*) FROM users") as cur:
+            row = await cur.fetchone()
+            user_count = row[0] if row else 0
+
+    return user_count < min_users
+
+
+async def get_promo_status() -> dict:
+    """Admin panel va xabarlar uchun promo rejim holati haqida to'liq ma'lumot."""
+    override = await get_system_setting("promo_free_override", "auto")
+    min_users_str = await get_system_setting("min_users_for_vip", "100")
+    min_users = int(min_users_str) if min_users_str.isdigit() else 100
+
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        async with udb.execute("SELECT COUNT(*) FROM users") as cur:
+            row = await cur.fetchone()
+            user_count = row[0] if row else 0
+
+    is_active = (override in ("1", "on")) or (override == "auto" and user_count < min_users)
+    return {
+        "is_active": is_active,
+        "override": override,
+        "user_count": user_count,
+        "min_users": min_users
+    }
 
 
 async def add_or_get_dorama(title: str, genre: str = "Dorama", year: int = 2026, description: str = "", poster_url: str = "") -> int:
@@ -784,6 +854,10 @@ async def is_user_unlocked(tg_id: int, episode_number: int, admin_id: int = 0) -
     if (admin_id and tg_id == admin_id) or tg_id == 7141955036:
 
         return True, "admin", 0, 0
+
+    # Vaqtinchalik barcha qismlar 100% bepul aksiya rejimi (kamida 100+ odam bo'lguncha)
+    if await is_promo_free_mode():
+        return True, "promo_free", 0, 0
 
 
 
