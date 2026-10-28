@@ -1,3 +1,4 @@
+import re
 
 import gc
 
@@ -306,21 +307,14 @@ async def cmd_start(message: Message, command: CommandObject, bot: Bot, state: F
 
 
 async def safe_answer(call: CallbackQuery, text: str = None, show_alert: bool = False):
-
     """Eskirgan yoki bekor qilingan callback querylarda crash bermaslik uchun xavfsiz answer."""
-
     try:
-
         if text is not None:
-
-            await call.answer(text=text, show_alert=show_alert)
-
+            clean_text = re.sub(r'<[^>]+>', '', text) if '<' in text else text
+            await call.answer(text=clean_text, show_alert=show_alert)
         else:
-
             await call.answer()
-
     except Exception:
-
         pass
 
 
@@ -802,6 +796,170 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
 
 
+
+
+# ---------------------------------------------------------------------------
+# Asosiy Menyu Callback Handlerlari (Bosh Sahifa, Yangi, Top, Sevimlilar)
+# ---------------------------------------------------------------------------
+
+@router.callback_query(F.data == "menu_home")
+async def cb_menu_home(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    user = call.from_user
+    prem_badge = f" {ce('crown')} [PREMIUM]" if user.is_premium else ""
+    is_admin = (user.id == config.ADMIN_ID)
+
+    text = (
+        f"{ce('film')} <b>DORAMA HUB — Bosh Sahifa</b>\n\n"
+        f"{ce('sparkles')} <b>{user.first_name}</b>{prem_badge}, quyidagi bo'limlardan birini tanlang:"
+    )
+    is_promo = await db.is_promo_free_mode()
+    await render_text_screen(call, text, reply_markup=kb.main_menu_kb(is_admin=is_admin, is_promo=is_promo))
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("menu_latest:"))
+async def cb_menu_latest(call: CallbackQuery):
+    page = int(call.data.split(":")[1])
+    limit = 8
+    doramas = await db.get_latest_doramas(limit=limit + 1, offset=page * limit)
+    has_next = len(doramas) > limit
+    curr_list = doramas[:limit]
+
+    if not curr_list:
+        await safe_answer(call, "Hozircha bazada dorama yo'q.", show_alert=True)
+        return
+
+    text = f"{ce('popcorn')} <b>Yangi Yuklangan Doramalar (Sahifa {page + 1}):</b>"
+    markup = kb.doramas_list_kb(curr_list, prefix="menu_latest", page=page, has_next=has_next)
+    await render_text_screen(call, text, reply_markup=markup)
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("menu_top"))
+async def cb_menu_top(call: CallbackQuery):
+    page = 0
+    if ":" in call.data:
+        try:
+            page = max(0, int(call.data.split(":")[1]))
+        except Exception:
+            page = 0
+    limit = 8
+    doramas = await db.get_top_doramas(limit=limit + 1, offset=page * limit)
+    has_next = len(doramas) > limit
+    curr_list = doramas[:limit]
+
+    if not curr_list:
+        await safe_answer(call, "Hozircha ma'lumot yetarli emas.", show_alert=True)
+        return
+
+    text = f"{ce('fire')} <b>Eng Ko'p Ko'rilgan Top Doramalar (Sahifa {page + 1}):</b>"
+    markup = kb.doramas_list_kb(curr_list, prefix="menu_top", page=page, has_next=has_next)
+    await render_text_screen(call, text, reply_markup=markup)
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("menu_bookmarks") | F.data.startswith("bookmarks:"))
+async def cb_menu_bookmarks(call: CallbackQuery):
+    user_id = call.from_user.id
+    page = 0
+    if ":" in call.data:
+        try:
+            page = max(0, int(call.data.split(":")[1]))
+        except Exception:
+            page = 0
+    all_doramas = await db.get_user_bookmarks(user_id)
+    if not all_doramas:
+        await safe_answer(call, "Sizda hali saqlangan doramalar yo'q. Dorama kartasidan 'Saqlab qo'yish' tugmasini bosing!", show_alert=True)
+        return
+
+    limit = 8
+    total = len(all_doramas)
+    curr_list = all_doramas[page * limit : (page + 1) * limit]
+    has_next = (page + 1) * limit < total
+
+    text = f"{ce('bookmark')} <b>Sizning Sevimli Doramalaringiz (Sahifa {page + 1}):</b>"
+    markup = kb.doramas_list_kb(curr_list, prefix="bookmarks", page=page, has_next=has_next)
+    await render_text_screen(call, text, reply_markup=markup)
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("view_dorama:"))
+async def cb_view_dorama(call: CallbackQuery, bot: Bot):
+    d_id = int(call.data.split(":")[1])
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("ep_page:"))
+async def cb_ep_page(call: CallbackQuery, bot: Bot):
+    parts = call.data.split(":")
+    d_id, page = int(parts[1]), int(parts[2])
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=page)
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("get_ep:"))
+async def cb_get_ep(call: CallbackQuery, bot: Bot):
+    parts = call.data.split(":")
+    d_id, ep_num = int(parts[1]), int(parts[2])
+
+    unlocked, reason, current_refs, req_refs = await db.is_user_unlocked(call.from_user.id, ep_num, config.ADMIN_ID)
+    if not unlocked:
+        bot_info = await bot.get_me()
+        needed = max(1, req_refs - current_refs)
+        await safe_answer(call, f"{ep_num}-qism qulflangan! Yana {needed} ta do'st kerak.", show_alert=True)
+        lock_text = (
+            f"{ce('lock')} <b>{ep_num}-QISM QULFLANGAN!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"Hurmatli <b>{call.from_user.first_name}</b>, 1, 2 va 3-qismlar mutlaqo bepul.\n\n"
+            f"{ce('stats')} Sizning takliflaringiz: <b>{current_refs} ta</b>\n"
+            f"{ce('target')} <b>{ep_num}-qism uchun talab:</b> <b>{req_refs} ta</b> do'st "
+            f"<i>(Yana <b>{needed} ta</b> do'stingiz botga kirishi kerak)</i>.\n\n"
+            f"<b>Qulfni ochish yo'llari:</b>\n"
+            f"{ce('num_1')} <b>Do'stlarni chaqirish:</b> Har bir do'stingiz yangi qismni bepul ochadi.\n"
+            f"{ce('num_2')} <b>VIP A'zolik:</b> 9 000 so'm/oy bilan barcha cheklovlarni bir zumda olib tashlang.\n"
+            f"━━━━━━━━━━━━━━━━━━"
+        )
+        await call.message.answer(
+            lock_text,
+            reply_markup=kb.episode_lock_kb(d_id, call.from_user.id, bot_info.username, current_refs, needed),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    await safe_answer(call, f"{ep_num}-qism yuborilmoqda...", show_alert=False)
+    await send_episode(call.from_user.id, d_id, ep_num, bot)
+
+
+@router.callback_query(F.data.startswith("toggle_bm:"))
+async def cb_toggle_bm(call: CallbackQuery, bot: Bot):
+    d_id = int(call.data.split(":")[1])
+    added = await db.toggle_bookmark(call.from_user.id, d_id)
+    alert = "Sevimlilarga qo'shildi!" if added else "Sevimlilardan olib tashlandi."
+    await safe_answer(call, alert, show_alert=True)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
+
+
+@router.callback_query(F.data.startswith("toggle_sub:"))
+async def cb_toggle_sub(call: CallbackQuery, bot: Bot):
+    d_id = int(call.data.split(":")[1])
+    subbed = await db.toggle_subscription(call.from_user.id, d_id)
+    alert = "Bildirishnoma yoqildi! Yangi qism chiqishi bilan xabar beramiz." if subbed else "Bildirishnoma o'chirildi."
+    await safe_answer(call, alert, show_alert=True)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
+
+
+@router.callback_query(F.data == "menu_search")
+async def cb_menu_search(call: CallbackQuery, state: FSMContext):
+    await state.set_state(BotStates.waiting_for_query)
+    text = (
+        f"{ce('search')} <b>Qidiruv Rejimi:</b>\n\n"
+        f"Dorama nomini yoki uning <b>Kino kodini</b> yozing:\n"
+        f"<i>(Masalan: <code>Doktor X</code> yoki <code>101</code>)</i>"
+    )
+    await render_text_screen(call, text, reply_markup=kb.back_to_menu_kb())
+    await safe_answer(call)
 
 # ---------------------------------------------------------------------------
 
@@ -2585,6 +2743,75 @@ async def cb_stats(call: CallbackQuery, state: FSMContext):
 async def msg_stats(message: Message, state: FSMContext):
     await state.clear()
     await _render_statistics_screen(message)
+
+
+
+# ---------------------------------------------------------------------------
+# Qidiruv & Kino Kodi Matn Handlerlari (Kino kodi yoki Nom bo'yicha)
+# ---------------------------------------------------------------------------
+
+@router.message(StateFilter(None, BotStates.waiting_for_query), F.text, F.text.regexp(r"^\d{1,6}$"))
+async def process_numeric_code(message: Message, state: FSMContext, bot: Bot):
+    """Foydalanuvchi to'g'ridan-to'g'ri raqam yozganda (Kino Kodi)."""
+    await state.clear()
+    code = int(message.text.strip())
+    d = await db.get_dorama_by_code(code)
+    if d:
+        await show_dorama_detail(message, d["id"], bot, user_id=message.from_user.id)
+    else:
+        await message.answer(
+            f"{ce('bell')} <b>{code}</b> raqamli dorama topilmadi.\nKodni to'g'ri kiritganingizni tekshiring.",
+            reply_markup=kb.back_to_menu_kb(),
+            parse_mode=ParseMode.HTML
+        )
+
+
+@router.message(StateFilter(None, BotStates.waiting_for_query), F.text)
+async def process_search_query(message: Message, state: FSMContext, bot: Bot):
+    if message.text.startswith("/"):
+        return
+
+    query = message.text.strip()
+    await state.clear()
+
+    # Agar raqam bo'lsa kod bo'yicha qidiramiz
+    if query.isdigit():
+        code = int(query)
+        d = await db.get_dorama_by_code(code)
+        if d:
+            await show_dorama_detail(message, d["id"], bot, user_id=message.from_user.id)
+            return
+        else:
+            await message.answer(
+                f"{ce('bell')} <b>{code}</b> raqamli dorama topilmadi.\nKodni to'g'ri kiritganingizni tekshiring.",
+                reply_markup=kb.back_to_menu_kb(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+    # Kamida 2 ta harfdan iborat so'zlarnigina qidirish tekshiruvi
+    if len(query) < 2:
+        await message.answer(
+            f"{ce('bell')} <b>Iltimos, qidirish uchun kamida 2 ta harfdan iborat so'z kiriting!</b>\n\n"
+            f"<i>Masalan: <code>Doktor</code> yoki <code>101</code></i>",
+            reply_markup=kb.back_to_menu_kb(),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    results = await db.search_doramas(query, limit=10)
+    if not results:
+        text = (
+            f"{ce('bell')} <b>'{query}'</b> bo'yicha hech narsa topilmadi.\n\n"
+            f"{ce('bulb')} <i>Nomini to'g'ri yozganingizni tekshiring yoki kino kodini kiriting (masalan: <code>101</code>).</i>"
+        )
+        await message.answer(text, reply_markup=kb.back_to_menu_kb(), parse_mode=ParseMode.HTML)
+        return
+
+    text = f"{ce('search')} <b>'{query}'</b> bo'yicha topilgan natijalar:"
+    markup = kb.doramas_list_kb(results, prefix="search", page=0, has_next=False)
+    await message.answer(text, reply_markup=markup, parse_mode=ParseMode.HTML)
+
 
 
 async def main():
