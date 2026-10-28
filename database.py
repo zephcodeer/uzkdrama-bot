@@ -1,3 +1,4 @@
+import difflib
 import re
 
 import aiosqlite
@@ -446,233 +447,169 @@ async def get_episode(dorama_id: int, ep_num: int):
 
 
 
+COMMON_STOPWORDS = {
+    "mening", "sening", "uning", "bizning", "sizning", "ularning",
+    "bir", "va", "bu", "o'sha", "shu", "u", "bilan", "uchun", "ham", "eng",
+    "1", "2", "3", "fasl", "qism", "serial", "film", "kino",
+    "the", "a", "an", "of", "and", "in", "to", "my", "your", "season", "part"
+}
+
+UZBEK_SUFFIXES = [
+    "ligimning", "ligimizga", "ligimizda", "ligimizdan", "ligimizni", "ligimiz",
+    "ligingizga", "ligingizda", "ligingizdan", "ligingizni", "ligingiz",
+    "liklarining", "liklariga", "liklarida", "liklaridan", "liklarini", "liklar",
+    "ligimga", "ligimda", "ligimdan", "ligimni", "ligim",
+    "ligingga", "ligingda", "ligingdan", "ligingni", "liging",
+    "ligiga", "ligida", "ligidan", "ligini", "ligining", "ligisi", "ligi", "lig",
+    "likka", "likda", "likdan", "likni", "likning", "lik",
+    "larning", "lariga", "larida", "lardan", "larini", "larim", "laring", "larimiz", "laringiz",
+    "imizga", "imizda", "imizdan", "imizni", "ingizga", "ingizda", "ingizdan", "ingizni",
+    "dagi", "dagilar", "dek", "day",
+    "ning", "dan", "lar", "cha",
+    "imga", "imda", "imdan", "imni", "im", "igim",
+    "ingga", "ingda", "ingdan", "ingni", "ing",
+    "iga", "ida", "idan", "ini", "isi", "imiz", "ingiz", "si", "ma",
+    "ga", "ka", "qa", "da", "ni", "i"
+]
+
+def stem_uzbek_token(w: str) -> str:
+    w = w.lower().strip()
+    w = re.sub(r"[ʻʼ'\`’‘]", "", w)
+    for sfx in sorted(UZBEK_SUFFIXES, key=len, reverse=True):
+        if w.endswith(sfx) and len(w) - len(sfx) >= 3:
+            w = w[:-len(sfx)]
+            break
+    if len(w) >= 4 and w[-1] == w[-2]:
+        w = w[:-1]
+    return w
+
 def normalize_search_text(text: str) -> str:
-
     """Apostroflar va maxsus belgilarni tozalash (o'rgimchak -> orgimchak, yolg'on -> yolgon)."""
-
     t = re.sub(r"['`‘’ʻʼ]", "", (text or "").lower())
-
     t = re.sub(r"[\-_/()[\].,:;!?+]", " ", t)
-
     return re.sub(r"\s+", " ", t).strip()
 
-
-
-
-
 def get_search_tokens(text: str) -> list[str]:
-
     norm = normalize_search_text(text)
-
     return [w for w in norm.split() if len(w) >= 2]
 
-
-
-
+def match_token(qt: str, tt: str) -> float:
+    if qt == tt:
+        return 1.0
+    qs = stem_uzbek_token(qt)
+    ts = stem_uzbek_token(tt)
+    if len(qs) >= 3 and len(ts) >= 3 and qs == ts:
+        return 0.95
+    if len(qs) >= 4 and len(ts) >= 4 and (ts.startswith(qs) or qs.startswith(ts)):
+        return 0.90
+    if len(qt) >= 4 and len(tt) >= 4:
+        if qt[:4] == tt[:4]:
+            r = difflib.SequenceMatcher(None, qt, tt).ratio()
+            if r >= 0.65:
+                return 0.85
+        r = difflib.SequenceMatcher(None, qt, tt).ratio()
+        if r >= 0.80:
+            return r * 0.85
+    return 0.0
 
 async def search_doramas(query: str, limit: int = 10, offset: int = 0):
-
     """
-
-    Qidiruv talablari:
-
-    1. Faqat kino nomi (title) va kalit so'zlar/janr bo'yicha (description butunlay chiqarib tashlangan).
-
-    2. Case-insensitive qidiruv va apostroflarga chidamli (o'rgimchak -> orgimchak).
-
-    3. Ko'p so'zli va yil bilan qidirishni to'liq qo'llab-quvvatlaydi (masalan: "orgimchak odam 2026").
-
-    4. Fuzzy search threshold kamida 80% (0.80).
-
-    5. Natijalar aniqlik darajasi bo'yicha saralangan (to'liq mos kelganlar -> qisman mos kelganlar -> fuzzy).
-
-    6. Strip/trim qilingan va kamida 2 ta harf bo'lishi shart.
-
+    Intellektual Semantik va Morfologik Qidiruv:
+    1. O'zbek tili morfemik ildizini aniqlash (-lik, -ligim, -lar, -dagi).
+    2. Stop-so'zlarni ('mening', 'sening', 'bir', 'va') ajratib, faqat ular bo'yicha ifloslanishni to'sish.
+    3. Ko'p so'zli so'rovlarda barcha so'zlarga mos kelgan kino darhol #1 o'ringa chiqadi.
+    4. Yil, kod, inglizcha va o'zbekcha nomlar bo'yicha mukammal reytinglash.
     """
-
     import difflib
 
-    import re
-
-
-
     q = (query or "").strip()
-
     if len(q) < 2:
-
         return []
 
-
-
-    q_lower = q.lower()
-
     q_norm = normalize_search_text(q)
-
-    q_tokens = get_search_tokens(q)
-
-
+    raw_tokens = q_norm.split()
+    informative_tokens = [w for w in raw_tokens if w not in COMMON_STOPWORDS]
 
     async with aiosqlite.connect(DB_PATH) as db:
-
         db.row_factory = aiosqlite.Row
-
         async with db.execute("""
-
             SELECT id, code, title, slug, genre, year, poster_url, total_episodes, views, status, country, actors
-
             FROM doramas
-
         """) as cursor:
-
             all_doramas = [dict(r) for r in await cursor.fetchall()]
-
-
 
     scored_doramas = []
 
-
-
     for d in all_doramas:
-
         title = d.get("title") or ""
+        t_clean = normalize_search_text(title)
+        t_tokens = t_clean.split()
 
-        title_lower = title.lower()
-
-        title_norm = normalize_search_text(title)
-
-        title_tokens = get_search_tokens(title)
-
-
-
-        genre_lower = (d.get("genre") or "").lower()
-
-        genre_norm = normalize_search_text(d.get("genre") or "")
-
+        genre_clean = normalize_search_text(d.get("genre") or "")
         code_str = str(d.get("code") or "")
-
         year_str = str(d.get("year") or "")
-
-
 
         score = 0.0
 
-
-
-        # 1. To'liq kod mosligi
-
-        if q_lower == code_str or q_norm == code_str:
-
+        # 1. To'liq kino kodi mosligi
+        if q_norm == code_str:
             score = 100.0
-
         # 2. To'liq nom mosligi
-
-        elif q_lower == title_lower or q_norm == title_norm:
-
-            score = 95.0
-
-        # 3. Nom aynan shu so'z bilan boshlansa (Prefix)
-
-        elif title_lower.startswith(q_lower) or title_norm.startswith(q_norm):
-
+        elif q_norm == t_clean:
+            score = 98.0
+        # 3. Nom aynan so'rov bilan boshlansa (Prefix)
+        elif t_clean.startswith(q_norm):
+            score = 96.0
+        # 4. Aniq ibora substring sifatida uchrasa
+        elif q_norm in t_clean and len(q_norm) >= 4:
             score = 90.0
+        else:
+            # 5. Tokenlar bo'yicha intellektual vaznli qidiruv
+            if raw_tokens and t_tokens:
+                total_token_score = 0.0
+                matched_informative = 0
+                matched_count = 0
 
-        # 4. Nom ichida to'liq uchrasa (Substring)
+                for qt in raw_tokens:
+                    is_stop = qt in COMMON_STOPWORDS
+                    best_match = 0.0
+                    for tt in t_tokens:
+                        m = match_token(qt, tt)
+                        if m > best_match:
+                            best_match = m
+                    if best_match > 0:
+                        matched_count += 1
+                        weight = 0.3 if is_stop else 1.0
+                        total_token_score += best_match * weight
+                        if not is_stop and best_match >= 0.7:
+                            matched_informative += 1
 
-        elif q_norm in title_norm or q_lower in title_lower:
+                # Muhim so'zlar kiritilgan bo'lsa, ulardan kamida bittasi mos kelishi shart!
+                # (Bu "mening qiroligim" qidirilganda boshqa "Mening ..." kinolarini butunlay filtrlaydi)
+                if informative_tokens and matched_informative == 0:
+                    score = 0.0
+                elif not informative_tokens and matched_count == 0:
+                    score = 0.0
+                else:
+                    max_possible_weight = sum(0.3 if w in COMMON_STOPWORDS else 1.0 for w in raw_tokens)
+                    ratio = total_token_score / max_possible_weight if max_possible_weight > 0 else 0
+                    if matched_count == len(raw_tokens):
+                        score = 80.0 + (ratio * 12.0)
+                    elif ratio >= 0.5:
+                        score = 45.0 + (ratio * 25.0)
 
-            score = 85.0
-
-        # 5. Tokenlar (So'zlar) bo'yicha ko'p so'zli qidiruv ("orgimchak odam 2026", "temir odam 2")
-
-        elif q_tokens and title_tokens:
-
-            matched_tokens = 0
-
-            has_distinct = False
-
-            for qt in q_tokens:
-
-                if qt == year_str and len(year_str) >= 4:
-
-                    matched_tokens += 1
-
-                    continue
-
-                if qt in title_tokens:
-
-                    matched_tokens += 1
-
-                    if len(qt) >= 4:
-
-                        has_distinct = True
-
-                    continue
-
-                for tt in title_tokens:
-
-                    if (len(qt) >= 4 and tt.startswith(qt)) or (len(tt) >= 4 and qt.startswith(tt)):
-
-                        matched_tokens += 1
-
-                        has_distinct = True
-
-                        break
-
-                    if len(qt) >= 4 and len(tt) >= 4:
-
-                        if difflib.SequenceMatcher(None, qt, tt).ratio() >= 0.80:
-
-                            matched_tokens += 1
-
-                            has_distinct = True
-
-                            break
-
-
-
-            match_ratio = matched_tokens / len(q_tokens)
-
-            if has_distinct and match_ratio >= 0.5:
-
-                score = 65.0 + (match_ratio * 15.0)
-
-
-
-        if score == 0.0:
-
-            # 6. Kalit so'z / janr mosligi
-
-            if q_lower in genre_lower or q_norm in genre_norm:
-
-                score = 50.0
-
-            else:
-
-                # 7. Fuzzy search butun sarlavha bo'yicha (kamida 80% - 0.80)
-
-                full_ratio = difflib.SequenceMatcher(None, q_norm, title_norm).ratio()
-
-                if full_ratio >= 0.80:
-
-                    score = full_ratio * 45.0
-
-
+        # 6. Agar sarlavhadan topilmasa, janr bo'yicha ehtiyotkor fallback
+        if score == 0.0 and genre_clean:
+            if q_norm in genre_clean:
+                score = 35.0
 
         if score > 0:
-
             scored_doramas.append((score, d.get("views", 0), d))
 
-
-
+    # Ball va ko'rishlar soni bo'yicha saralash
     scored_doramas.sort(key=lambda x: (x[0], x[1]), reverse=True)
-
     sorted_results = [item[2] for item in scored_doramas]
-
     return sorted_results[offset:offset + limit]
-
-
-
-
 
 async def get_latest_doramas(limit: int = 10, offset: int = 0):
 

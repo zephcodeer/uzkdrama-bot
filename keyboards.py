@@ -157,10 +157,18 @@ def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_n
         code_str = f"[{d.get('code', d.get('id', ''))}] " if d.get('code') else ""
         ep_count = d.get('total_episodes')
         ep_str = f" ({ep_count} qism)" if ep_count else ""
-        title = d.get('title', 'Noma\'lum')
+        raw_title = d.get('title', 'Noma\'lum')
+
+        # Telegram mobil tugmalarida '...' deb uzilib qolmasligi uchun uzun nomlarni ixchamlashtirish
+        btn_title = raw_title
+        if len(f"{code_str}{btn_title}{ep_str}") > 35 and "(" in raw_title:
+            cand = raw_title.split("(")[0].strip()
+            if len(cand) >= 3:
+                btn_title = cand
+
         builder.row(
             InlineKeyboardButton(
-                text=f"{code_str}{title}{ep_str}",
+                text=f"{code_str}{btn_title}{ep_str}",
                 callback_data=f"view_dorama:{d['id']}",
                 icon_custom_emoji_id=ICON_ACTION
             )
