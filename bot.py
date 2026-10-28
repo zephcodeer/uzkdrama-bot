@@ -2546,10 +2546,7 @@ async def cb_view_suggestion(call: CallbackQuery):
 # STATISTIKA BO'LIMI (JONLI STATISTIKA)
 # ========================================================
 
-@router.callback_query(F.data == "menu_stats")
-@router.message(Command("stats"))
-@router.message(F.text.in_(["📊 Statistika", "Statistika"]))
-async def show_bot_statistics(event: CallbackQuery | Message):
+async def _render_statistics_screen(event: CallbackQuery | Message):
     stats = await db.get_stats()
     promo = await db.get_promo_status()
     st_active = f"{ce('check_green')} FAOL (100% Bepul)" if promo["is_active"] else f"{ce('lock')} VIP Paywall Faol"
@@ -2575,6 +2572,19 @@ async def show_bot_statistics(event: CallbackQuery | Message):
     await render_text_screen(event, text, reply_markup=kb.stats_kb())
     if isinstance(event, CallbackQuery):
         await safe_answer(event)
+
+
+@router.callback_query(F.data == "menu_stats")
+async def cb_stats(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await _render_statistics_screen(call)
+
+
+@router.message(Command("stats"))
+@router.message(F.text.in_(["📊 Statistika", "Statistika"]))
+async def msg_stats(message: Message, state: FSMContext):
+    await state.clear()
+    await _render_statistics_screen(message)
 
 
 async def main():
