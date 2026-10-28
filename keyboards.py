@@ -760,3 +760,20 @@ def suggestions_list_kb(suggestions: list) -> InlineKeyboardMarkup:
         )
     )
     return builder.as_markup()
+
+
+def stats_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Yangilash",
+            callback_data="menu_stats",
+            icon_custom_emoji_id=ICON_RESTART
+        ),
+        InlineKeyboardButton(
+            text="Bosh Menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()

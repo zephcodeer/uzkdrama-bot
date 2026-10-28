@@ -2541,6 +2541,42 @@ async def cb_view_suggestion(call: CallbackQuery):
     await safe_answer(call)
 
 
+
+# ========================================================
+# STATISTIKA BO'LIMI (JONLI STATISTIKA)
+# ========================================================
+
+@router.callback_query(F.data == "menu_stats")
+@router.message(Command("stats"))
+@router.message(F.text.in_(["📊 Statistika", "Statistika"]))
+async def show_bot_statistics(event: CallbackQuery | Message):
+    stats = await db.get_stats()
+    promo = await db.get_promo_status()
+    st_active = f"{ce('check_green')} FAOL (100% Bepul)" if promo["is_active"] else f"{ce('lock')} VIP Paywall Faol"
+
+    text = (
+        f"{ce('stats')} <b>DORAMA HUB — JONLI STATISTIKA</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('friends')} <b>Foydalanuvchilar:</b>\n"
+        f"• Jami a'zolar: <b>{stats['total_users']:,} ta</b>\n"
+        f"• Bugun qo'shilganlar: <b>+{stats['today_users']} ta</b>\n"
+        f"• Telegram Premium: <b>{stats.get('premium_users', 0)} ta</b>\n\n"
+        f"{ce('action')} <b>Kino va Seriallar:</b>\n"
+        f"• Jami doramalar: <b>{stats['total_doramas']} ta</b>\n"
+        f"• Yuklangan qismlar: <b>{stats['total_episodes']} ta</b>\n"
+        f"• Jami ko'rishlar: <b>{stats.get('total_views', 0):,} marta</b>\n\n"
+        f"{ce('gift')} <b>Aksiya Holati:</b>\n"
+        f"• Barcha qismlar: <b>{st_active}</b>\n"
+        f"• Cheklov me'yori: <b>{promo['user_count']} / {promo['min_users']} ta</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Botimizdan maroqli foydalaning! {ce('popcorn')}</i>"
+    )
+
+    await render_text_screen(event, text, reply_markup=kb.stats_kb())
+    if isinstance(event, CallbackQuery):
+        await safe_answer(event)
+
+
 async def main():
 
     errors = config.validate_bot_config()
