@@ -160,6 +160,18 @@ async def init_db():
                 value TEXT NOT NULL
             );
         """)
+        await udb.execute("""
+            CREATE TABLE IF NOT EXISTS dorama_suggestions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                username TEXT DEFAULT '',
+                first_name TEXT DEFAULT '',
+                suggestion TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                admin_response TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
         await udb.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('promo_free_override', 'auto');")
         await udb.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('min_users_for_vip', '100');")
         for col_sql in [
@@ -1372,3 +1384,56 @@ async def get_doramas_by_category(cat_key: str, limit: int = 8, offset: int = 0)
 
             return title, [dict(r) for r in rows]
 
+
+
+async def add_dorama_suggestion(user_id: int, username: str, first_name: str, suggestion: str) -> int:
+    """Foydalanuvchi taklifini bazaga saqlaydi va uning ID sini qaytaradi."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        cursor = await udb.execute(
+            """
+            INSERT INTO dorama_suggestions (user_id, username, first_name, suggestion)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, username or '', first_name or '', suggestion)
+        )
+        await udb.commit()
+        return cursor.lastrowid
+
+async def get_dorama_suggestions(status: str = None, limit: int = 20) -> list[dict]:
+    """Admin uchun takliflar ro'yxatini qaytaradi."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        udb.row_factory = aiosqlite.Row
+        if status:
+            cursor = await udb.execute(
+                "SELECT * FROM dorama_suggestions WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                (status, limit)
+            )
+        else:
+            cursor = await udb.execute(
+                "SELECT * FROM dorama_suggestions ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+async def update_suggestion_status(suggestion_id: int, status: str, admin_response: str = "") -> bool:
+    """Taklif holatini yangilaydi (accepted / rejected / completed)."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        await udb.execute(
+            "UPDATE dorama_suggestions SET status = ?, admin_response = ? WHERE id = ?",
+            (status, admin_response, suggestion_id)
+        )
+        await udb.commit()
+        return True
+
+async def get_dorama_suggestion(suggestion_id: int) -> dict | None:
+    """Bitta taklif ma'lumotlarini qaytaradi."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        udb.row_factory = aiosqlite.Row
+        cursor = await udb.execute("SELECT * FROM dorama_suggestions WHERE id = ?", (suggestion_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None

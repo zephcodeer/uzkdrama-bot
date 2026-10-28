@@ -98,6 +98,10 @@ class BotStates(StatesGroup):
 
     waiting_for_broadcast = State()
 
+    waiting_for_dorama_suggestion = State()
+
+    waiting_for_suggestion_reply = State()
+
 
 
 
@@ -2324,6 +2328,218 @@ async def global_error_handler(event: ErrorEvent):
 # Asosiy bot ishga tushirish
 
 # ---------------------------------------------------------------------------
+
+
+# ========================================================
+# DORAMA TAKLIF QILISH BO'LIMI (USER & ADMIN FLOW)
+# ========================================================
+
+@router.callback_query(F.data == "menu_suggest")
+@router.message(Command("suggest"))
+@router.message(Command("taklif"))
+async def trigger_dorama_suggestion(event: CallbackQuery | Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(BotStates.waiting_for_dorama_suggestion)
+    text = (
+        f"{ce('bulb')} <b>DORAMA TAKLIF QILISH</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Botimizda ko'rmoqchi bo'lgan sevimli Koreys, Xitoy yoki boshqa serial/kinongiz bormi?\n\n"
+        f"{ce('memo')} <b>Dorama nomi</b> (yoki u haqidagi ma'lumotni) shu yerga yozib yuboring.\n"
+        f"Adminlarimiz taklifingizni ko'rib chiqib, uni eng yuqori sifatda (Full HD) botga joylashga harakat qilishadi! {ce('popcorn')}\n\n"
+        f"<i>Bekor qilish uchun /cancel deb yozing.</i>"
+    )
+    await render_text_screen(event, text, reply_markup=kb.back_to_menu_kb())
+    if isinstance(event, CallbackQuery):
+        await safe_answer(event)
+
+
+@router.message(BotStates.waiting_for_dorama_suggestion)
+async def process_dorama_suggestion(message: Message, state: FSMContext, bot: Bot):
+    suggestion_text = (message.text or message.caption or "").strip()
+    if not suggestion_text:
+        await message.answer(f"{ce('warning')} Iltimos, dorama nomini matn ko'rinishida yozing.")
+        return
+
+    await state.clear()
+    u = message.from_user
+    sug_id = await db.add_dorama_suggestion(
+        user_id=u.id,
+        username=u.username,
+        first_name=u.first_name,
+        suggestion=suggestion_text
+    )
+
+    # 1. Foydalanuvchiga minnatdorchilik
+    user_reply = (
+        f"{ce('check_green')} <b>Katta rahmat! Taklifingiz qabul qilindi.</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Siz taklif qilgan: <b>{suggestion_text}</b>\n\n"
+        f"{ce('sparkles')} Adminlarimiz taklifingizni tez orada ko'rib chiqishadi va dorama botga yuklanganda xabar berishadi!\n\n"
+        f"<i>Boshqa dorama tomosha qilish uchun pastdagi tugmani bosing:</i>"
+    )
+    await message.answer(user_reply, reply_markup=kb.back_to_menu_kb(), parse_mode=ParseMode.HTML)
+
+    # 2. Adminga zudlik bilan bildirishnoma yuborish
+    admin_targets = list(set([config.ADMIN_ID, 7141955036]))
+    admin_notify = (
+        f"{ce('bulb')} <b>YANGI DORAMA TAKLIFI #{sug_id}!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('user')} <b>Foydalanuvchi:</b> {u.first_name} (@{u.username or 'username_yoq'})\n"
+        f"🆔 ID: <code>{u.id}</code>\n\n"
+        f"{ce('memo')} <b>Taklif qilingan dorama:</b>\n"
+        f"<blockquote>{suggestion_text}</blockquote>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Quyidagi tugmalar orqali javob berishingiz mumkin:"
+    )
+    admin_markup = kb.suggestion_admin_kb(sug_id, u.id)
+    for admin_id in admin_targets:
+        try:
+            await bot.send_message(admin_id, admin_notify, reply_markup=admin_markup, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.warning(f"Admin {admin_id} ga taklif xabarini yuborishda xato: {e}")
+
+
+@router.callback_query(F.data.startswith("sug_accept:"))
+async def cb_sug_accept(call: CallbackQuery, bot: Bot):
+    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    parts = call.data.split(":")
+    sug_id, user_id = int(parts[1]), int(parts[2])
+    await db.update_suggestion_status(sug_id, "accepted", "Qabul qilindi")
+    await safe_answer(call, "Taklif qabul qilindi va foydalanuvchiga xabar yuborildi!", show_alert=True)
+
+    # Foydalanuvchiga xabar
+    try:
+        user_msg = (
+            f"{ce('party')} <b>Ajoyib yangilik! Dorama taklifingiz qabul qilindi!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"Siz taklif qilgan dorama adminlarimiz tomonidan ma'qullandi va tez orada eng yuqori sifatda botga yuklanadi! {ce('popcorn')}\n\n"
+            f"<i>Botimizda yangiliklarni kuzatib boring!</i>"
+        )
+        await bot.send_message(user_id, user_msg, reply_markup=kb.promo_free_kb(), parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
+
+    try:
+        await call.message.edit_text(call.message.text + f"\n\n{ce('check_green')} <b>[ADMIN: QABUL QILINDI]</b>", parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("sug_reject:"))
+async def cb_sug_reject(call: CallbackQuery):
+    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    parts = call.data.split(":")
+    sug_id = int(parts[1])
+    await db.update_suggestion_status(sug_id, "rejected", "Rad etildi")
+    await safe_answer(call, "Taklif rad etildi deb belgilandi.", show_alert=True)
+    try:
+        await call.message.edit_text(call.message.text + f"\n\n{ce('cross_red')} <b>[ADMIN: RAD ETILDI]</b>", parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("sug_reply:"))
+async def cb_sug_reply(call: CallbackQuery, state: FSMContext):
+    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    parts = call.data.split(":")
+    sug_id, user_id = int(parts[1]), int(parts[2])
+    await state.set_state(BotStates.waiting_for_suggestion_reply)
+    await state.update_data(reply_sug_id=sug_id, reply_user_id=user_id)
+    await call.message.answer(
+        f"{ce('memo')} Foydalanuvchiga yubormoqchi bo'lgan javob xabaringizni yozing:\n"
+        f"<i>Bekor qilish uchun /cancel deb yozing.</i>",
+        parse_mode=ParseMode.HTML
+    )
+    await safe_answer(call)
+
+
+@router.message(BotStates.waiting_for_suggestion_reply)
+async def process_suggestion_reply(message: Message, state: FSMContext, bot: Bot):
+    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+        return
+    data = await state.get_data()
+    user_id = data.get("reply_user_id")
+    sug_id = data.get("reply_sug_id")
+    reply_text = message.text or ""
+    await state.clear()
+
+    if user_id:
+        try:
+            await bot.send_message(
+                user_id,
+                f"{ce('broadcast')} <b>Dorama taklifingiz bo'yicha Admin javobi:</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"<blockquote>{reply_text}</blockquote>\n\n"
+                f"<i>Maroqli tomosha tilaymiz! {ce('popcorn')}</i>",
+                reply_markup=kb.back_to_menu_kb(),
+                parse_mode=ParseMode.HTML
+            )
+            await message.answer(f"{ce('check_green')} <b>Javob foydalanuvchiga muvaffaqiyatli yetkazildi!</b>")
+            if sug_id:
+                await db.update_suggestion_status(sug_id, "replied", reply_text)
+        except Exception as e:
+            await message.answer(f"{ce('cross_red')} Foydalanuvchiga xabar yetkazib bo'lmadi: {e}")
+
+
+@router.callback_query(F.data == "admin_suggestions_list")
+async def cb_admin_suggestions_list(call: CallbackQuery):
+    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    suggs = await db.get_dorama_suggestions(limit=25)
+    if not suggs:
+        await render_text_screen(
+            call,
+            f"{ce('info')} Hozircha foydalanuvchilar tomonidan hech qanday dorama taklifi yuborilmagan.",
+            reply_markup=kb.back_to_menu_kb()
+        )
+        await safe_answer(call)
+        return
+
+    text = (
+        f"{ce('clipboard')} <b>FOYDALANUVCHILAR TAKLIFLARI ({len(suggs)} ta):</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Quyidagi ro'yxatdan kerakli taklifni tanlab, unga javob berishingiz yoki qabul qilishingiz mumkin:"
+    )
+    await render_text_screen(call, text, reply_markup=kb.suggestions_list_kb(suggs))
+    await safe_answer(call)
+
+
+@router.callback_query(F.data.startswith("view_sug:"))
+async def cb_view_suggestion(call: CallbackQuery):
+    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    sug_id = int(call.data.split(":")[1])
+    s = await db.get_dorama_suggestion(sug_id)
+    if not s:
+        await safe_answer(call, "Taklif topilmadi!", show_alert=True)
+        return
+
+    st_map = {"pending": "Kutilmoqda", "accepted": "Qabul qilingan", "rejected": "Rad etilgan", "replied": "Javob berilgan"}
+    st_text = st_map.get(s.get('status'), s.get('status'))
+    text = (
+        f"{ce('bulb')} <b>TAKLIF TAFSILOTLARI #{s['id']}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('user')} <b>Foydalanuvchi:</b> {s['first_name']} (@{s['username'] or 'yoq'})\n"
+        f"🆔 ID: <code>{s['user_id']}</code>\n"
+        f"{ce('calendar')} Sana: <code>{s['created_at']}</code>\n"
+        f"Holati: <b>{st_text}</b>\n\n"
+        f"{ce('memo')} <b>Taklif:</b>\n"
+        f"<blockquote>{s['suggestion']}</blockquote>"
+    )
+    if s.get("admin_response"):
+        text += f"\n\n{ce('broadcast')} <b>Admin javobi:</b>\n<blockquote>{s['admin_response']}</blockquote>"
+
+    await render_text_screen(call, text, reply_markup=kb.suggestion_admin_kb(s['id'], s['user_id']))
+    await safe_answer(call)
+
 
 async def main():
 

@@ -106,6 +106,13 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
             icon_custom_emoji_id=ICON_STATS
         ),
     )
+    builder.row(
+        InlineKeyboardButton(
+            text="Dorama Taklif Qilish",
+            callback_data="menu_suggest",
+            icon_custom_emoji_id=ICON_BULB
+        )
+    )
 
     if is_admin:
         builder.row(
@@ -364,6 +371,11 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
             text="Ongoing (Davom etayotganlar)",
             callback_data="admin_ongoing_list",
             icon_custom_emoji_id=ICON_ACTION
+        ),
+        InlineKeyboardButton(
+            text="Dorama Takliflari",
+            callback_data="admin_suggestions_list",
+            icon_custom_emoji_id=ICON_CLIPBOARD
         )
     )
 
@@ -694,6 +706,57 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
             text="Bosh Menyu",
             callback_data="menu_home",
             icon_custom_emoji_id=ICON_HOME
+        )
+    )
+    return builder.as_markup()
+
+
+def suggestion_admin_kb(suggestion_id: int, user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Qabul qilish",
+            callback_data=f"sug_accept:{suggestion_id}:{user_id}",
+            icon_custom_emoji_id=ICON_CHECK_GREEN
+        ),
+        InlineKeyboardButton(
+            text="Rad etish",
+            callback_data=f"sug_reject:{suggestion_id}:{user_id}",
+            icon_custom_emoji_id=ICON_CROSS_RED
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Foydalanuvchiga Javob Yozish",
+            callback_data=f"sug_reply:{suggestion_id}:{user_id}",
+            icon_custom_emoji_id=ICON_BROADCAST
+        )
+    )
+    return builder.as_markup()
+
+def suggestions_list_kb(suggestions: list) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for s in suggestions:
+        st = s.get('status', 'pending')
+        if st == 'accepted':
+            icon_id = ICON_CHECK_GREEN
+        elif st == 'rejected':
+            icon_id = ICON_CROSS_RED
+        else:
+            icon_id = ICON_BULB
+        title = (s.get('suggestion') or '')[:30]
+        builder.row(
+            InlineKeyboardButton(
+                text=f"[{s['id']}] {title}",
+                callback_data=f"view_sug:{s['id']}",
+                icon_custom_emoji_id=icon_id
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="Admin Panel",
+            callback_data="menu_admin",
+            icon_custom_emoji_id=ICON_ARROW_LEFT
         )
     )
     return builder.as_markup()
