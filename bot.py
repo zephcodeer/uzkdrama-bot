@@ -1009,23 +1009,6 @@ async def handle_bookmarks_trigger(message: Message, state: FSMContext):
 
 
 @router.message(Command("vip"))
-
-def get_promo_free_kb() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(
-            text="🎬 Kinolarni Ko'rish",
-            callback_data="menu_latest:0",
-            icon_custom_emoji_id=ICON_POPCORN
-        ),
-        InlineKeyboardButton(
-            text="Bosh Menyu",
-            callback_data="menu_home",
-            icon_custom_emoji_id=ICON_ARROW_LEFT
-        )
-    )
-    return builder.as_markup()
-
 @router.message(Command("vip_plans"))
 @router.message(F.text.in_(["👑 VIP A'zolik", "VIP A'zolik", "VIP"]))
 async def handle_vip_trigger(message: Message, state: FSMContext):
@@ -1035,13 +1018,13 @@ async def handle_vip_trigger(message: Message, state: FSMContext):
         text = (
             f"{ce('party')} <b>MAXSUS AKSIYA: BARCHA QISMLAR 100% BEPUL!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🎁 Hozirda botimizda barcha serial va kinolarning <b>barcha qismlari mutlaqo bepul</b> ochilgan!\n\n"
+            f"{ce('gift')} Hozirda botimizda barcha serial va kinolarning <b>barcha qismlari mutlaqo bepul</b> ochilgan!\n\n"
             f"{ce('check_green')} Do'st taklif qilish shart emas\n"
             f"{ce('check_green')} Hech qanday VIP to'lovi talab qilinmaydi\n"
             f"{ce('check_green')} 1-qismdan oxirgi qismgacha barchasi cheklovsiz ochiq!\n\n"
             f"<i>Botimizdan maroqli foydalaning va sevimli kinolaringizdan zavqlaning! {ce('popcorn')}</i>"
         )
-        await message.answer(text, reply_markup=get_promo_free_kb(), parse_mode=ParseMode.HTML)
+        await message.answer(text, reply_markup=kb.promo_free_kb(), parse_mode=ParseMode.HTML)
         return
 
     user = await db.get_user(message.from_user.id)
@@ -1071,13 +1054,13 @@ async def cb_menu_vip(call: CallbackQuery, state: FSMContext):
         text = (
             f"{ce('party')} <b>MAXSUS AKSIYA: BARCHA QISMLAR 100% BEPUL!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🎁 Hozirda botimizda barcha serial va kinolarning <b>barcha qismlari mutlaqo bepul</b> ochilgan!\n\n"
+            f"{ce('gift')} Hozirda botimizda barcha serial va kinolarning <b>barcha qismlari mutlaqo bepul</b> ochilgan!\n\n"
             f"{ce('check_green')} Do'st taklif qilish shart emas\n"
             f"{ce('check_green')} Hech qanday VIP to'lovi talab qilinmaydi\n"
             f"{ce('check_green')} 1-qismdan oxirgi qismgacha barchasi cheklovsiz ochiq!\n\n"
             f"<i>Botimizdan maroqli foydalaning va sevimli kinolaringizdan zavqlaning! {ce('popcorn')}</i>"
         )
-        await render_text_screen(call, text, reply_markup=get_promo_free_kb())
+        await render_text_screen(call, text, reply_markup=kb.promo_free_kb())
         await safe_answer(call)
         return
 

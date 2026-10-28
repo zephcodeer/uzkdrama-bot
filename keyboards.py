@@ -66,6 +66,7 @@ ICON_INFO = "5334544901428229844"               # ℹ️ Ma'lumot
 ICON_NUM_1 = "5456269518751948393"              # 1️⃣ Bosqich
 ICON_NUM_2 = "5456250195694080809"              # 2️⃣ Bosqich
 ICON_NUM_3 = "5456382802809347478"              # 3️⃣ Bosqich
+ICON_GIFT = "6024007883966912557"               # 🎁 Sovg'a / Aksiya
 
 def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -116,14 +117,31 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
         )
 
     vip_label = "🎁 Aksiya: Barcha Qismlar Bepul!" if is_promo else "VIP A'zolik (Qulflarsiz)"
+    vip_icon = ICON_GIFT if is_promo else ICON_VIP
     builder.row(
         InlineKeyboardButton(
             text=vip_label,
             callback_data="menu_vip",
-            icon_custom_emoji_id=ICON_VIP
+            icon_custom_emoji_id=vip_icon
         )
     )
 
+    return builder.as_markup()
+
+def promo_free_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="🎬 Kinolarni Ko'rish",
+            callback_data="menu_latest:0",
+            icon_custom_emoji_id=ICON_POPCORN
+        ),
+        InlineKeyboardButton(
+            text="Bosh Menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_ARROW_LEFT
+        )
+    )
     return builder.as_markup()
 
 def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_next: bool = False) -> InlineKeyboardMarkup:
