@@ -818,9 +818,14 @@ async def cb_menu_home(call: CallbackQuery, state: FSMContext):
     await safe_answer(call)
 
 
-@router.callback_query(F.data.startswith("menu_latest:"))
+@router.callback_query(F.data.startswith("menu_latest"))
 async def cb_menu_latest(call: CallbackQuery):
-    page = int(call.data.split(":")[1])
+    page = 0
+    if ":" in call.data:
+        try:
+            page = max(0, int(call.data.split(":")[1]))
+        except Exception:
+            page = 0
     limit = 8
     doramas = await db.get_latest_doramas(limit=limit + 1, offset=page * limit)
     has_next = len(doramas) > limit
