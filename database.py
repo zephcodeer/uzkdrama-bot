@@ -581,12 +581,20 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
                         matched_count += 1
                         weight = 0.3 if is_stop else 1.0
                         total_token_score += best_match * weight
-                        if not is_stop and best_match >= 0.7:
+                        if not is_stop and best_match >= 0.65:
                             matched_informative += 1
 
-                # Muhim so'zlar kiritilgan bo'lsa, ulardan kamida bittasi mos kelishi shart!
-                # (Bu "mening qiroligim" qidirilganda boshqa "Mening ..." kinolarini butunlay filtrlaydi)
-                if informative_tokens and matched_informative == 0:
+                # Kamida talab qilinadigan muhim so'zlar soni:
+                # 1 ta bo'lsa -> 1 ta
+                # 2 ta bo'lsa -> 2 ta (ikkala so'z ham qatnashishi SHART, masalan "oy oshiqlar"da faqat "oy" mos kelgan boshqa doramalar qat'iyan to'siladi)
+                # 3 ta bo'lsa -> kamida 2 ta
+                # 4+ ta bo'lsa -> kamida 67%
+                if len(informative_tokens) <= 2:
+                    min_req_informative = len(informative_tokens)
+                else:
+                    min_req_informative = max(2, int(len(informative_tokens) * 0.67 + 0.5))
+
+                if informative_tokens and matched_informative < min_req_informative:
                     score = 0.0
                 elif not informative_tokens and matched_count == 0:
                     score = 0.0
@@ -608,6 +616,12 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
 
     # Ball va ko'rishlar soni bo'yicha saralash
     scored_doramas.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+    # Yuqori aniqlikdagi natija (score >= 80) mavjud bo'lsa, chala/zaif past balli natijalarni (noise) tozalash
+    if scored_doramas and scored_doramas[0][0] >= 80.0:
+        best_score = scored_doramas[0][0]
+        scored_doramas = [item for item in scored_doramas if item[0] >= max(50.0, best_score * 0.75)]
+
     sorted_results = [item[2] for item in scored_doramas]
     return sorted_results[offset:offset + limit]
 
