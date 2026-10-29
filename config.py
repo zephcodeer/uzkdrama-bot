@@ -18,6 +18,9 @@ ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 7141955036
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 
+VIP_CARD_NUMBER = os.getenv("VIP_CARD_NUMBER", "4916 9903 7054 4030").strip()
+VIP_CARD_HOLDER = os.getenv("VIP_CARD_HOLDER", "Visa").strip()
+
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "bd182e04").strip()
 
 DB_PATH = BASE_DIR / "doramas.db"
