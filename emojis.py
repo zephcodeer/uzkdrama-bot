@@ -5,86 +5,86 @@ CUSTOM_EMOJIS = {
     # 1. Action Clapperboard (Kino / Dorama)
     "action": ("5368653135101310687", "🎬"),
     "film": ("5368653135101310687", "🎬"),
-    "tv": ("5368653135101310687", "📺"),
     "dora": ("5368653135101310687", "🎭"),
 
-    # 2. Glowing Sparkles (Effektlar)
-    "sparkles": ("5451636889717062286", "✨"),
-    "star": ("5451636889717062286", "⭐"),
+    # 2. Yangi Animatsiyali Televizor (TV / Seriallar qismlari)
+    "tv": ("5350513667144163474", "📺"),
 
-    # 3. King Crown (Premium / Boshliq)
+    # 3. Glowing Sparkles & Yangi Yulduzcha (Effektlar & Baholash)
+    "sparkles": ("5451636889717062286", "✨"),
+    "star": ("5226928895189598791", "⭐"),
+    "rating": ("5226928895189598791", "⭐"),
+
+    # 4. King Crown (Premium / Boshliq)
     "crown": ("5431505596316665041", "👑"),
 
-    # 4. Popcorn Box (Yangi doramalar)
+    # 5. Popcorn Box (Yangi doramalar)
     "popcorn": ("5371081166013078244", "🍿"),
 
-    # 5. Fire Crystal (Trend / Olov)
+    # 6. Fire Crystal (Trend / Olov)
     "fire": ("5251329454801710673", "🔥"),
 
-    # 6. Detective Duck (Qidiruv)
+    # 7. Detective Duck & Yangi Animatsiyali Ko'zlar (Qidiruv & Ko'rishlar)
     "search": ("5411377339458145570", "🔍"),
-    "eyes": ("5411377339458145570", "👀"),
+    "eyes": ("5210956306952758910", "👀"),
 
-    # 7. Green Chart Stats (Statistika)
+    # 8. Green Chart Stats (Statistika)
     "stats": ("6154657967317717391", "📊"),
 
-    # 8. Golden Bell (Yangi qismlarni kuzatish / Bildirishnoma)
+    # 9. Golden Bell (Yangi qismlarni kuzatish / Bildirishnoma)
     "bell": ("5258342814273513092", "🔔"),
 
-    # 9. Star Eyes Smile (Xatcho'p / Sevimlilar)
+    # 10. Star Eyes Smile (Xatcho'p / Sevimlilar)
     "bookmark": ("5190683945351535076", "⭐️"),
     "star_eyes": ("5190683945351535076", "🤩"),
 
-    # 10. Red Numbers Badge (Kino kodi)
+    # 11. Red Numbers Badge (Kino kodi)
     "code": ("5262556520788273962", "🔢"),
     "number": ("5262556520788273962", "🔢"),
 
-    # 11. Duck with Megaphone (Broadcast / Admin e'lonlari)
+    # 12. Duck with Megaphone (Broadcast / Admin e'lonlari)
     "broadcast": ("5429295161333007624", "📢"),
     "megaphone": ("5429295161333007624", "📢"),
 
-    # 12. Glossy Red Play Button (Davom etish / Ijro)
+    # 13. Glossy Red Play Button (Davom etish / Ijro)
     "play": ("5348125953090403204", "▶️"),
 
-    # 13. Animated Lightbulb (Maslahat / Idea / Kino Kodi)
+    # 14. Animated Lightbulb (Maslahat / Idea / Kino Kodi)
     "bulb": ("5422439311196834318", "💡"),
     "idea": ("5422439311196834318", "💡"),
     "light": ("5422439311196834318", "💡"),
 
-    # 14. Animated Pointing Hand Right (Ko'rsatgich / Diqqat)
+    # 15. Animated Pointing Hand Right (Ko'rsatgich / Diqqat)
     "point_right": ("5465198403573012261", "👉"),
     "finger": ("5465198403573012261", "👉"),
     "arrow": ("5465198403573012261", "👉"),
 
-    # 15. Animated Lightning (Chaqmoq / Holat / Tezkor)
+    # 16. Animated Lightning (Chaqmoq / Holat / Tezkor)
     "lightning": ("6105092060446986556", "⚡️"),
     "thunder": ("6105092060446986556", "⚡️"),
 
-    # 16. Animated Green Sphere (Ongoing / Faol holat)
+    # 17. Animated Green Sphere (Ongoing / Faol holat)
     "green_circle": ("5462906239656666557", "🟢"),
     "ongoing": ("5462906239656666557", "🟢"),
 
-    # 17. Animated Inbox Tray (Yuklangan qismlar)
+    # 18. Animated Inbox Tray (Yuklangan qismlar)
     "tray": ("5837146578611081011", "📥"),
     "inbox": ("5837146578611081011", "📥"),
 
-    # 18. Animated Globe (Davlat / Hudud)
+    # 19. Animated Globe (Davlat / Hudud)
     "globe": ("5465166522030764559", "🌍"),
     "earth": ("5465166522030764559", "🌍"),
 
-    # 19. Animated Theater Masks (Aktyorlar / Drama)
+    # 20. Animated Theater Masks (Aktyorlar / Drama)
     "masks": ("5350658016700013471", "🎭"),
     "theater": ("5350658016700013471", "🎭"),
 
-    # 20. Animated Memo & Pencil (Tavsif / Syujet)
+    # 21. Animated Memo & Pencil (Tavsif / Syujet)
     "memo": ("5837003105228558796", "📝"),
     "desc": ("5837003105228558796", "📝"),
 
-    # === YANGI QO'SHILGAN ANIMATED EMOJILAR ===
-    # 21. Qulf (Lock)
+    # 22. Qulf (Lock) & Qulf ochilgan (Unlock)
     "lock": ("5206432422194849059", "🔒"),
-
-    # 22. Qulf ochilgan (Unlock)
     "unlock": ("5465443379917629504", "🔓"),
 
     # 23. Do'stlar / Referallar (Friends)
@@ -149,7 +149,7 @@ CUSTOM_EMOJIS = {
     # 42. Pochta qutisi / Yuborildi (Mailbox)
     "mailbox": ("5350421256627838238", "📬"),
 
-    # === YANGI FOYDALANUVCHI ANIMATED EMOJILARI ===
+    # === JANRLAR VA TOIFALAR ===
     # 43. Jangari / Portlash (Genre Action)
     "genre_action": ("5415803084213329506", "💥"),
     "boom": ("5415803084213329506", "💥"),
@@ -232,9 +232,44 @@ CUSTOM_EMOJIS = {
     # 62. Sovg'a / Aksiya (Gift)
     "gift": ("6024007883966912557", "🎁"),
 
-    # 63. Huquqiy Ogohlantirish / Tarozi (Scale / Legal)
-    "scale": ("5462935376714802451", "⚖️"),
-    "legal": ("5462935376714802451", "⚖️"),
+    # === YANGI INTEGRATSIYA QILINGAN MAXSUS ANIMATSIYALAR (12 TA) ===
+    # 63. Yangi Animatsiyali Huquqiy Tarozi (Scale / Legal Disclaimer)
+    "scale": ("5461152608804689572", "⚖️"),
+    "legal": ("5461152608804689572", "⚖️"),
+    "balance": ("5461152608804689572", "⚖️"),
+
+    # 64. Yangi Animatsiyali Kubok (Trophy / Top Doramalar)
+    "trophy": ("5226431245918942763", "🏆"),
+    "top": ("5226431245918942763", "🏆"),
+
+    # 65. Yangi Animatsiyali Sozlamalar (Settings / Admin Paneli)
+    "settings": ("5447611706496808621", "⚙️"),
+    "gear": ("5447611706496808621", "⚙️"),
+
+    # 66. Yangi Animatsiyali Qalqon (Shield / Xavfsizlik & Himoya)
+    "shield": ("6026057596979385040", "🛡️"),
+    "security": ("6026057596979385040", "🛡️"),
+
+    # 67. Yangi Animatsiyali ID Belgisi (ID Badge / Foydalanuvchi & Kino ID)
+    "id_badge": ("6030656587830399914", "🆔"),
+    "id": ("6030656587830399914", "🆔"),
+
+    # 68. Yangi Animatsiyali Telefon (Phone / Menyu)
+    "phone": ("5231302331538104275", "📱"),
+    "mobile": ("5231302331538104275", "📱"),
+
+    # 69. Yangi Animatsiyali Chat / Izoh (Chat / Fikr-mulohaza)
+    "chat": ("5204122623142799753", "💬"),
+    "comment": ("5204122623142799753", "💬"),
+    "feedback": ("5204122623142799753", "💬"),
+
+    # 70. Yangi Animatsiyali Seriallar Papkasi (Series Folder)
+    "series": ("5431721976769027887", "📂"),
+    "folder_series": ("5431721976769027887", "📂"),
+
+    # 71. Yangi Animatsiyali Taklif Havolasi (Link / Ulashish)
+    "link": ("5447479640547428304", "🔗"),
+    "share_link": ("5447479640547428304", "🔗"),
 }
 
 

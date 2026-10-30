@@ -8,7 +8,7 @@ ICON_FIRE = "5251329454801710673"      # Top doramalar
 ICON_SEARCH = "5411377339458145570"    # Qidiruv (Duck)
 ICON_STATS = "6154657967317717391"     # Statistika (Green Chart)
 ICON_ACTION = "5368653135101310687"    # Kino / Dorama (Action)
-ICON_SERIES = "5368653135101310687"    # Seriallar / Kategoriyalar
+ICON_SERIES = "5431721976769027887"    # 📂 Seriallar / Kategoriyalar
 ICON_SPARKLE = "5451636889717062286"   # Ulashish (Sparkles)
 ICON_CROWN = "5431505596316665041"     # Admin / Premium (Crown)
 ICON_VIP = "5229011542011299168"       # VIP Yangi Ajoyib Crown
@@ -68,6 +68,19 @@ ICON_NUM_2 = "5456250195694080809"              # 2️⃣ Bosqich
 ICON_NUM_3 = "5456382802809347478"              # 3️⃣ Bosqich
 ICON_GIFT = "6024007883966912557"               # 🎁 Sovg'a / Aksiya
 
+# 12 ta yangi integratsiya qilingan maxsus animatsiyalar
+ICON_TV = "5350513667144163474"         # 📺 Televizor / Seriallar
+ICON_SCALE = "5461152608804689572"      # ⚖️ Tarozi / Ogohlantirish
+ICON_EYES = "5210956306952758910"       # 👀 Ko'rishlar
+ICON_TROPHY = "5226431245918942763"     # 🏆 Top reyting / Kubok
+ICON_SETTINGS = "5447611706496808621"   # ⚙️ Sozlamalar / Admin
+ICON_SHIELD = "6026057596979385040"     # 🛡️ Himoya / Rasmiy
+ICON_ID = "6030656587830399914"         # 🆔 Kino / User ID
+ICON_PHONE = "5231302331538104275"      # 📱 Telefon
+ICON_CHAT = "5204122623142799753"       # 💬 Chat / Izoh
+ICON_STAR = "5226928895189598791"       # ⭐ Baho / Yulduz
+ICON_LINK = "5447479640547428304"       # 🔗 Taklif havolasi / Do'stlar
+
 def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -86,7 +99,7 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
         InlineKeyboardButton(
             text="Top Ko'rilganlar",
             callback_data="menu_top",
-            icon_custom_emoji_id=ICON_FIRE
+            icon_custom_emoji_id=ICON_TROPHY
         ),
         InlineKeyboardButton(
             text="Qidirish (yoki kod)",
@@ -119,7 +132,7 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
             InlineKeyboardButton(
                 text="Admin Panel",
                 callback_data="menu_admin",
-                icon_custom_emoji_id=ICON_CROWN
+                icon_custom_emoji_id=ICON_SETTINGS
             )
         )
 
@@ -361,7 +374,7 @@ def dorama_detail_kb(
         InlineKeyboardButton(
             text="Do'stlarga ulashish",
             url=share_url,
-            icon_custom_emoji_id=ICON_SPARKLE
+            icon_custom_emoji_id=ICON_LINK
         )
     )
     builder.row(
@@ -424,7 +437,7 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="GitHub'dan Yangilash (Git Pull)",
             callback_data="admin_git_update",
-            icon_custom_emoji_id=ICON_SPARKLE
+            icon_custom_emoji_id=ICON_ROCKET
         )
     )
     builder.row(
