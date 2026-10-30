@@ -431,6 +431,7 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
     country_str = f"{ce('globe')} <b>Davlat:</b> {d['country']}\n" if d.get("country") else ""
 
+    aliases_str = f"{ce('scroll')} <b>Boshqa nomlari:</b> <i>{d['aliases']}</i>\n" if d.get("aliases") else ""
     desc_str = f"{ce('memo')} <i>{d['description']}</i>\n━━━━━━━━━━━━━━━━━━\n" if d.get("description") else ""
 
 
@@ -442,6 +443,7 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
         f"━━━━━━━━━━━━━━━━━━\n"
 
         f"{code_badge}"
+        f"{aliases_str}"
 
         f"{ce('sparkles')} <b>Yili:</b> {d['year']}\n"
 

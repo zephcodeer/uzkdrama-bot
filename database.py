@@ -79,6 +79,7 @@ async def init_db():
             "ALTER TABLE doramas ADD COLUMN status TEXT DEFAULT 'Ongoing';",
             "ALTER TABLE doramas ADD COLUMN country TEXT DEFAULT 'Janubiy Koreya';",
             "ALTER TABLE doramas ADD COLUMN actors TEXT DEFAULT '';",
+            "ALTER TABLE doramas ADD COLUMN aliases TEXT DEFAULT '';",
         ]:
             try:
                 await db.execute(col_sql)
@@ -533,7 +534,7 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("""
-            SELECT id, code, title, slug, genre, year, poster_url, total_episodes, views, status, country, actors
+            SELECT id, code, title, slug, genre, year, poster_url, total_episodes, views, status, country, actors, aliases
             FROM doramas
         """) as cursor:
             all_doramas = [dict(r) for r in await cursor.fetchall()]
@@ -542,7 +543,9 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
 
     for d in all_doramas:
         title = d.get("title") or ""
-        t_clean = normalize_search_text(title)
+        aliases = d.get("aliases") or ""
+        full_title_text = f"{title} {aliases}".strip()
+        t_clean = normalize_search_text(full_title_text)
         t_tokens = t_clean.split()
 
         genre_clean = normalize_search_text(d.get("genre") or "")
