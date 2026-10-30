@@ -399,6 +399,8 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
     episodes = await db.get_episodes(dorama_id)
 
+    related_seasons = await db.get_related_seasons(dorama_id)
+
     bot_info = await bot.get_me()
 
 
@@ -487,7 +489,9 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
         bookmarked=bookmarked,
 
-        subscribed=subscribed
+        subscribed=subscribed,
+
+        related_seasons=related_seasons
 
     )
 
@@ -2861,3 +2865,8 @@ if __name__ == "__main__":
 
         print("Bot to'xtatildi.")
 
+
+
+@router.callback_query(F.data == "ignore")
+async def cb_ignore_callback(call: CallbackQuery):
+    await safe_answer(call, "Siz hozir shu fasldasiz!")

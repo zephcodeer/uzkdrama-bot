@@ -262,9 +262,22 @@ def dorama_detail_kb(
     per_page: int = 15,
     last_watched: int | None = None,
     bookmarked: bool = False,
-    subscribed: bool = False
+    subscribed: bool = False,
+    related_seasons: list = None
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+
+    # Fasllar tugmalari (agar ko'p faslli bo'lsa)
+    if related_seasons and len(related_seasons) > 1:
+        season_btns = []
+        for s in related_seasons:
+            is_active = (s["id"] == dorama_id)
+            lbl = s.get("label") or f"{s.get('season_num', 1)}-fasl"
+            cnt = s.get("total_episodes") or 0
+            text = f"🟢 {lbl} ({cnt})" if is_active else f"{lbl} ({cnt})"
+            cb = "ignore" if is_active else f"view_dorama:{s['id']}"
+            season_btns.append(InlineKeyboardButton(text=text, callback_data=cb))
+        builder.row(*season_btns)
 
     display_items = build_display_episodes(episodes)
     total_items = len(display_items)

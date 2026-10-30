@@ -80,6 +80,7 @@ async def init_db():
             "ALTER TABLE doramas ADD COLUMN country TEXT DEFAULT 'Janubiy Koreya';",
             "ALTER TABLE doramas ADD COLUMN actors TEXT DEFAULT '';",
             "ALTER TABLE doramas ADD COLUMN aliases TEXT DEFAULT '';",
+            "ALTER TABLE doramas ADD COLUMN series_group TEXT DEFAULT '';",
         ]:
             try:
                 await db.execute(col_sql)
@@ -1391,3 +1392,55 @@ async def get_dorama_suggestion(suggestion_id: int) -> dict | None:
         cursor = await udb.execute("SELECT * FROM dorama_suggestions WHERE id = ?", (suggestion_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+
+async def get_related_seasons(dorama_id: int) -> list:
+    """
+    Doramaga tegishli boshqa fasllarni intellektual aniqlash:
+    1. series_group bo'yicha aniq bog'lanish (masalan 'what-if', 'squid-game', 'wednesday').
+    2. Fallback: sarlavha ildizi bo'yicha fasllar oilasini avtomatik guruhlash.
+    """
+    import re
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM doramas WHERE id = ?", (dorama_id,)) as cur:
+            current = await cur.fetchone()
+            if not current:
+                return []
+            current_dict = dict(current)
+
+        group = (current_dict.get("series_group") or "").strip()
+        if group:
+            async with db.execute(
+                "SELECT id, code, title, total_episodes, series_group FROM doramas WHERE series_group = ? ORDER BY code ASC",
+                (group,)
+            ) as cur:
+                rows = [dict(r) for r in await cur.fetchall()]
+        else:
+            title = current_dict.get("title") or ""
+            base = re.sub(r'\|\s*\d+[- ]*fasl|\d+[- ]*fasl|season\s*\d+', '', title, flags=re.IGNORECASE).strip()
+            if len(base) >= 5:
+                async with db.execute(
+                    "SELECT id, code, title, total_episodes, series_group FROM doramas WHERE title LIKE ? ORDER BY code ASC",
+                    (f"%{base}%",)
+                ) as cur:
+                    rows = [dict(r) for r in await cur.fetchall()]
+            else:
+                rows = [current_dict]
+
+    if len(rows) <= 1:
+        return []
+
+    result = []
+    for idx, r in enumerate(rows):
+        m = re.search(r'(\d+)[- ]*fasl', r.get("title") or "", re.IGNORECASE)
+        s_num = int(m.group(1)) if m else (idx + 1)
+        result.append({
+            "id": r["id"],
+            "code": r.get("code"),
+            "title": r.get("title"),
+            "total_episodes": r.get("total_episodes", 0),
+            "label": f"{s_num}-fasl",
+            "season_num": s_num
+        })
+    return result
