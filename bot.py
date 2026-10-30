@@ -469,7 +469,7 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
         f"{desc_str}"
 
-        f"⚖️ <i>Eslatma: Seriallar ichidagi har qanday bukmekerlik reklamalari tarjimon guruhlarga tegishli bo'lib, bot ma'muriyatiga aloqador emas va unga targ'ib qilinmaydi.</i>\n"
+        f"{ce('scale')} <i>Eslatma: Seriallar ichidagi har qanday bukmekerlik reklamalari tarjimon guruhlarga tegishli bo'lib, bot ma'muriyatiga aloqador emas va unga targ'ib qilinmaydi.</i>\n"
 
         f"━━━━━━━━━━━━━━━━━━\n"
 
@@ -777,7 +777,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
                 f"{ce('popcorn')} <i>Yoqimli tomosha!</i>\n\n"
 
-                f"⚖️ <b>Eslatma va ogohlantirish:</b>\n"
+                f"{ce('scale')} <b>Eslatma va ogohlantirish:</b>\n"
 
                 f"<i>Serial ichida paydo bo'ladigan har qanday qimor yoki bukmekerlik reklamalari tarjimon studiyalar tomonidan joylangan bo'lib, bot ma'muriyatiga mutlaqo aloqador emas. Biz qimor va tavakkalchilik o'yinlariga aslo targ'ib qilmaymiz!</i>\n"
 

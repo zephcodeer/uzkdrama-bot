@@ -231,6 +231,10 @@ CUSTOM_EMOJIS = {
 
     # 62. Sovg'a / Aksiya (Gift)
     "gift": ("6024007883966912557", "🎁"),
+
+    # 63. Huquqiy Ogohlantirish / Tarozi (Scale / Legal)
+    "scale": ("5462935376714802451", "⚖️"),
+    "legal": ("5462935376714802451", "⚖️"),
 }
 
 
