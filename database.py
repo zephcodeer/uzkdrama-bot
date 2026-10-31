@@ -592,7 +592,9 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
     import difflib
 
     q = (query or "").strip()
-    if len(q) < 2:
+    if not q:
+        return []
+    if len(q) < 2 and not q.isdigit():
         return []
 
     q_norm = normalize_search_text(q)
@@ -626,6 +628,8 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
         # 1. To'liq kino kodi mosligi
         if q_norm == code_str:
             score = 100.0
+        elif q_norm.isdigit() and code_str.startswith(q_norm):
+            score = 85.0 + (len(q_norm) / len(code_str)) * 10.0
         # 2. To'liq nom mosligi
         elif q_norm == t_clean:
             score = 98.0
