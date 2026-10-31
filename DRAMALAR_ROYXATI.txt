@@ -259,7 +259,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 354    | Muhabbatning abadiy ifori (The Scent of Time)  | 2023   | 33/33        | Tugallangan 
 355    | Choson nikoh agentligi (Flower Crew: Joseon Ma | 2019   | 3/3          | Ongoing     
 356    | Sharqiy saroy                                  | 2024   | 8/8          | Tugallangan 
-357    | Oddiy bir kun (One Ordinary Day)               | 2024   | 6/6          | Tugallangan 
+357    | Oddiy bir kun (One Ordinary Day)               | 2021   | 6/6          | Tugallangan 
 358    | Ilohiy g'azab (The Divine Fury 2019)           | 2019   | 1/1          | Tugallangan 
 359    | Taksi haydovchisi 1-fasl (Taxi Driver)         | 2021   | 9/9          | Tugallangan 
 360    | Boylik kelmoqda                                | 2024   | 27/27        | Tugallangan 
@@ -287,7 +287,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 382    | Qirolicha (The Empress / The Queen)            | 2020   | 85/85        | Tugallangan 
 383    | Ditto (Ditto 2022)                             | 2022   | 1/1          | Tugallangan 
 384    | Minamahal                                      | 2024   | 1/1          | Tugallangan 
-385    | Sevgi bu kecha dunyodan yo'qolsa ham (Even If  | 2022   | 1/1          | Tugallangan 
+385    | Sevgi bu kecha dunyodan yo'qolsa ham           | 2022   | 1/1          | Tugallangan 
 386    | So'nggi 10 yil (The Last 10 Years)             | 2022   | 1/1          | Tugallangan 
 387    | Yangi yilingiz bilan (A Year-End Medley 2021)  | 2021   | 1/1          | Tugallangan 
 388    | Joze (Josee 2020)                              | 2020   | 1/1          | Tugallangan 
@@ -338,7 +338,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 433    | Gullash fasli (Seasons of Blossom)             | 2022   | 16/16        | Tugallangan 
 434    | Ramantikaning mutloq qiymati                   | 2024   | 16/16        | Tugallangan 
 435    | Arvohlar joylashgan poezd (2-variant)          | 2024   | 1/1          | Tugallangan 
-436    | Bogota: Yo'qolganlar shahri (Bogota: City of t | 2024   | 1/1          | Tugallangan 
+436    | Bogota: Yo'qolganlar shahri (2-variant)        | 2024   | 1/1          | Tugallangan 
 437    | Yomg'ir ostidagi sevgi (2-variant)             | 2024   | 30/30        | Tugallangan 
 438    | Katta Dunyo Yoxud Kichik Men                   | 2024   | 1/1          | Tugallangan 
 439    | Galaktika Tartibchilari                        | 2024   | 1/1          | Tugallangan 
