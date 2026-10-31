@@ -451,9 +451,43 @@ async def get_episode(dorama_id: int, ep_num: int):
 
 COMMON_STOPWORDS = {
     "mening", "sening", "uning", "bizning", "sizning", "ularning",
-    "bir", "va", "bu", "o'sha", "shu", "u", "bilan", "uchun", "ham", "eng",
-    "1", "2", "3", "fasl", "qism", "serial", "film", "kino",
+    "va", "bu", "o'sha", "shu", "u", "bilan", "uchun", "ham", "eng",
+    "fasl", "qism", "serial", "film", "kino",
+    "ta", "dona", "nafar",
     "the", "a", "an", "of", "and", "in", "to", "my", "your", "season", "part"
+}
+
+UZBEK_NUM_WORDS = {
+    # Compounds (tens + units)
+    "on bir": "11", "on ikki": "12", "on uch": "13", "on tort": "14", "on besh": "15",
+    "on olti": "16", "on yetti": "17", "on sakkiz": "18", "on toqqiz": "19",
+    "yigirma bir": "21", "yigirma ikki": "22", "yigirma uch": "23", "yigirma tort": "24",
+    "yigirma besh": "25", "yigirma olti": "26", "yigirma yetti": "27", "yigirma sakkiz": "28", "yigirma toqqiz": "29",
+    "ottiz bir": "31", "ottiz ikki": "32", "ottiz uch": "33",
+
+    # Ordinals
+    "birinchi": "1", "ikkinchi": "2", "uchinchi": "3", "tortinchi": "4", "beshinchi": "5",
+    "oltinchi": "6", "yettinchi": "7", "sakkizinchi": "8", "toqqizinchi": "9", "oninchi": "10",
+    "on birinchi": "11", "on ikkinchi": "12", "yigirmanchi": "20", "yigirma birinchi": "21",
+    "sakkizlik": "8", "toqqizlik": "9",
+
+    # Standalone tens
+    "on": "10", "yigirma": "20", "ottiz": "30", "qirq": "40", "ellik": "50",
+    "oltmish": "60", "yetmish": "70", "sakson": "80", "toqson": "90", "yuz": "100",
+
+    # Standalone units
+    "bir": "1", "ikki": "2", "uch": "3", "tort": "4", "besh": "5",
+    "olti": "6", "yetti": "7", "sakkiz": "8", "toqqiz": "9", "nol": "0"
+}
+
+DIGITS_TO_UZBEK = {
+    "0": "nol", "1": "bir", "2": "ikki", "3": "uch", "4": "tort", "5": "besh",
+    "6": "olti", "7": "yetti", "8": "sakkiz", "9": "toqqiz", "10": "on",
+    "11": "on bir", "12": "on ikki", "13": "on uch", "14": "on tort", "15": "on besh",
+    "16": "on olti", "17": "on yetti", "18": "on sakkiz", "19": "on toqqiz",
+    "20": "yigirma", "21": "yigirma bir", "22": "yigirma ikki", "23": "yigirma uch",
+    "24": "yigirma tort", "25": "yigirma besh", "30": "ottiz", "40": "qirq",
+    "50": "ellik", "100": "yuz"
 }
 
 UZBEK_SUFFIXES = [
@@ -486,10 +520,25 @@ def stem_uzbek_token(w: str) -> str:
     return w
 
 def normalize_search_text(text: str) -> str:
-    """Apostroflar va maxsus belgilarni tozalash (o'rgimchak -> orgimchak, yolg'on -> yolgon)."""
+    """Apostroflar, maxsus belgilar va o'zbek son so'zlarini raqamlarga keltirish."""
     t = re.sub(r"['`‘’ʻʼ]", "", (text or "").lower())
     t = re.sub(r"[\-_/()[\].,:;!?+]", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+
+    # O'zbek son so'zlarini raqamlar bilan normallashtirish (on ikki -> 12, to'qqiz -> 9)
+    for phrase, digit in sorted(UZBEK_NUM_WORDS.items(), key=lambda x: len(x[0]), reverse=True):
+        pattern = r"\b" + re.escape(phrase) + r"\b"
+        t = re.sub(pattern, digit, t)
     return re.sub(r"\s+", " ", t).strip()
+
+def expand_digits_to_uzbek_words(text: str) -> str:
+    """Raqamlarni o'zbekcha so'z ko'rinishiga kengaytirish (masalan: 12 -> on ikki)."""
+    words = []
+    for match in re.finditer(r"\b\d+\b", text or ""):
+        num_str = match.group(0)
+        if num_str in DIGITS_TO_UZBEK:
+            words.append(DIGITS_TO_UZBEK[num_str])
+    return " ".join(words)
 
 def get_search_tokens(text: str) -> list[str]:
     norm = normalize_search_text(text)
@@ -498,20 +547,38 @@ def get_search_tokens(text: str) -> list[str]:
 def match_token(qt: str, tt: str) -> float:
     if qt == tt:
         return 1.0
+
+    # 1. x / h o'zaro almashinishi (rux <-> ruh, baxt <-> baht, muxabbat <-> muhabbat)
+    if qt.replace('x', 'h') == tt.replace('x', 'h'):
+        return 0.98
+
     qs = stem_uzbek_token(qt)
     ts = stem_uzbek_token(tt)
-    if len(qs) >= 3 and len(ts) >= 3 and qs == ts:
+    if qs == ts:
         return 0.95
-    if len(qs) >= 4 and len(ts) >= 4 and (ts.startswith(qs) or qs.startswith(ts)):
+    if qs.replace('x', 'h') == ts.replace('x', 'h'):
+        return 0.95
+
+    # 2. Qisqartma yoki boshlanish mosligi (ru -> ruh, yov -> yovuz)
+    # Faqat so'z boshi bir xil bo'lsa (tt.startswith(qt)), hech qachon guruh -> ruh emas!
+    if len(qt) >= 2 and len(tt) >= 2 and tt.startswith(qt):
+        if len(qt) / len(tt) >= 0.5:
+            return 0.85
+    if len(qs) >= 3 and len(ts) >= 3 and ts.startswith(qs):
         return 0.90
+
+    # 3. Fuzzy mosligi (difflib) - faqat 4 va undan ortiq harfli so'zlar uchun
     if len(qt) >= 4 and len(tt) >= 4:
-        if qt[:4] == tt[:4]:
-            r = difflib.SequenceMatcher(None, qt, tt).ratio()
+        qt_h = qt.replace('x', 'h')
+        tt_h = tt.replace('x', 'h')
+        if qt_h[:4] == tt_h[:4]:
+            r = difflib.SequenceMatcher(None, qt_h, tt_h).ratio()
             if r >= 0.65:
                 return 0.85
-        r = difflib.SequenceMatcher(None, qt, tt).ratio()
-        if r >= 0.80:
-            return r * 0.85
+        r = difflib.SequenceMatcher(None, qt_h, tt_h).ratio()
+        if r >= 0.75:
+            return r * 0.90
+
     return 0.0
 
 async def search_doramas(query: str, limit: int = 10, offset: int = 0):
@@ -545,7 +612,8 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
     for d in all_doramas:
         title = d.get("title") or ""
         aliases = d.get("aliases") or ""
-        full_title_text = f"{title} {aliases}".strip()
+        num_expanded = expand_digits_to_uzbek_words(f"{title} {aliases}")
+        full_title_text = f"{title} {aliases} {num_expanded}".strip()
         t_clean = normalize_search_text(full_title_text)
         t_tokens = t_clean.split()
 
@@ -564,9 +632,13 @@ async def search_doramas(query: str, limit: int = 10, offset: int = 0):
         # 3. Nom aynan so'rov bilan boshlansa (Prefix)
         elif t_clean.startswith(q_norm):
             score = 96.0
-        # 4. Aniq ibora substring sifatida uchrasa
-        elif q_norm in t_clean and len(q_norm) >= 4:
+        # 4. Aniq ibora substring sifatida uchrasa (4+ harfli yoki butun so'z mosligi)
+        elif len(q_norm) >= 4 and q_norm in t_clean:
             score = 90.0
+        elif re.search(r"\b" + re.escape(q_norm) + r"\b", t_clean):
+            score = 92.0
+        elif re.search(r"\b" + re.escape(q_norm.replace('x', 'h')) + r"\b", t_clean.replace('x', 'h')):
+            score = 91.0
         else:
             # 5. Tokenlar bo'yicha intellektual vaznli qidiruv
             if raw_tokens and t_tokens:
