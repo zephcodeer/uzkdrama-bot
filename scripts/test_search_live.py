@@ -5,31 +5,28 @@ from database import search_doramas
 
 async def test():
     queries = [
+        "351",
+        "Bugun barchasi sotildi",
+        "Chekka qishloqdagi doktor",
+        "Dr Romantic",
+        "Sichqon",
+        "Mouse",
+        "Ertaga",
+        "One Ordinary Day",
+        "Oddiy bir kun",
+        "383",
+        "Ditto",
+        "Parazitlar",
+        "Parasite",
+        "479",
+        "Mening Ilohiy Elchim",
         "rux",
-        "ruh",
-        "yovuz ru",
-        "yovuz rux",
-        "yovuz ruh",
-        "darbadar rux",
-        "Doktor x",
-        "Doktor X",
-        "O'n Ikki Farishta",
-        "12 ta farishta",
-        "12 Farishta",
-        "on ikki farishta",
-        "To'qqiz dumli tulki",
-        "9 dumli tulki",
-        "Xalk 1",
-        "Xalk 2",
-        "yigirma besh yigirma bir",
-        "25 21",
-        "100 kunlik yolg'on",
-        "yuz kunlik yolg'on"
+        "12 ta farishta"
     ]
     for q in queries:
         res = await search_doramas(q)
         top = f"[{res[0]['code']}] {res[0]['title']}" if res else "NONE"
-        print(f"Query: {q:25} -> Found: {len(res):2} | Top: {top}")
+        print(f"Query: {q:28} -> Found: {len(res):2} | Top: {top}")
 
 if __name__ == '__main__':
     asyncio.run(test())

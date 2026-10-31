@@ -1,0 +1,134 @@
+================================================================================
+UZKDRAMA BOT — YANGI QO'SHILGAN DRAMALAR (JAMI: 129 TA | KODLAR: 351-479)
+================================================================================
+KOD    | NOMI                                           | YILI   | QISMLAR      | STATUS      
+--------------------------------------------------------------------------------
+351    | Bugun barchasi sotildi (Sold Out Today)        | 2024   | 12/12        | Tugallangan 
+352    | Park xonimning nikoh shartnomasi (The Story of | 2023   | 12/12        | Tugallangan 
+353    | Chekka qishloqdagi doktor (Dr. Romantic)       | 2016   | 12/12        | Tugallangan 
+354    | Muhabbatning abadiy ifori (The Scent of Time)  | 2023   | 33/33        | Tugallangan 
+355    | Choson nikoh agentligi (Flower Crew: Joseon Ma | 2019   | 3/3          | Ongoing     
+356    | Sharqiy saroy                                  | 2024   | 8/8          | Tugallangan 
+357    | Oddiy bir kun                                  | 2024   | 6/6          | Tugallangan 
+358    | Ilohiy g'azab (The Divine Fury 2019)           | 2019   | 1/1          | Tugallangan 
+359    | Taksi haydovchisi 1-fasl (Taxi Driver)         | 2021   | 9/9          | Tugallangan 
+360    | Boylik kelmoqda                                | 2024   | 27/27        | Tugallangan 
+361    | Jinlar isyoni                                  | 2024   | 5/5          | Tugallangan 
+362    | Mening sevimli yolg'onchim (My Lovely Liar)    | 2023   | 16/16        | Tugallangan 
+363    | G'amgin tug'ilgan kun (Blue Birthday)          | 2021   | 16/16        | Tugallangan 
+364    | Qasos (Revenge / Vengeance)                    | 2023   | 42/42        | Tugallangan 
+365    | Tom and jerry                                  | 2024   | 11/11        | Tugallangan 
+366    | Sirli qirolicha yasovchilar                    | 2024   | 7/7          | Tugallangan 
+367    | Ruyi pavilonidagi gullar (The Blooms at Ruyi P | 2020   | 41/41        | Tugallangan 
+368    | Najot Shifoxonasi 2 fasl                       | 2024   | 16/16        | Tugallangan 
+369    | Najot Shifoxonasi 3 fasl                       | 2024   | 16/16        | Tugallangan 
+370    | Men uchun kurash (Fight for My Way)            | 2017   | 16/16        | Tugallangan 
+371    | Arvohlar joylashgan poezd                      | 2024   | 1/1          | Tugallangan 
+372    | Bogota: Yo'qolganlar shahri (Bogota: City of t | 2024   | 1/1          | Tugallangan 
+373    | Yomg'ir ostidagi sevgi                         | 2024   | 30/30        | Tugallangan 
+374    | Qon daryosi                                    | 2024   | 38/38        | Tugallangan 
+375    | 90 yillardagi sahifam                          | 2024   | 24/24        | Tugallangan 
+376    | Bizning sevgimiz                               | 2024   | 24/24        | Tugallangan 
+377    | Zulmat pardasi                                 | 2024   | 29/29        | Tugallangan 
+378    | meow sirli yigit                               | 2024   | 5/5          | Tugallangan 
+379    | Qo’g’irchoq joylashgan uy                      | 2024   | 1/1          | Tugallangan 
+380    | So’ngi Samuray                                 | 2024   | 6/6          | Tugallangan 
+381    | 7 qochqin 1-fasl (The Escape of the Seven)     | 2023   | 16/16        | Tugallangan 
+382    | Qirolicha (The Empress / The Queen)            | 2020   | 85/85        | Tugallangan 
+383    | Ditto (Ditto 2022)                             | 2022   | 1/1          | Tugallangan 
+384    | Minamahal                                      | 2024   | 1/1          | Tugallangan 
+385    | Sevgi bu kecha dunyodan yo'qolsa ham (Even If  | 2022   | 1/1          | Tugallangan 
+386    | So'nggi 10 yil (The Last 10 Years)             | 2022   | 1/1          | Tugallangan 
+387    | Yangi yilingiz bilan (A Year-End Medley 2021)  | 2021   | 1/1          | Tugallangan 
+388    | Joze (Josee 2020)                              | 2020   | 1/1          | Tugallangan 
+389    | Butuk To’fon                                   | 2024   | 1/1          | Tugallangan 
+390    | Odamzod bog’i                                  | 2024   | 1/1          | Tugallangan 
+391    | Soyaning chegarasi                             | 2024   | 1/1          | Tugallangan 
+392    | Kelajakdan xotiralar                           | 2024   | 1/1          | Tugallangan 
+393    | Sevgi Qorbo’roni                               | 2024   | 1/1          | Tugallangan 
+394    | Ov vaqti (Time to Hunt 2020)                   | 2020   | 1/1          | Tugallangan 
+395    | Yaxshiroq Kunlar                               | 2024   | 1/1          | Tugallangan 
+396    | Kichik o'rmon (Little Forest 2018)             | 2018   | 1/1          | Tugallangan 
+397    | O'g'irlangan shaxsiyat (Unlocked 2023)         | 2023   | 1/1          | Tugallangan 
+398    | Taqdir iblis olib kelganda (Doom at Your Servi | 2021   | 33/33        | Tugallangan 
+399    | Ertaga (Tomorrow 2022)                         | 2022   | 16/16        | Tugallangan 
+400    | Marvarid Qizning Hikoyasi                      | 2024   | 40/40        | Tugallangan 
+401    | Arvoh Poezd                                    | 2024   | 1/1          | Tugallangan 
+402    | Pavan                                          | 2024   | 1/1          | Tugallangan 
+403    | Shiddatli Joziba                               | 2024   | 40/40        | Tugallangan 
+404    | Zulmat Malikasi                                | 2024   | 24/24        | Tugallangan 
+405    | Darsdan tashqarida (Extracurricular)           | 2020   | 10/10        | Tugallangan 
+406    | Osmon Bag’ridagi Muhabbat                      | 2024   | 36/36        | Tugallangan 
+407    | Sen bilan birga                                | 2024   | 24/24        | Tugallangan 
+408    | Jimjitlik loyihasi (Project Silence 2024)      | 2024   | 1/1          | Tugallangan 
+409    | Qaytmas                                        | 2024   | 1/1          | Tugallangan 
+410    | Sevgimiz barhayot                              | 2024   | 1/1          | Tugallangan 
+411    | Parazitlar (Parasite 2019)                     | 2019   | 1/1          | Tugallangan 
+412    | Ziam zombilarga qarshi                         | 2024   | 1/1          | Tugallangan 
+413    | Qonli gul                                      | 2024   | 8/8          | Tugallangan 
+414    | Yashirin agent                                 | 2024   | 1/1          | Tugallangan 
+415    | Qasoskor.Ov boshlandi                          | 2024   | 1/1          | Tugallangan 
+416    | Qadirli Odri                                   | 2024   | 1/1          | Tugallangan 
+417    | Sichqon (Mouse 2021)                           | 2021   | 20/20        | Tugallangan 
+418    | Singan yurak                                   | 2024   | 22/22        | Tugallangan 
+419    | Mo’jizakor telbalar                            | 2024   | 8/8          | Tugallangan 
+420    | Tuzoqlar shahri                                | 2024   | 1/1          | Tugallangan 
+421    | Qutubdagi ta’qib 12soat                        | 2024   | 1/1          | Tugallangan 
+422    | Alam va zavq (Love and Leashes 2022)           | 2022   | 1/1          | Tugallangan 
+423    | O’limimdan bir hafta oldin                     | 2024   | 1/1          | Tugallangan 
+424    | Oshxona jangchilari afsonasi                   | 2024   | 12/12        | Tugallangan 
+425    | Efirdagi jang                                  | 2024   | 6/6          | Tugallangan 
+426    | Qismat virusi                                  | 2024   | 40/40        | Tugallangan 
+427    | Sevgi uchun ariza                              | 2024   | 12/12        | Tugallangan 
+428    | Mabudlar va ikki dunyo                         | 2024   | 1/1          | Tugallangan 
+429    | Zulmatdagi quyosh                              | 2024   | 24/24        | Tugallangan 
+430    | Orqa Qatordagi Yigit                           | 2024   | 6/6          | Tugallangan 
+431    | Ğaroyib dunyo                                  | 2024   | 14/14        | Tugallangan 
+432    | Menejerim bo’lib bera olasanmi?                | 2024   | 6/6          | Tugallangan 
+433    | Gullash fasli (Seasons of Blossom)             | 2022   | 16/16        | Tugallangan 
+434    | Ramantikaning mutloq qiymati                   | 2024   | 16/16        | Tugallangan 
+435    | Arvohlar joylashgan poezd (2-variant)          | 2024   | 1/1          | Tugallangan 
+436    | Bogota: Yo'qolganlar shahri (Bogota: City of t | 2024   | 1/1          | Tugallangan 
+437    | Yomg'ir ostidagi sevgi (2-variant)             | 2024   | 30/30        | Tugallangan 
+438    | Katta Dunyo Yoxud Kichik Men                   | 2024   | 1/1          | Tugallangan 
+439    | Galaktika Tartibchilari                        | 2024   | 1/1          | Tugallangan 
+440    | Arosat                                         | 2024   | 1/1          | Tugallangan 
+441    | Ilohiylikka Moyil Sevgi                        | 2024   | 24/24        | Tugallangan 
+442    | Birga O‘sish Va‘dasi                           | 2024   | 24/24        | Tugallangan 
+443    | Imkonsiz merosxo'r (The Impossible Heir)       | 2024   | 12/12        | Tugallangan 
+444    | Maydagi yoshlik (Youth of May)                 | 2021   | 12/12        | Tugallangan 
+445    | Shavqat Qilinmaydi                             | 2024   | 7/7          | Tugallangan 
+446    | Sen tergan raqam (When the Phone Rings 2024)   | 2024   | 12/12        | Tugallangan 
+447    | Umid Niholi                                    | 2024   | 36/36        | Tugallangan 
+448    | Baxt Taomi                                     | 2024   | 20/20        | Tugallangan 
+449    | Meni kechiring                                 | 2024   | 1/1          | Tugallangan 
+450    | Egizaklar                                      | 2024   | 40/40        | Tugallangan 
+451    | Taqdir tuhfasi (Fated to Love You)             | 2014   | 16/16        | Tugallangan 
+452    | Yovuz va badavlat 1fasl                        | 2024   | 10/10        | Tugallangan 
+453    | Yovuz va badavlat 2fasl                        | 2024   | 10/10        | Tugallangan 
+454    | Hayolingni bir bo’lagi                         | 2024   | 12/12        | Tugallangan 
+455    | Saroy tabibi (The King's Doctor / Horse Doctor | 2012   | 50/50        | Tugallangan 
+456    | Ishonch Qirolichasi                            | 2024   | 12/12        | Tugallangan 
+457    | Shafqatsiz shahar (Cruel City / Heartless City | 2013   | 20/20        | Tugallangan 
+458    | Seul poygachilari (Seoul Vibe 2022)            | 2022   | 1/1          | Tugallangan 
+459    | Cheksizlikka sayohat                           | 2024   | 1/1          | Tugallangan 
+460    | Yaxshi Xabar                                   | 2024   | 1/1          | Tugallangan 
+461    | Chiqish (Exit 2019)                            | 2019   | 1/1          | Tugallangan 
+462    | Iblisi Haqida Afsona                           | 2024   | 1/1          | Tugallangan 
+463    | AEMA (Aema 2025)                               | 2025   | 6/6          | Tugallangan 
+464    | Oshiqning Qasosi                               | 2024   | 8/8          | Tugallangan 
+465    | Afina:Urush Ma’budasi                          | 2024   | 20/20        | Tugallangan 
+466    | Kelishgan Yigitlar                             | 2024   | 1/1          | Tugallangan 
+467    | Shunchaki seni sevaman                         | 2024   | 1/1          | Tugallangan 
+468    | Yig’layotgan Qotil                             | 2024   | 1/1          | Tugallangan 
+469    | Xotiralar Kundaligi                            | 2024   | 1/1          | Tugallangan 
+470    | Boshqa Tanlov Yoq                              | 2024   | 1/1          | Tugallangan 
+471    | Umid                                           | 2024   | 1/1          | Tugallangan 
+472    | Baxt Izlab                                     | 2024   | 35/35        | Tugallangan 
+473    | Xotinlar Isyoni                                | 2024   | 26/26        | Tugallangan 
+474    | Minnatdorman                                   | 2024   | 16/16        | Tugallangan 
+475    | Kuz Do’Li                                      | 2024   | 16/16        | Tugallangan 
+476    | Qayta Boshlash                                 | 2024   | 15/15        | Tugallangan 
+477    | Non isi: Kim Tak Gu (King of Baking, Kim Takgu | 2010   | 30/30        | Tugallangan 
+478    | Sevgi Va O’lim                                 | 2024   | 16/16        | Tugallangan 
+479    | Mening Ilohiy Elchim                           | 2024   | 24/24        | Tugallangan 
