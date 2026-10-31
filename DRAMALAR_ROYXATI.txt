@@ -1,5 +1,5 @@
 ================================================================================
-UZKDRAMA BOT — BARCHA DRAMALAR RO'YXATI (JAMI: 246 TA)
+UZKDRAMA BOT — BARCHA DRAMALAR RO'YXATI (JAMI: 250 TA)
 ================================================================================
 KOD    | NOMI                                           | YILI   | QISMLAR      | STATUS
 --------------------------------------------------------------------------------
@@ -249,3 +249,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 344    | Agarda... (What If...?) 2-fasl                 | 2023   | 9/9          | Tugallangan
 345    | Superqiz (Supergirl)                           | 2026   | 1/1          | Tugallangan
 346    | Agent Kimning qaytishi (Manager Kim 2025)      | 2025   | 10/10        | Tugallangan
+347    | Xalk / Xalk 1 (Hulk 2003)                      | 2003   | 1/1          | Tugallangan
+348    | Xalk 2: Aqlbovar qilmas Xalk (The Incredible   | 2008   | 1/1          | Tugallangan
+349    | Ayol Xalk: Advokat (She-Hulk: Attorney at La   | 2022   | 9/9          | Tugallangan
+350    | Y loyihasi (Project Y 2026)                    | 2026   | 1/1          | Tugallangan
