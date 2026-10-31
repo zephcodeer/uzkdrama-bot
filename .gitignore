@@ -21,6 +21,7 @@ temp_*/
 *.wav
 *.mp4
 *.html
+!poster_curator.html
 mover_direct_audio.wav
 mover_test.html
 
