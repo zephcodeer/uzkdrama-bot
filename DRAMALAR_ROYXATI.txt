@@ -259,7 +259,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 354    | Muhabbatning abadiy ifori (The Scent of Time)  | 2023   | 33/33        | Tugallangan 
 355    | Choson nikoh agentligi (Flower Crew: Joseon Ma | 2019   | 3/3          | Ongoing     
 356    | Sharqiy saroy                                  | 2024   | 8/8          | Tugallangan 
-357    | Oddiy bir kun                                  | 2024   | 6/6          | Tugallangan 
+357    | Oddiy bir kun (One Ordinary Day)               | 2024   | 6/6          | Tugallangan 
 358    | Ilohiy g'azab (The Divine Fury 2019)           | 2019   | 1/1          | Tugallangan 
 359    | Taksi haydovchisi 1-fasl (Taxi Driver)         | 2021   | 9/9          | Tugallangan 
 360    | Boylik kelmoqda                                | 2024   | 27/27        | Tugallangan 
