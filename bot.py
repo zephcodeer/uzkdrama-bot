@@ -3298,14 +3298,24 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
         )]
     ])
 
-    poster_rel = d.get("poster_url")
-    poster_path = os.path.join(r"E:\Agent\Drama Bot", poster_rel) if poster_rel else None
+    poster = d.get("poster_url")
+    photo_input = None
+    if poster:
+        if os.path.exists(poster):
+            photo_input = FSInputFile(poster)
+        else:
+            basename = os.path.basename(poster)
+            local_fallback = os.path.join(config.BASE_DIR, "posters", basename)
+            if os.path.exists(local_fallback):
+                photo_input = FSInputFile(local_fallback)
+            elif poster.startswith("http"):
+                photo_input = poster
 
     try:
-        if poster_path and os.path.exists(poster_path):
+        if photo_input:
             sent = await bot.send_photo(
                 chat_id=config.REQUIRED_CHANNEL_ID,
-                photo=FSInputFile(poster_path),
+                photo=photo_input,
                 caption=caption,
                 reply_markup=kb_post,
                 parse_mode=ParseMode.HTML
@@ -3325,6 +3335,171 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
     except Exception as e:
         await message.answer(f"❌ Kanalga yuborishda xatolik: {e}")
 
+
+
+@router.message(Command("card"))
+@router.message(Command("premyera"))
+async def cmd_admin_post_card(message: Message, command: CommandObject, bot: Bot):
+    """Admin buyrug'i: Doramaning to'liq luxury premyera kartasini (expandable syujet bilan) kanalga chiqaradi.
+    Format: /card <kino_kodi_yoki_nom>
+    """
+    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+        return
+
+    arg = (command.args or "").strip()
+    if not arg:
+        await message.answer(
+            "<b>Dorama Premyera Kartasini kanalga chiqarish:</b>\n\n"
+            "Format: <code>/card &lt;kino_kodi_yoki_nom&gt;</code>\n"
+            "Masalan: <code>/card 480</code> yoki <code>/card Mukammal ish</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    if arg.isdigit():
+        d = await db.get_dorama_by_code(int(arg))
+    else:
+        results = await db.search_doramas(arg, limit=1)
+        d = results[0] if results else None
+
+    if not d:
+        await message.answer(f"❌ <code>{arg}</code> bo'yicha dorama topilmadi!")
+        return
+
+    code = d.get("code") or d.get("id")
+    title = html.escape(str(d.get("title", "")))
+    orig_title = d.get("original_title") or ""
+    sub_title = f"<i>({html.escape(orig_title)})</i>" if orig_title and orig_title.lower() != title.lower() else ""
+
+    c_raw = (d.get("country") or "").lower()
+    flag = "🇰🇷" if "kore" in c_raw or "korea" in c_raw else ("🇨🇳" if "xitoy" in c_raw or "china" in c_raw else ("🇯🇵" if "yapon" in c_raw or "japan" in c_raw else "🌏"))
+    country_name = d.get("country") or "Osiyo"
+
+    episodes = await db.get_episodes(d["id"])
+    ep_count = len(episodes)
+    raw_status = (d.get("status") or "").lower()
+    is_ongoing = "ongo" in raw_status or "davom" in raw_status
+
+    if is_ongoing:
+        status_txt = f"{ep_count} qism (Davom etmoqda) ⏳"
+        btn_text = f"🎬 1–{ep_count} qismgacha ko'rish"
+    else:
+        status_txt = f"{ep_count} qism (To'liq yuklangan) ✅" if ep_count else "Tez kunda"
+        btn_text = "🎬 Barcha qismlarni ko'rish"
+
+    year = d.get("year") or 2026
+    genre = d.get("genre") or "Drama, Romantika"
+
+    raw_desc = (d.get("description") or "Qiziqarli dorama voqealari...").strip()
+    safe_desc = html.escape(raw_desc[:400] + ("..." if len(raw_desc) > 400 else ""))
+
+    caption = (
+        f"<blockquote>“<b>{title} 🔥</b>”\n"
+        f"{sub_title}</blockquote>\n\n"
+        f"► <b>Tili:</b> Oʻzbek tilida\n"
+        f"► <b>Davlati:</b> {country_name} {flag}\n"
+        f"► <b>Yili:</b> {year}\n"
+        f"► <b>Qismlar:</b> {status_txt}\n"
+        f"► <b>Janri:</b> {genre}\n"
+        f"► <b>Kodi:</b> <code>{code}</code>\n\n"
+        f"<blockquote expandable>🎬 <b>Qisqacha syujet:</b>\n"
+        f"{safe_desc}</blockquote>\n\n"
+        f"👇 <b>Tomosha qilish uchun pastdagi tugmani bosing:</b>"
+    )
+
+    kb_card = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=btn_text,
+            url=f"https://t.me/uzkdrama_app?start={code}"
+        )]
+    ])
+
+    poster = d.get("poster_url")
+    photo_input = None
+    if poster:
+        if os.path.exists(poster):
+            photo_input = FSInputFile(poster)
+        else:
+            basename = os.path.basename(poster)
+            local_fallback = os.path.join(config.BASE_DIR, "posters", basename)
+            if os.path.exists(local_fallback):
+                photo_input = FSInputFile(local_fallback)
+            elif poster.startswith("http"):
+                photo_input = poster
+
+    try:
+        if photo_input:
+            sent = await bot.send_photo(
+                chat_id=config.REQUIRED_CHANNEL_ID,
+                photo=photo_input,
+                caption=caption,
+                reply_markup=kb_card,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            sent = await bot.send_message(
+                chat_id=config.REQUIRED_CHANNEL_ID,
+                text=caption,
+                reply_markup=kb_card,
+                parse_mode=ParseMode.HTML
+            )
+        await message.answer(
+            f"✅ <b>{title}</b> premyera kartasi kanalga muvaffaqiyatli joylandi!\n"
+            f"🔗 Post ID: <code>{sent.message_id}</code>",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        await message.answer(f"❌ Xatolik: {e}")
+
+
+@router.message(Command("restore_btn"))
+async def cmd_admin_restore_button(message: Message, command: CommandObject, bot: Bot):
+    """Admin buyrug'i: Kanaldagi har qanday postga yo'qolgan inline tugmani qayta ulaydi.
+    Format: /restore_btn <post_id> <kino_kodi>
+    Masalan: /restore_btn 24 480
+    """
+    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+        return
+
+    args = (command.args or "").strip().split()
+    if len(args) < 2 or not args[0].isdigit() or not args[1].isdigit():
+        await message.answer(
+            "<b>Kanal postiga tugma ulash:</b>\n\n"
+            "Format: <code>/restore_btn &lt;post_id&gt; &lt;kino_kodi&gt;</code>\n"
+            "Masalan: <code>/restore_btn 24 480</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    post_id = int(args[0])
+    code = int(args[1])
+    d = await db.get_dorama_by_code(code)
+    if not d:
+        await message.answer(f"❌ <code>{code}</code> kodli dorama bazada topilmadi!")
+        return
+
+    episodes = await db.get_episodes(d["id"])
+    ep_count = len(episodes)
+    raw_status = (d.get("status") or "").lower()
+    is_ongoing = "ongo" in raw_status or "davom" in raw_status
+    btn_text = f"🎬 1–{ep_count} qismgacha ko'rish" if is_ongoing else "🎬 Barcha qismlarni ko'rish"
+
+    kb_restored = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=btn_text, url=f"https://t.me/uzkdrama_app?start={code}")]
+    ])
+
+    try:
+        await bot.edit_message_reply_markup(
+            chat_id=config.REQUIRED_CHANNEL_ID,
+            message_id=post_id,
+            reply_markup=kb_restored
+        )
+        await message.answer(
+            f"✅ Post <code>{post_id}</code> ga «<b>{d['title']}</b>» tugmasi muvaffaqiyatli ulandi!",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        await message.answer(f"❌ Tugma ulashda xatolik: {e}")
 
 @router.edited_channel_post()
 async def on_channel_post_edited(message: Message, bot: Bot):
