@@ -213,8 +213,8 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 308    | Ikki Sonata (Page Turner)                      | 2016   | 12/12        | Serial (12 qism)
 309    | Itevon sinfi                                   | 2020   | 16/16        | Tugallangan (Completed)
 310    | Moviy dengiz afsonasi                          | 2016   | 20/20        | Tugallangan (Completed)
-311    | Kalmar o'yini 1 fasl                           | 2024   | 7/7          | Tugallangan (Completed)
-312    | Kalmar O'yini 2 fasl                           | 2021   | 9/9          | Tugallangan (Completed)
+311    | Kalmar o'yini 1-fasl (Squid Game Season 1)     | 2021   | 9/9          | Tugallangan (Completed)
+312    | Kalmar o'yini 2-fasl (Squid Game Season 2)     | 2024   | 7/7          | Tugallangan (Completed)
 313    | Farishtaning sevgisi                           | 2019   | 16/16        | Tugallangan (Completed)
 314    | Kalmar oʻyini 3-fasl (Squid Game Season 3)     | 2025   | 6/6          | Tugallangan (Completed)
 315    | Sevgi hikoyasi / Melo film (Melo Movie)        | 2025   | 10/10        | Tugallangan (Completed)
@@ -281,7 +281,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 376    | Bizning sevgimiz                               | 2024   | 24/24        | Tugallangan 
 377    | Zulmat pardasi                                 | 2024   | 29/29        | Tugallangan 
 378    | meow sirli yigit                               | 2024   | 5/5          | Tugallangan 
-379    | Qo’g’irchoq joylashgan uy                      | 2024   | 1/1          | Tugallangan 
+379    | Qo’g’irchoq joylashgan uy (Doll House)         | 2024   | 1/1          | Tugallangan 
 380    | So’ngi Samuray                                 | 2024   | 6/6          | Tugallangan 
 381    | 7 qochqin 1-fasl (The Escape of the Seven)     | 2023   | 16/16        | Tugallangan 
 382    | Qirolicha (The Empress / The Queen)            | 2020   | 85/85        | Tugallangan 
@@ -326,11 +326,11 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 421    | Qutubdagi ta’qib 12soat                        | 2024   | 1/1          | Tugallangan 
 422    | Alam va zavq (Love and Leashes 2022)           | 2022   | 1/1          | Tugallangan 
 423    | O’limimdan bir hafta oldin                     | 2024   | 1/1          | Tugallangan 
-424    | Oshxona jangchilari afsonasi                   | 2024   | 12/12        | Tugallangan 
+424    | Oshxona jangchilari afsonasi (The Legend of Ki | 2024   | 12/12        | Tugallangan 
 425    | Efirdagi jang                                  | 2024   | 6/6          | Tugallangan 
 426    | Qismat virusi                                  | 2024   | 40/40        | Tugallangan 
 427    | Sevgi uchun ariza                              | 2024   | 12/12        | Tugallangan 
-428    | Mabudlar va ikki dunyo                         | 2024   | 1/1          | Tugallangan 
+428    | Mabudlar va ikki dunyo (Along with the Gods: T | 2017   | 1/1          | Tugallangan 
 429    | Zulmatdagi quyosh                              | 2024   | 24/24        | Tugallangan 
 430    | Orqa Qatordagi Yigit                           | 2024   | 6/6          | Tugallangan 
 431    | Ğaroyib dunyo                                  | 2024   | 14/14        | Tugallangan 
@@ -347,7 +347,7 @@ KOD    | NOMI                                           | YILI   | QISMLAR      
 442    | Birga O‘sish Va‘dasi                           | 2024   | 24/24        | Tugallangan 
 443    | Imkonsiz merosxo'r (The Impossible Heir)       | 2024   | 12/12        | Tugallangan 
 444    | Maydagi yoshlik (Youth of May)                 | 2021   | 12/12        | Tugallangan 
-445    | Shavqat Qilinmaydi                             | 2024   | 7/7          | Tugallangan 
+445    | Shavqat qilinmaydi (Mercy for None)            | 2025   | 7/7          | Tugallangan 
 446    | Sen tergan raqam (When the Phone Rings 2024)   | 2024   | 12/12        | Tugallangan 
 447    | Umid Niholi                                    | 2024   | 36/36        | Tugallangan 
 448    | Baxt Taomi (Pasta)                             | 2010   | 20/20        | Tugallangan 
