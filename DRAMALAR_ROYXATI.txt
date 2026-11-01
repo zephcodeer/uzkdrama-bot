@@ -1,383 +1,386 @@
-BARCHA DRAMALAR RO'YXATI (JAMI 380 TA)
-============================================================
-
-[101] Doktor X , Oq Mafia — 6/10 qism (Ongoing)
-[102] Oltin qoshiq (The Golden Spoon) — 16/16 qism (Yakunlangan)
-[103] Alvon yuraklar: Koryo / Oy Oshiqlari (Moon Lovers) — 20/20 qism (Yakunlangan)
-[104] Biz barchamiz o'likmiz — 12/12 qism (Tugallangan)
-[105] Yovuzlarning yovuzi (The Worst of Evil) — 12/12 qism (Yakunlangan)
-[106] Darbadar ruh 1-fasl (Alchemy of Souls) — 20/20 qism (Yakunlangan)
-[107] Pinokkio / Sirli Olam (Pinocchio) — 20/20 qism (Yakunlangan)
-[108] Baxt — 12/12 qism (Tugallangan)
-[109] Biznes taklifi — 12/12 qism (Tugallangan)
-[110] Do'zaxdagi notanishlar (Strangers from Hell) — 10/10 qism (Yakunlangan)
-[111] Aqldan ozgan ammo hammasi joyda (It's Okay to Not Be Okay) — 16/16 qism (Yakunlangan)
-[112] Ojiz qahramon 1-fasl (Weak Hero Class 1) — 8/8 qism (Tugallangan)
-[113] Doona! (Doona) — 9/9 qism (Yakunlangan)
-[114] K2 tansoqchi — 16/16 qism (Tugallangan)
-[115] Oʻlim oʻyini — 8/8 qism (Tugallangan)
-[116] Katta sichqon — 16/16 qism (Tugallangan)
-[117] To'qqiz dumli tulki 1-fasl — 16/16 qism (Tugallangan)
-[118] Ovchi itlar 1-fasl — 8/8 qism (Tugallangan)
-[119] Orol 1-fasl (Island Season 1) — 6/6 qism (Yakunlangan)
-[120] Qish sonatasi (Winter Sonata) — 20/20 qism (Yakunlangan)
-[121] Samoviy ishq (Stairway to Heaven) — 20/20 qism (Tugallangan)
-[122] Vorislar (The Heirs) — 20/20 qism (Yakunlangan)
-[123] Do'zaxdan kelgan sudya — 14/14 qism (Tugallangan)
-[124] Qotillar do'koni 1-fasl — 8/8 qism (Tugallangan)
-[125] O'zganing qasosi — 12/12 qism (Tugallangan)
-[126] Notanish doktor (Doctor Stranger) — 39/39 qism (Yakunlangan)
-[127] Mening ismim — 8/8 qism (Tugallangan)
-[128] Asl go'zallik — 16/16 qism (Tugallangan)
-[129] Vinchenzo — 20/20 qism (Tugallangan)
-[130] Goblin / Dokkebi (Guardian: The Lonely and Great God) — 16/16 qism (Tugallangan)
-[131] Qasoskor / Hushyor (Vigilante) — 8/8 qism (Tugallangan)
-[132] Yorqin tarvuz — 16/16 qism (Tugallangan)
-[133] Tun kirganda — 12/12 qism (Tugallangan)
-[134] Inqirozdagi doktorlar — 16/16 qism (Tugallangan)
-[135] Ovchi itlar 2-fasl — 7/7 qism (Tugallangan)
-[136] Ojiz qahramon 2-fasl (Weak Hero Class 2) — 8/8 qism (Tugallangan)
-[137] Qotillar do'koni 2-fasl — 8/8 qism (Tugallangan)
-[138] To'qqiz dumli tulki 2-fasl (1938) — 12/12 qism (Tugallangan)
-[139] Orol 2-fasl (Island Season 2) — 6/6 qism (Yakunlangan)
-[140] Darbadar ruh 2-fasl: Nur va Soya (Alchemy of Souls 2) — 10/10 qism (Yakunlangan)
-[141] Piramida o'yini (Pyramid Game) — 10/10 qism (Yakunlangan)
-[142] Pentxaus 1-fasl (The Penthouse) — 41/41 qism (Yakunlangan)
-[143] Pentxaus 2-fasl (The Penthouse 2) — 26/26 qism (Yakunlangan)
-[144] Pentxaus 3-fasl (The Penthouse 3) — 28/28 qism (Yakunlangan)
-[145] Zombilar qirolligi 1-fasl (Kingdom) — 6/6 qism (Yakunlangan)
-[146] Zombilar qirolligi 2-fasl (Kingdom Season 2) — 6/6 qism (Yakunlangan)
-[147] Zombilar qirolligi: Ashin Hikoyasi (Kingdom: Ashin) — 1/1 qism (Yakunlangan)
-[148] Jonajon uy 1-fasl (Sweet Home) — 10/10 qism (Yakunlangan)
-[149] Jonajon uy 2-fasl (Sweet Home Season 2) — 8/8 qism (Yakunlangan)
-[150] Yovuzlik guli (Flower of Evil) — 16/16 qism (Yakunlangan)
-[151] Do'zax chaqiruvi (Hellbound) — 6/6 qism (Yakunlangan)
-[152] Maktabdan keyingi majburiyatlar (Duty After School) — 10/10 qism (Yakunlangan)
-[153] Maktabga qaytgan bezori (High School Return of a Gangster) — 8/8 qism (Yakunlangan)
-[154] Yovuz va telba (Bad and Crazy) — 12/12 qism (Yakunlangan)
-[155] Parallel olamlar: Ikki dunyo (W: Two Worlds) — 16/16 qism (Yakunlangan)
-[156] Jahldor rohib (The Fiery Priest) — 20/20 qism (Yakunlangan)
-[157] Badavlat X politsiyachi (Flex X Cop) — 16/16 qism (Yakunlangan)
-[158] Quyosh avlodlari (Descendants of the Sun) — 16/16 qism (Yakunlangan)
-[159] Do Bong Sun: Kuchli qiz (Strong Woman Do Bong-soon) — 16/16 qism (Yakunlangan)
-[160] Kotiba Kimga nima bo'ldi (What's Wrong with Secretary Kim) — 16/16 qism (Yakunlangan)
-[161] Yer qiroli (King the Land) — 16/16 qism (Yakunlangan)
-[162] Janob Plankton (Mr. Plankton) — 10/10 qism (Yakunlangan)
-[163] Yigirma besh, yigirma bir (Twenty-Five Twenty-One) — 16/16 qism (Yakunlangan)
-[164] Zolimning oshpazi (Bon Appétit, Your Majesty) — 12/12 qism (Yakunlangan)
-[165] Oy og'ushidagi quyosh (Moon Embracing the Sun) — 20/20 qism (Yakunlangan)
-[166] Ierarxiya (Hierarchy) — 7/7 qism (Yakunlangan)
-[167] Zolushka va to'rt ritsar (Cinderella and the Four Knights) — 16/16 qism (Yakunlangan)
-[168] 100 kunlik yolg'on (100 Days of Deception) — 6/16 qism (Ongoing)
-[169] O'ttiz, lekin o'n yetti (Still 17 / Thirty But Seventeen) — 16/16 qism (Yakunlangan)
-[170] Orzular qanotida (Dream High) — 16/16 qism (Yakunlangan)
-[171] Daha 17 (Hali 17) — 44/60 qism (Ongoing)
-[172] Temir odamlar (Iron Man) — 3/3 qism (Tugallangan)
-[173] Kapitan Amerika (Birinchi qasoskor) — 4/4 qism (Tugallangan)
-[174] O'rgimchak Odam (Spider-Man) — 10/10 qism (Tugallangan)
-[175] G‘alati hisoblagich (The Uncanny Counter) — 16/16 qism (Tugallangan)
-[176] Tanlangan oila (Family by Choice) — 16/16 qism (Tugallangan)
-[177] Erimga turmushga chiq (Marry My Husband) — 16/16 qism (Tugallangan)
-[178] Jilmay (Cheer Up! (Sassy Go Go)) — 16/16 qism (Tugallangan)
-[179] Taqiqlangan nikoh (The Forbidden Marriage) — 12/12 qism (Tugallangan)
-[180] G‘alaba (1-fasl) (The Glory (Part 1)) — 8/8 qism (Tugallangan)
-[181] G‘alaba (2-fasl) (The Glory (Part 2)) — 8/8 qism (Tugallangan)
-[182] Alamzada oshiq (My Strange Hero) — 16/16 qism (Tugallangan (Completed))
-[183] Kuchuk bo‘lish uchun yaxshi kun (A Good Day to Be a Dog) — 14/14 qism (Tugallangan)
-[184] Robot odam (Are You Human Too?) — 18/18 qism (Tugallangan)
-[185] Mening iblisim (My Demon) — 16/16 qism (Tugallangan)
-[186] Iblis sudya (The Devil Judge) — 16/16 qism (Tugallangan)
-[187] Pinhona tabib (Yong-pal) — 18/18 qism (Tugallangan)
-[188] 20-asr qizi (20th Century Girl) — 1/1 qism (Tugallangan)
-[189] Tasodifmi bu? (Serendipity's Embrace) — 8/8 qism (Tugallangan)
-[190] Yomon ona (The Good Bad Mother) — 14/14 qism (Tugallangan)
-[191] Nyutopia (Newtopia) — 8/8 qism (Tugallangan)
-[192] Bani va uning yigitlari (Bunny and Her Boys (Crushology 101)) — 12/12 qism (Tugallangan)
-[193] Afsun tovushlari (The Sound of Magic) — 6/6 qism (Tugallangan)
-[194] 8-lik o‘yini (The 8 Show) — 8/8 qism (Tugallangan)
-[195] Kyoson maxluqi (1-fasl) (Gyeongseong Creature (Season 1)) — 10/10 qism (Tugallangan)
-[196] Kyoson maxluqi (2-fasl) (Gyeongseong Creature (Season 2)) — 7/7 qism (Tugallangan)
-[197] Mening yigitim Kupidon (My Man Is Cupid) — 13/16 qism (Ongoing)
-[198] Qo‘shnimiz EXO (EXO Next Door) — 16/16 qism (Tugallangan)
-[199] Samoviy idol (The Heavenly Idol) — 12/12 qism (Tugallangan)
-[200] Harakatda (Moving) — 20/20 qism (Tugallangan (Completed))
-[201] Zolim (The Tyrant) — 4/4 qism (Tugallangan)
-[202] Akula: To‘fon (Shark: The Storm) — 6/6 qism (Tugallangan)
-[203] Badavlat bo‘lib qayta tug‘ilgan (Reborn Rich) — 16/16 qism (Tugallangan)
-[204] Halokatli insonim (My Lethal Man) — 24/24 qism (Tugallangan)
-[205] Qora olov ajdari (My Dearest Nemesis (He's the Black Flame Dragon)) — 12/12 qism (Tugallangan)
-[206] Ko‘z yoshlar qirolichasi (Queen of Tears) — 16/16 qism (Tugallangan)
-[207] Og‘ir atletika parisi Kim Bok-ju (Weightlifting Fairy Kim Bok-joo) — 10/16 qism (Ongoing)
-[208] Bezori yigitlar (Bad Guys) — 11/11 qism (Tugallangan)
-[209] Vaqt seni chorlaganda (A Time Called You) — 12/12 qism (Tugallangan)
-[210] Men tasodifan uchratgan Haru (Extraordinary You) — 16/16 qism (Tugallangan)
-[211] Qirolicha U (Queen Woo) — 8/8 qism (Tugallangan)
-[212] Birinchi: Yuqori maktab qahramonlari (ONE: High School Heroes) — 8/8 qism (Tugallangan)
-[213] Sen tomon uchganimda (When I Fly Towards You) — 24/24 qism (Tugallangan)
-[214] Gyeonwoo va pari — 12/12 qism (Tugallangan)
-[215] Ta'lim guruhi (Study Group) — 10/10 qism (Tugallangan)
-[216] S chiziq (S Line) — 6/6 qism (Tugallangan)
-[217] Hayot senga mandarin berganida (When Life Gives You Tangerines) — 16/16 qism (Tugallangan)
-[218] Do‘kondagi muhabbat (Convenience Store Fling) — 6/6 qism (Tugallangan)
-[219] Falokat eshik qoqqan kun (Doom at Your Service) — 16/16 qism (Tugallangan)
-[220] Barmog‘ingizni ko‘taring (Snap and Spark) — 8/8 qism (Tugallangan)
-[221] Chiroqlar do‘koni (Light Shop) — 8/8 qism (Tugallangan)
-[222] Dahshatli o‘qituvchi (Nightmare Teacher) — 6/12 qism (Ongoing)
-[223] G‘aroyib advokat Vu (Extraordinary Attorney Woo) — 16/16 qism (Tugallangan)
-[224] Ajal o‘yini (1-fasl) (Alice in Borderland (Season 1)) — 8/8 qism (Tugallangan)
-[225] Ajal o‘yini (2-fasl) (Alice in Borderland (Season 2)) — 8/8 qism (Tugallangan)
-[226] Ajal o‘yini (3-fasl) (Alice in Borderland (Season 3)) — 6/6 qism (Tugallangan)
-[227] 12 Farishta (Twelve) — 8/8 qism (Tugallangan)
-[228] Jin, tilak tila! (All the Love You Wish For) — 13/13 qism (Tugallangan)
-[229] Soxta shahar (Haykallar shahri) (Sculptured City) — 12/12 qism (Tugallangan)
-[230] Qadrli X (Dear X) — 12/12 qism (Tugallangan)
-[231] Bo‘sa olmaslik kerak edi! (Shouldn't Have Kissed!) — 14/14 qism (Tugallangan)
-[232] Otish nuqtasi (Trigger) (Trigger) — 10/10 qism (Tugallangan)
-[233] Qirolicha Chorin (Mr. Queen) — 20/20 qism (Tugallangan)
-[234] Qirolicha Chorin: Bambuk o‘rmoni (Mr. Queen: The Bamboo Forest) — 2/2 qism (Tugallangan)
-[235] Yaxshi yigit (Good Boy) — 16/16 qism (Tugallangan)
-[236] Yulduzning advokati (Idol advokati) (Idol I) — 12/12 qism (Tugallangan)
-[237] Pul qahramoni (Cashero) — 8/8 qism (Tugallangan)
-[238] Qirollikka qaytish (The Haunted Palace) — 16/16 qism (Tugallangan)
-[239] Men bugundan insonman (I Am a Human from Today) — 12/12 qism (Tugallangan)
-[240] E sinf marvaridi (He's Into Her) — 16/16 qism (Tugallangan)
-[241] Sendan o‘zga bir muhabbat (A Love Other Than Yours) — 7/14 qism (Ongoing)
-[242] Yuragimni quvvatla (Take Charge of My Heart) — 9/10 qism (Ongoing)
-[243] Najot shifoxonasi 1-fasl (Dr. Romantic Season 1) — 20/20 qism (Tugallangan)
-[244] Qoʻrqinchli muhabbat (Spooky in Love) — 12/12 qism (Tugallangan (Completed))
-[245] Mening qiroligim — 14/14 qism (Tugallangan (Completed))
-[246] Haqiqiy taʼlim / O'quv guruhi (Study Group) — 10/10 qism (Tugallangan (Completed))
-[247] Arvoh advokati (Phantom Lawyer) — 16/16 qism (Tugallangan (Completed))
-[248] Psixiatriya boʻlimida ham tong otadi (Daily Dose of Sunshine) — 12/12 qism (Tugallangan (Completed))
-[249] Bu muhabbatni tarjima qilish mumkinmi? (Can This Love Be Translated?) — 12/12 qism (Tugallangan (Completed))
-[250] Otashin joziba (Affinity) — 40/40 qism (Tugallangan (Completed))
-[251] Agar tilaklar oʻldira olganida (If Wishes Could Kill) — 8/8 qism (Tugallangan (Completed))
-[252] Senga atalgan orzu (Dream to You) — 12/12 qism (Tugallangan (Completed))
-[253] Imkonsiz nikoh (Wedding Impossible) — 12/12 qism (Tugallangan (Completed))
-[254] Muhabbat ohangi (Love in Sync) — 8/8 qism (Tugallangan (Completed))
-[255] Gangster, politsiyachi, iblis (The Gangster, the Cop, the Devil) — 1/1 qism (Tugallangan (Film / Movie))
-[256] Ballerina (Ballerina) — 1/1 qism (Tugallangan (Film / Movie))
-[257] Jingalak muhabbat (Love Untangled) — 1/1 qism (Tugallangan (Film / Movie))
-[258] Muhabbat ranglari (Drawing Closer) — 1/1 qism (Tugallangan (Film / Movie))
-[259] Sirena boʻsasi (Siren's Kiss) — 12/12 qism (Tugallangan (Completed))
-[260] 9-jumboq (Nine Puzzles) — 11/11 qism (Tugallangan (Completed))
-[261] Obuna bo'yicha yigit / Talab bo'yicha yigit — 10/10 qism (Tugallangan (Completed))
-[262] Sening yorqin mavsumingda (In Your Brilliant Season) — 12/12 qism (Tugallangan (Completed))
-[263] Bizning olam (Our Universe) — 12/12 qism (Tugallangan (Completed))
-[264] Shunqor (Healer) — 20/20 qism (Tugallangan (Completed))
-[265] Bahoriy hislar (Spring Fever) — 12/12 qism (Tugallangan (Completed))
-[266] Saraning san'ati (The Art of Sarah) — 8/8 qism (Tugallangan (Completed))
-[267] Hwaranglar: Ko'rkam yigitlar (Hwarang) — 20/20 qism (Tugallangan (Completed))
-[268] Oʻzga sayyoralik mahbubim (My Love from the Star) — 31/31 qism (Tugallangan (Completed))
-[269] Mashhur yulduz (Celebrity) — 12/12 qism (Tugallangan (Completed))
-[270] Suv pari shahzoda (The Mermaid Prince) — 10/10 qism (Tugallangan (Completed))
-[271] Kel turmush quramiz (Marry YOU) — 11/11 qism (Tugallangan (Completed))
-[272] O'lmas daryo nolasi (Lament of the River Immortal) — 32/32 qism (Tugallangan (Completed))
-[273] Qayta gullash (Bloom Again / Reborn) — 18/18 qism (Tugallangan (Completed))
-[274] Yovuz ruh (Revenant) — 12/12 qism (Tugallangan (Completed))
-[275] Qulayotgan yulduz (Shooting Stars) — 16/16 qism (Tugallangan (Completed))
-[276] Yoshlik bahori (Spring of Youth) — 10/10 qism (Tugallangan (Completed))
-[277] SamdalRiga xush kelibsiz (Welcome to Samdal-ri) — 16/16 qism (Tugallangan (Completed))
-[278] Samast ishq (Brewing Love) — 12/12 qism (Tugallangan (Completed))
-[279] O'zing bo'lishdan qo'rqma (It's Okay to Be Sensitive) — 8/8 qism (Tugallangan (Completed))
-[280] Xotirjam boʻling janob Ling (Please Feel at Ease Mr. Ling) — 24/24 qism (Tugallangan (Completed))
-[281] Oilaviy reja (Family Plan) — 6/6 qism (Tugallangan (Completed))
-[282] Sen uxlayotganingda (While You Were Sleeping) — 32/32 qism (Tugallangan (Completed))
-[283] Koinot yulduzi (The Universe's Star) — 6/6 qism (Tugallangan (Completed))
-[284] Yozilmagan Seul hikoyasi (Our Unwritten Seoul) — 12/12 qism (Tugallangan (Completed))
-[285] Ruh barmoqlari (Spirit Fingers) — 12/12 qism (Tugallangan (Completed))
-[286] Yonimda boʻlganingda (As You Stood By) — 8/8 qism (Tugallangan (Completed))
-[287] Bosh qahramonning birinchi kechasini oʻgʻirladim (The First Night with the Duke) — 12/12 qism (Tugallangan (Completed))
-[288] 19-hayotimda koʻrishguncha (See You in My 19th Life) — 12/12 qism (Tugallangan (Completed))
-[289] Mening sevimli partadoshim (My Deskmate) — 30/30 qism (Tugallangan (Completed))
-[290] Qadrli Hong Rang (Dear Hong Rang / Tangeum) — 11/11 qism (Tugallangan (Completed))
-[291] Mening sevgilim zombi (Warm Bodies) — 1/1 qism (Tugallangan (Film / Movie))
-[292] Bashoratdagi qahramon (Omniscient Reader: The Prophecy) — 1/1 qism (Tugallangan (Film / Movie))
-[293] Anna (Anna) — 6/6 qism (Tugallangan (Completed))
-[294] Aloqa (Connect) — 6/6 qism (Tugallangan (Completed))
-[295] Kumixo: 1938 (Tale of the Nine Tailed 1938) — 12/12 qism (Tugallangan (Completed))
-[296] Shifokorlar qismati (Doctors) — 20/20 qism (Tugallangan (Completed))
-[297] Xotirasiz sevgi / Unutilgan muhabbat (Love Reset / 30 Days) — 1/1 qism (Tugallangan (Film / Movie))
-[298] Farzand (The Childe) — 1/1 qism (Tugallangan (Film / Movie))
-[299] XO, Kitty (XO, Kitty) — 10/10 qism (Tugallangan (1-mavsum yakunlangan))
-[300] Do'stona raqobat (Friendly Rivalry) — 15/15 qism (Tugallangan (Completed))
-[301] Mening idolim mening boshlig'im (My Bias, My Boss) — 12/12 qism (Tugallangan (Completed))
-[302] Signal (Signal) — 16/16 qism (Tugallangan (Completed))
-[303] Qasoskorlar (The Avengers) — 1/1 qism (Film (Movie))
-[304] Qasoskorlar / Avengers Assemble (2013) — 30/30 qism (Serial (30 qism))
-[305] Qasoskorlar 2: Altron davri (Avengers: Age of Ultron) — 1/1 qism (Film (Movie))
-[306] Qasoskorlar 3: Cheksizlik jangi (Avengers: Infinity War) — 1/1 qism (Film (Movie))
-[307] Qasoskorlar 4: Intiho / Yakuniy jang (Avengers: Endgame) — 1/1 qism (Film (Movie))
-[308] Ikki Sonata (Page Turner) — 12/12 qism (Serial (12 qism))
-[309] Itevon sinfi — 16/16 qism (Tugallangan (Completed))
-[310] Moviy dengiz afsonasi — 20/20 qism (Tugallangan (Completed))
-[311] Kalmar o'yini 1 fasl — 7/7 qism (Tugallangan (Completed))
-[312] Kalmar O'yini 2 fasl — 9/9 qism (Tugallangan (Completed))
-[313] Farishtaning sevgisi — 16/16 qism (Tugallangan (Completed))
-[314] Kalmar oʻyini 3-fasl (Squid Game Season 3) — 6/6 qism (Tugallangan (Completed))
-[315] Sevgi hikoyasi / Melo film (Melo Movie) — 10/10 qism (Tugallangan (Completed))
-[316] Shahzodaning mahbubasi / 21-asr shahzodasining rafiqasi (The 21st Century Grand Prince's Wife) — 12/12 qism (Tugallangan (Completed))
-[317] Yulduzlardan soʻra / Yulduzlar gʻiybati (When the Stars Gossip) — 16/16 qism (Tugallangan (Completed))
-[318] F4 Tailand / Gullardan goʻzal yigitlar (F4 Thailand: Boys Over Flowers) — 36/36 qism (Tugallangan (Completed))
-[319] Venzdey | 1-fasl — 8/8 qism (Tugallangan (Completed))
-[320] Venzdey | 2-fasl — 8/8 qism (Tugallangan (Completed))
-[321] Kulrang parazitlar / Parazit: Kulrang (Parasyte: The Grey) — 6/6 qism (Tugallangan (Completed))
-[322] Tabassumingga oshiqma / Kulgingga maftunman (Falling Into Your Smile) — 32/32 qism (Tugallangan (Completed))
-[323] Menga yana turmushga chiq / Yana menga uylan (Marry Me Again) — 31/31 qism (Tugallangan (Completed))
-[324] Yashirin sevgi / Pinhona muhabbat (Hidden Love) — 25/25 qism (Tugallangan (Completed))
-[325] Kapalak / Batterflay (Butterfly) — 10/10 qism (Tugallangan (Completed))
-[326] Mening IDyim Gangnam go‘zali (My ID is Gangnam Beauty) — 16/16 qism (Tugallangan (Completed))
-[327] Birinchi qor / Yashirin sevgi 2: Birinchi izgʻirin (The First Frost) — 32/32 qism (Tugallangan (Completed))
-[328] Qoʻrqmas va malika / Zippo va malika (Lighter and Princess) — 36/36 qism (Tugallangan (Completed))
-[329] Zomvivor / Zombilar universiteti (Zomvivor) — 7/7 qism (Tugallangan (Completed))
-[330] Jodugar qiz 1 - 2 / Jodugar (The Witch: Part 1 & Part 2) — 2/2 qism (Tugallangan (Film / Movie))
-[331] Daryo uzra suzayotgan oy / Oy chiqadigan daryo (River Where the Moon Rises) — 14/14 qism (Tugallangan (Completed))
-[332] Mukammal toj / 21-asr qirollik oilasi (Perfect Crown) — 12/12 qism (Tugallangan (Completed))
-[333] Taxi delux / Namunali taksi (Taxi Driver) — 2/2 qism (Tugallangan (Completed))
-[334] Tezlik va Muhabbat / Tezlik va sevgi (Speed and Love) — 29/29 qism (Tugallangan (Completed))
-[335] E boʻlimining marvaridi 2-fasl (He's Into Her Season 2) — 9/9 qism (Tugallangan (Completed))
-[336] Bizning ajralmas sevgimiz / Yopishqoq muhabbat (Our Sticky Love) — 12/12 qism (Tugallangan (Completed))
-[337] Iblis bilan pari oʻrtasidagi muhabbat / Orxideya va iblis (Love Between Fairy and Devil) — 36/36 qism (Tugallangan (Completed))
-[338] Seongsu-dong brendingi / Seongsuda brending (Branding in Seongsu) — 12/12 qism (Tugallangan (Completed))
-[339] Sevgi qorboʻroni / Qor boʻroni paytidagi sevgi (Amidst a Snowstorm of Love) — 1/1 qism (Tugallangan (Completed))
-[340] Hovli (Avlu) 1-2 fasl — 123/123 qism (Tugallangan)
-[341] Vanda va Vijn (WandaVision) — 9/9 qism (Tugallangan)
-[342] Vijnning izlanishi / Vijinning jumbog'i (Vision Quest) — 2/8 qism (Ongoing)
-[343] Agarda... (What If...?) 1-fasl — 9/9 qism (Tugallangan)
-[344] Agarda... (What If...?) 2-fasl — 9/9 qism (Tugallangan)
-[345] Superqiz (Supergirl) — 1/1 qism (Tugallangan)
-[346] Agent Kimning qaytishi (Manager Kim 2025) — 10/10 qism (Tugallangan)
-[347] Xalk / Xalk 1 (Hulk 2003) — 1/1 qism (Tugallangan)
-[348] Xalk 2: Aqlbovar qilmas Xalk (The Incredible Hulk 2008) — 1/1 qism (Tugallangan)
-[349] Ayol Xalk: Advokat (She-Hulk: Attorney at Law 2022) — 9/9 qism (Tugallangan)
-[350] Y loyihasi (Project Y 2026) — 1/1 qism (Tugallangan)
-[351] Bugun barchasi sotildi (Sold Out Today) — 12/12 qism (Tugallangan)
-[352] Park xonimning nikoh shartnomasi (The Story of Park's Marriage Contract) — 12/12 qism (Tugallangan)
-[353] Chekka qishloqdagi doktor (Dr. Romantic) — 12/12 qism (Tugallangan)
-[354] Muhabbatning abadiy ifori (The Scent of Time) — 33/33 qism (Tugallangan)
-[355] Choson nikoh agentligi (Flower Crew: Joseon Marriage Agency) — 3/3 qism (Ongoing)
-[356] Sharqiy saroy — 8/8 qism (Tugallangan)
-[357] Oddiy bir kun (One Ordinary Day) — 6/6 qism (Tugallangan)
-[358] Ilohiy g'azab (The Divine Fury 2019) — 1/1 qism (Tugallangan)
-[359] Taksi haydovchisi 1-fasl (Taxi Driver) — 9/9 qism (Tugallangan)
-[360] Boylik kelmoqda — 27/27 qism (Tugallangan)
-[361] Jinlar isyoni — 5/5 qism (Tugallangan)
-[362] Mening sevimli yolg'onchim (My Lovely Liar) — 16/16 qism (Tugallangan)
-[363] G'amgin tug'ilgan kun (Blue Birthday) — 16/16 qism (Tugallangan)
-[364] Qasos (Revenge / Vengeance) — 42/42 qism (Tugallangan)
-[365] Tom and jerry — 11/11 qism (Tugallangan)
-[366] Sirli qirolicha yasovchilar — 7/7 qism (Tugallangan)
-[367] Ruyi pavilonidagi gullar (The Blooms at Ruyi Pavilion) — 41/41 qism (Tugallangan)
-[368] Najot Shifoxonasi 2 fasl — 16/16 qism (Tugallangan)
-[369] Najot Shifoxonasi 3 fasl — 16/16 qism (Tugallangan)
-[370] Men uchun kurash (Fight for My Way) — 16/16 qism (Tugallangan)
-[371] Arvohlar joylashgan poezd — 1/1 qism (Tugallangan)
-[372] Bogota: Yo'qolganlar shahri (Bogota: City of the Lost) — 1/1 qism (Tugallangan)
-[373] Yomg'ir ostidagi sevgi — 30/30 qism (Tugallangan)
-[374] Qon daryosi — 38/38 qism (Tugallangan)
-[375] 90 yillardagi sahifam — 24/24 qism (Tugallangan)
-[376] Bizning sevgimiz — 24/24 qism (Tugallangan)
-[377] Zulmat pardasi — 29/29 qism (Tugallangan)
-[378] meow sirli yigit — 5/5 qism (Tugallangan)
-[379] Qo’g’irchoq joylashgan uy — 1/1 qism (Tugallangan)
-[380] So’ngi Samuray — 6/6 qism (Tugallangan)
-[381] 7 qochqin 1-fasl (The Escape of the Seven) — 16/16 qism (Tugallangan)
-[382] Qirolicha (The Empress / The Queen) — 85/85 qism (Tugallangan)
-[383] Ditto (Ditto 2022) — 1/1 qism (Tugallangan)
-[384] Minamahal — 1/1 qism (Tugallangan)
-[385] Sevgi bu kecha dunyodan yo'qolsa ham — 1/1 qism (Tugallangan)
-[386] So'nggi 10 yil (The Last 10 Years) — 1/1 qism (Tugallangan)
-[387] Yangi yilingiz bilan (A Year-End Medley 2021) — 1/1 qism (Tugallangan)
-[388] Joze (Josee 2020) — 1/1 qism (Tugallangan)
-[389] Butuk To’fon — 1/1 qism (Tugallangan)
-[390] Odamzod bog’i — 1/1 qism (Tugallangan)
-[391] Soyaning chegarasi — 1/1 qism (Tugallangan)
-[392] Kelajakdan xotiralar — 1/1 qism (Tugallangan)
-[393] Sevgi Qorbo’roni — 1/1 qism (Tugallangan)
-[394] Ov vaqti (Time to Hunt 2020) — 1/1 qism (Tugallangan)
-[395] Yaxshiroq Kunlar — 1/1 qism (Tugallangan)
-[396] Kichik o'rmon (Little Forest 2018) — 1/1 qism (Tugallangan)
-[397] O'g'irlangan shaxsiyat (Unlocked 2023) — 1/1 qism (Tugallangan)
-[398] Taqdir iblis olib kelganda (Doom at Your Service) — 33/33 qism (Tugallangan)
-[399] Ertaga (Tomorrow 2022) — 16/16 qism (Tugallangan)
-[400] Marvarid Qizning Hikoyasi — 40/40 qism (Tugallangan)
-[401] Arvoh Poezd — 1/1 qism (Tugallangan)
-[402] Pavan — 1/1 qism (Tugallangan)
-[403] Shiddatli Joziba — 40/40 qism (Tugallangan)
-[404] Zulmat Malikasi — 24/24 qism (Tugallangan)
-[405] Darsdan tashqarida (Extracurricular) — 10/10 qism (Tugallangan)
-[406] Osmon Bag’ridagi Muhabbat — 36/36 qism (Tugallangan)
-[407] Sen bilan birga — 24/24 qism (Tugallangan)
-[408] Jimjitlik loyihasi (Project Silence 2024) — 1/1 qism (Tugallangan)
-[409] Qaytmas — 1/1 qism (Tugallangan)
-[410] Sevgimiz barhayot — 1/1 qism (Tugallangan)
-[411] Parazitlar (Parasite 2019) — 1/1 qism (Tugallangan)
-[412] Ziam zombilarga qarshi — 1/1 qism (Tugallangan)
-[413] Qonli gul — 8/8 qism (Tugallangan)
-[414] Yashirin agent — 1/1 qism (Tugallangan)
-[415] Qasoskor.Ov boshlandi — 1/1 qism (Tugallangan)
-[416] Qadirli Odri — 1/1 qism (Tugallangan)
-[417] Sichqon (Mouse 2021) — 20/20 qism (Tugallangan)
-[418] Singan yurak — 22/22 qism (Tugallangan)
-[419] Mo’jizakor telbalar — 8/8 qism (Tugallangan)
-[420] Tuzoqlar shahri — 1/1 qism (Tugallangan)
-[421] Qutubdagi ta’qib 12soat — 1/1 qism (Tugallangan)
-[422] Alam va zavq (Love and Leashes 2022) — 1/1 qism (Tugallangan)
-[423] O’limimdan bir hafta oldin — 1/1 qism (Tugallangan)
-[424] Oshxona jangchilari afsonasi — 12/12 qism (Tugallangan)
-[425] Efirdagi jang — 6/6 qism (Tugallangan)
-[426] Qismat virusi — 40/40 qism (Tugallangan)
-[427] Sevgi uchun ariza — 12/12 qism (Tugallangan)
-[428] Mabudlar va ikki dunyo — 1/1 qism (Tugallangan)
-[429] Zulmatdagi quyosh — 24/24 qism (Tugallangan)
-[430] Orqa Qatordagi Yigit — 6/6 qism (Tugallangan)
-[431] Ğaroyib dunyo — 14/14 qism (Tugallangan)
-[432] Menejerim bo’lib bera olasanmi? — 6/6 qism (Tugallangan)
-[433] Gullash fasli (Seasons of Blossom) — 16/16 qism (Tugallangan)
-[434] Ramantikaning mutloq qiymati — 16/16 qism (Tugallangan)
-[435] Arvohlar joylashgan poezd (2-variant) — 1/1 qism (Tugallangan)
-[436] Bogota: Yo'qolganlar shahri (2-variant) — 1/1 qism (Tugallangan)
-[437] Yomg'ir ostidagi sevgi (2-variant) — 30/30 qism (Tugallangan)
-[438] Katta Dunyo Yoxud Kichik Men — 1/1 qism (Tugallangan)
-[439] Galaktika Tartibchilari — 1/1 qism (Tugallangan)
-[440] Arosat — 1/1 qism (Tugallangan)
-[441] Ilohiylikka Moyil Sevgi — 24/24 qism (Tugallangan)
-[442] Birga O‘sish Va‘dasi — 24/24 qism (Tugallangan)
-[443] Imkonsiz merosxo'r (The Impossible Heir) — 12/12 qism (Tugallangan)
-[444] Maydagi yoshlik (Youth of May) — 12/12 qism (Tugallangan)
-[445] Shavqat Qilinmaydi — 7/7 qism (Tugallangan)
-[446] Sen tergan raqam (When the Phone Rings 2024) — 12/12 qism (Tugallangan)
-[447] Umid Niholi — 36/36 qism (Tugallangan)
-[448] Baxt Taomi — 20/20 qism (Tugallangan)
-[449] Meni kechiring — 1/1 qism (Tugallangan)
-[450] Egizaklar — 40/40 qism (Tugallangan)
-[451] Taqdir tuhfasi (Fated to Love You) — 16/16 qism (Tugallangan)
-[452] Yovuz va badavlat 1fasl — 10/10 qism (Tugallangan)
-[453] Yovuz va badavlat 2fasl — 10/10 qism (Tugallangan)
-[454] Hayolingni bir bo’lagi — 12/12 qism (Tugallangan)
-[455] Saroy tabibi (The King's Doctor / Horse Doctor) — 50/50 qism (Tugallangan)
-[456] Ishonch Qirolichasi — 12/12 qism (Tugallangan)
-[457] Shafqatsiz shahar (Cruel City / Heartless City) — 20/20 qism (Tugallangan)
-[458] Seul poygachilari (Seoul Vibe 2022) — 1/1 qism (Tugallangan)
-[459] Cheksizlikka sayohat — 1/1 qism (Tugallangan)
-[460] Yaxshi Xabar — 1/1 qism (Tugallangan)
-[461] Chiqish (Exit 2019) — 1/1 qism (Tugallangan)
-[462] Iblisi Haqida Afsona — 1/1 qism (Tugallangan)
-[463] AEMA (Aema 2025) — 6/6 qism (Tugallangan)
-[464] Oshiqning Qasosi — 8/8 qism (Tugallangan)
-[465] Afina:Urush Ma’budasi — 20/20 qism (Tugallangan)
-[466] Kelishgan Yigitlar — 1/1 qism (Tugallangan)
-[467] Shunchaki seni sevaman — 1/1 qism (Tugallangan)
-[468] Yig’layotgan Qotil — 1/1 qism (Tugallangan)
-[469] Xotiralar Kundaligi — 1/1 qism (Tugallangan)
-[470] Boshqa Tanlov Yoq — 1/1 qism (Tugallangan)
-[471] Umid — 1/1 qism (Tugallangan)
-[472] Baxt Izlab — 35/35 qism (Tugallangan)
-[473] Xotinlar Isyoni — 26/26 qism (Tugallangan)
-[474] Minnatdorman — 16/16 qism (Tugallangan)
-[475] Kuz Do’Li — 16/16 qism (Tugallangan)
-[476] Qayta Boshlash — 15/15 qism (Tugallangan)
-[477] Non isi: Kim Tak Gu (King of Baking, Kim Takgu) — 30/30 qism (Tugallangan)
-[478] Sevgi Va O’lim — 16/16 qism (Tugallangan)
-[479] Mening Ilohiy Elchim — 24/24 qism (Tugallangan)
-[480] Mukammal ish (Dead-End Job) — 6/8 qism (Ongoing)
+================================================================================
+UZKDRAMA BOT — BARCHA DRAMALAR RO'YXATI (JAMI: 381 TA)
+================================================================================
+KOD    | NOMI                                           | YILI   | QISMLAR      | STATUS      
+--------------------------------------------------------------------------------
+101    | Doktor X , Oq Mafia                            | 2026   | 6/10         | Ongoing     
+102    | Oltin qoshiq (The Golden Spoon)                | 2022   | 16/16        | Yakunlangan 
+103    | Alvon yuraklar: Koryo / Oy Oshiqlari (Moon Lov | 2016   | 20/20        | Yakunlangan 
+104    | Biz barchamiz o'likmiz                         | 2022   | 12/12        | Tugallangan 
+105    | Yovuzlarning yovuzi (The Worst of Evil)        | 2023   | 12/12        | Yakunlangan 
+106    | Darbadar ruh 1-fasl (Alchemy of Souls)         | 2022   | 20/20        | Yakunlangan 
+107    | Pinokkio / Sirli Olam (Pinocchio)              | 2014   | 20/20        | Yakunlangan 
+108    | Baxt                                           | 2021   | 12/12        | Tugallangan 
+109    | Biznes taklifi                                 | 2022   | 12/12        | Tugallangan 
+110    | Do'zaxdagi notanishlar (Strangers from Hell)   | 2019   | 10/10        | Yakunlangan 
+111    | Aqldan ozgan ammo hammasi joyda (It's Okay to  | 2020   | 16/16        | Yakunlangan 
+112    | Ojiz qahramon 1-fasl (Weak Hero Class 1)       | 2022   | 8/8          | Tugallangan 
+113    | Doona! (Doona)                                 | 2023   | 9/9          | Yakunlangan 
+114    | K2 tansoqchi                                   | 2016   | 16/16        | Tugallangan 
+115    | Oʻlim oʻyini                                   | 2023   | 8/8          | Tugallangan 
+116    | Katta sichqon                                  | 2022   | 16/16        | Tugallangan 
+117    | To'qqiz dumli tulki 1-fasl                     | 2020   | 16/16        | Tugallangan 
+118    | Ovchi itlar 1-fasl                             | 2023   | 8/8          | Tugallangan 
+119    | Orol 1-fasl (Island Season 1)                  | 2022   | 6/6          | Yakunlangan 
+120    | Qish sonatasi (Winter Sonata)                  | 2002   | 20/20        | Yakunlangan 
+121    | Samoviy ishq (Stairway to Heaven)              | 2003   | 20/20        | Tugallangan 
+122    | Vorislar (The Heirs)                           | 2013   | 20/20        | Yakunlangan 
+123    | Do'zaxdan kelgan sudya                         | 2024   | 14/14        | Tugallangan 
+124    | Qotillar do'koni 1-fasl                        | 2024   | 8/8          | Tugallangan 
+125    | O'zganing qasosi                               | 2022   | 12/12        | Tugallangan 
+126    | Notanish doktor (Doctor Stranger)              | 2014   | 39/39        | Yakunlangan 
+127    | Mening ismim                                   | 2021   | 8/8          | Tugallangan 
+128    | Asl go'zallik                                  | 2020   | 16/16        | Tugallangan 
+129    | Vinchenzo                                      | 2021   | 20/20        | Tugallangan 
+130    | Goblin / Dokkebi (Guardian: The Lonely and Gre | 2016   | 16/16        | Tugallangan 
+131    | Qasoskor / Hushyor (Vigilante)                 | 2023   | 8/8          | Tugallangan 
+132    | Yorqin tarvuz                                  | 2023   | 16/16        | Tugallangan 
+133    | Tun kirganda                                   | 2023   | 12/12        | Tugallangan 
+134    | Inqirozdagi doktorlar                          | 2024   | 16/16        | Tugallangan 
+135    | Ovchi itlar 2-fasl                             | 2024   | 7/7          | Tugallangan 
+136    | Ojiz qahramon 2-fasl (Weak Hero Class 2)       | 2025   | 8/8          | Tugallangan 
+137    | Qotillar do'koni 2-fasl                        | 2024   | 8/8          | Tugallangan 
+138    | To'qqiz dumli tulki 2-fasl (1938)              | 2023   | 12/12        | Tugallangan 
+139    | Orol 2-fasl (Island Season 2)                  | 2023   | 6/6          | Yakunlangan 
+140    | Darbadar ruh 2-fasl: Nur va Soya (Alchemy of S | 2022   | 10/10        | Yakunlangan 
+141    | Piramida o'yini (Pyramid Game)                 | 2024   | 10/10        | Yakunlangan 
+142    | Pentxaus 1-fasl (The Penthouse)                | 2020   | 41/41        | Yakunlangan 
+143    | Pentxaus 2-fasl (The Penthouse 2)              | 2021   | 26/26        | Yakunlangan 
+144    | Pentxaus 3-fasl (The Penthouse 3)              | 2021   | 28/28        | Yakunlangan 
+145    | Zombilar qirolligi 1-fasl (Kingdom)            | 2019   | 6/6          | Yakunlangan 
+146    | Zombilar qirolligi 2-fasl (Kingdom Season 2)   | 2020   | 6/6          | Yakunlangan 
+147    | Zombilar qirolligi: Ashin Hikoyasi (Kingdom: A | 2021   | 1/1          | Yakunlangan 
+148    | Jonajon uy 1-fasl (Sweet Home)                 | 2020   | 10/10        | Yakunlangan 
+149    | Jonajon uy 2-fasl (Sweet Home Season 2)        | 2023   | 8/8          | Yakunlangan 
+150    | Yovuzlik guli (Flower of Evil)                 | 2020   | 16/16        | Yakunlangan 
+151    | Do'zax chaqiruvi (Hellbound)                   | 2021   | 6/6          | Yakunlangan 
+152    | Maktabdan keyingi majburiyatlar (Duty After Sc | 2023   | 10/10        | Yakunlangan 
+153    | Maktabga qaytgan bezori (High School Return of | 2024   | 8/8          | Yakunlangan 
+154    | Yovuz va telba (Bad and Crazy)                 | 2021   | 12/12        | Yakunlangan 
+155    | Parallel olamlar: Ikki dunyo (W: Two Worlds)   | 2016   | 16/16        | Yakunlangan 
+156    | Jahldor rohib (The Fiery Priest)               | 2019   | 20/20        | Yakunlangan 
+157    | Badavlat X politsiyachi (Flex X Cop)           | 2024   | 16/16        | Yakunlangan 
+158    | Quyosh avlodlari (Descendants of the Sun)      | 2016   | 16/16        | Yakunlangan 
+159    | Do Bong Sun: Kuchli qiz (Strong Woman Do Bong- | 2017   | 16/16        | Yakunlangan 
+160    | Kotiba Kimga nima bo'ldi (What's Wrong with Se | 2018   | 16/16        | Yakunlangan 
+161    | Yer qiroli (King the Land)                     | 2023   | 16/16        | Yakunlangan 
+162    | Janob Plankton (Mr. Plankton)                  | 2024   | 10/10        | Yakunlangan 
+163    | Yigirma besh, yigirma bir (Twenty-Five Twenty- | 2022   | 16/16        | Yakunlangan 
+164    | Zolimning oshpazi (Bon Appétit, Your Majesty)  | 2025   | 12/12        | Yakunlangan 
+165    | Oy og'ushidagi quyosh (Moon Embracing the Sun) | 2012   | 20/20        | Yakunlangan 
+166    | Ierarxiya (Hierarchy)                          | 2024   | 7/7          | Yakunlangan 
+167    | Zolushka va to'rt ritsar (Cinderella and the F | 2016   | 16/16        | Yakunlangan 
+168    | 100 kunlik yolg'on (100 Days of Deception)     | 2026   | 6/16         | Ongoing     
+169    | O'ttiz, lekin o'n yetti (Still 17 / Thirty But | 2018   | 16/16        | Yakunlangan 
+170    | Orzular qanotida (Dream High)                  | 2011   | 16/16        | Yakunlangan 
+171    | Daha 17 (Hali 17)                              | 2026   | 44/60        | Ongoing     
+172    | Temir odamlar (Iron Man)                       | 2008   | 3/3          | Tugallangan 
+173    | Kapitan Amerika (Birinchi qasoskor)            | 2011   | 4/4          | Tugallangan 
+174    | O'rgimchak Odam (Spider-Man)                   | 2002   | 10/10        | Tugallangan 
+175    | G‘alati hisoblagich (The Uncanny Counter)      | 2020   | 16/16        | Tugallangan 
+176    | Tanlangan oila (Family by Choice)              | 2024   | 16/16        | Tugallangan 
+177    | Erimga turmushga chiq (Marry My Husband)       | 2024   | 16/16        | Tugallangan 
+178    | Jilmay (Cheer Up! (Sassy Go Go))               | 2015   | 16/16        | Tugallangan 
+179    | Taqiqlangan nikoh (The Forbidden Marriage)     | 2022   | 12/12        | Tugallangan 
+180    | G‘alaba (1-fasl) (The Glory (Part 1))          | 2022   | 8/8          | Tugallangan 
+181    | G‘alaba (2-fasl) (The Glory (Part 2))          | 2023   | 8/8          | Tugallangan 
+182    | Alamzada oshiq (My Strange Hero)               | 2018   | 16/16        | Tugallangan (Completed)
+183    | Kuchuk bo‘lish uchun yaxshi kun (A Good Day to | 2023   | 14/14        | Tugallangan 
+184    | Robot odam (Are You Human Too?)                | 2018   | 18/18        | Tugallangan 
+185    | Mening iblisim (My Demon)                      | 2023   | 16/16        | Tugallangan 
+186    | Iblis sudya (The Devil Judge)                  | 2021   | 16/16        | Tugallangan 
+187    | Pinhona tabib (Yong-pal)                       | 2015   | 18/18        | Tugallangan 
+188    | 20-asr qizi (20th Century Girl)                | 2022   | 1/1          | Tugallangan 
+189    | Tasodifmi bu? (Serendipity's Embrace)          | 2024   | 8/8          | Tugallangan 
+190    | Yomon ona (The Good Bad Mother)                | 2023   | 14/14        | Tugallangan 
+191    | Nyutopia (Newtopia)                            | 2025   | 8/8          | Tugallangan 
+192    | Bani va uning yigitlari (Bunny and Her Boys (C | 2025   | 12/12        | Tugallangan 
+193    | Afsun tovushlari (The Sound of Magic)          | 2022   | 6/6          | Tugallangan 
+194    | 8-lik o‘yini (The 8 Show)                      | 2024   | 8/8          | Tugallangan 
+195    | Kyoson maxluqi (1-fasl) (Gyeongseong Creature  | 2023   | 10/10        | Tugallangan 
+196    | Kyoson maxluqi (2-fasl) (Gyeongseong Creature  | 2024   | 7/7          | Tugallangan 
+197    | Mening yigitim Kupidon (My Man Is Cupid)       | 2023   | 13/16        | Ongoing     
+198    | Qo‘shnimiz EXO (EXO Next Door)                 | 2015   | 16/16        | Tugallangan 
+199    | Samoviy idol (The Heavenly Idol)               | 2023   | 12/12        | Tugallangan 
+200    | Harakatda (Moving)                             | 2023   | 20/20        | Tugallangan (Completed)
+201    | Zolim (The Tyrant)                             | 2024   | 4/4          | Tugallangan 
+202    | Akula: To‘fon (Shark: The Storm)               | 2023   | 6/6          | Tugallangan 
+203    | Badavlat bo‘lib qayta tug‘ilgan (Reborn Rich)  | 2022   | 16/16        | Tugallangan 
+204    | Halokatli insonim (My Lethal Man)              | 2023   | 24/24        | Tugallangan 
+205    | Qora olov ajdari (My Dearest Nemesis (He's the | 2025   | 12/12        | Tugallangan 
+206    | Ko‘z yoshlar qirolichasi (Queen of Tears)      | 2024   | 16/16        | Tugallangan 
+207    | Og‘ir atletika parisi Kim Bok-ju (Weightliftin | 2016   | 10/16        | Ongoing     
+208    | Bezori yigitlar (Bad Guys)                     | 2014   | 11/11        | Tugallangan 
+209    | Vaqt seni chorlaganda (A Time Called You)      | 2023   | 12/12        | Tugallangan 
+210    | Men tasodifan uchratgan Haru (Extraordinary Yo | 2019   | 16/16        | Tugallangan 
+211    | Qirolicha U (Queen Woo)                        | 2024   | 8/8          | Tugallangan 
+212    | Birinchi: Yuqori maktab qahramonlari (ONE: Hig | 2025   | 8/8          | Tugallangan 
+213    | Sen tomon uchganimda (When I Fly Towards You)  | 2023   | 24/24        | Tugallangan 
+214    | Gyeonwoo va pari                               | 2025   | 12/12        | Tugallangan 
+215    | Ta'lim guruhi (Study Group)                    | 2025   | 10/10        | Tugallangan 
+216    | S chiziq (S Line)                              | 2025   | 6/6          | Tugallangan 
+217    | Hayot senga mandarin berganida (When Life Give | 2025   | 16/16        | Tugallangan 
+218    | Do‘kondagi muhabbat (Convenience Store Fling)  | 2021   | 6/6          | Tugallangan 
+219    | Falokat eshik qoqqan kun (Doom at Your Service | 2021   | 16/16        | Tugallangan 
+220    | Barmog‘ingizni ko‘taring (Snap and Spark)      | 2023   | 8/8          | Tugallangan 
+221    | Chiroqlar do‘koni (Light Shop)                 | 2024   | 8/8          | Tugallangan 
+222    | Dahshatli o‘qituvchi (Nightmare Teacher)       | 2016   | 6/12         | Ongoing     
+223    | G‘aroyib advokat Vu (Extraordinary Attorney Wo | 2022   | 16/16        | Tugallangan 
+224    | Ajal o‘yini (1-fasl) (Alice in Borderland (Sea | 2020   | 8/8          | Tugallangan 
+225    | Ajal o‘yini (2-fasl) (Alice in Borderland (Sea | 2022   | 8/8          | Tugallangan 
+226    | Ajal o‘yini (3-fasl) (Alice in Borderland (Sea | 2025   | 6/6          | Tugallangan 
+227    | 12 Farishta (Twelve)                           | 2025   | 8/8          | Tugallangan 
+228    | Jin, tilak tila! (All the Love You Wish For)   | 2025   | 13/13        | Tugallangan 
+229    | Soxta shahar (Haykallar shahri) (Sculptured Ci | 2025   | 12/12        | Tugallangan 
+230    | Qadrli X (Dear X)                              | 2025   | 12/12        | Tugallangan 
+231    | Bo‘sa olmaslik kerak edi! (Shouldn't Have Kiss | 2025   | 14/14        | Tugallangan 
+232    | Otish nuqtasi (Trigger) (Trigger)              | 2025   | 10/10        | Tugallangan 
+233    | Qirolicha Chorin (Mr. Queen)                   | 2020   | 20/20        | Tugallangan 
+234    | Qirolicha Chorin: Bambuk o‘rmoni (Mr. Queen: T | 2021   | 2/2          | Tugallangan 
+235    | Yaxshi yigit (Good Boy)                        | 2025   | 16/16        | Tugallangan 
+236    | Yulduzning advokati (Idol advokati) (Idol I)   | 2025   | 12/12        | Tugallangan 
+237    | Pul qahramoni (Cashero)                        | 2025   | 8/8          | Tugallangan 
+238    | Qirollikka qaytish (The Haunted Palace)        | 2025   | 16/16        | Tugallangan 
+239    | Men bugundan insonman (I Am a Human from Today | 2025   | 12/12        | Tugallangan 
+240    | E sinf marvaridi (He's Into Her)               | 2021   | 16/16        | Tugallangan 
+241    | Sendan o‘zga bir muhabbat (A Love Other Than Y | 2026   | 7/14         | Ongoing     
+242    | Yuragimni quvvatla (Take Charge of My Heart)   | 2026   | 9/10         | Ongoing     
+243    | Najot shifoxonasi 1-fasl (Dr. Romantic Season  | 2016   | 20/20        | Tugallangan 
+244    | Qoʻrqinchli muhabbat (Spooky in Love)          | 2026   | 12/12        | Tugallangan (Completed)
+245    | Mening qiroligim                               | 2026   | 14/14        | Tugallangan (Completed)
+246    | Haqiqiy taʼlim / O'quv guruhi (Study Group)    | 2025   | 10/10        | Tugallangan (Completed)
+247    | Arvoh advokati (Phantom Lawyer)                | 2026   | 16/16        | Tugallangan (Completed)
+248    | Psixiatriya boʻlimida ham tong otadi (Daily Do | 2023   | 12/12        | Tugallangan (Completed)
+249    | Bu muhabbatni tarjima qilish mumkinmi? (Can Th | 2026   | 12/12        | Tugallangan (Completed)
+250    | Otashin joziba (Affinity)                      | 2026   | 40/40        | Tugallangan (Completed)
+251    | Agar tilaklar oʻldira olganida (If Wishes Coul | 2026   | 8/8          | Tugallangan (Completed)
+252    | Senga atalgan orzu (Dream to You)              | 2026   | 12/12        | Tugallangan (Completed)
+253    | Imkonsiz nikoh (Wedding Impossible)            | 2024   | 12/12        | Tugallangan (Completed)
+254    | Muhabbat ohangi (Love in Sync)                 | 2026   | 8/8          | Tugallangan (Completed)
+255    | Gangster, politsiyachi, iblis (The Gangster, t | 2019   | 1/1          | Tugallangan (Film / Movie)
+256    | Ballerina (Ballerina)                          | 2023   | 1/1          | Tugallangan (Film / Movie)
+257    | Jingalak muhabbat (Love Untangled)             | 2025   | 1/1          | Tugallangan (Film / Movie)
+258    | Muhabbat ranglari (Drawing Closer)             | 2024   | 1/1          | Tugallangan (Film / Movie)
+259    | Sirena boʻsasi (Siren's Kiss)                  | 2026   | 12/12        | Tugallangan (Completed)
+260    | 9-jumboq (Nine Puzzles)                        | 2025   | 11/11        | Tugallangan (Completed)
+261    | Obuna bo'yicha yigit / Talab bo'yicha yigit    | 2026   | 10/10        | Tugallangan (Completed)
+262    | Sening yorqin mavsumingda (In Your Brilliant S | 2026   | 12/12        | Tugallangan (Completed)
+263    | Bizning olam (Our Universe)                    | 2026   | 12/12        | Tugallangan (Completed)
+264    | Shunqor (Healer)                               | 2014   | 20/20        | Tugallangan (Completed)
+265    | Bahoriy hislar (Spring Fever)                  | 2026   | 12/12        | Tugallangan (Completed)
+266    | Saraning san'ati (The Art of Sarah)            | 2026   | 8/8          | Tugallangan (Completed)
+267    | Hwaranglar: Ko'rkam yigitlar (Hwarang)         | 2016   | 20/20        | Tugallangan (Completed)
+268    | Oʻzga sayyoralik mahbubim (My Love from the St | 2013   | 31/31        | Tugallangan (Completed)
+269    | Mashhur yulduz (Celebrity)                     | 2023   | 12/12        | Tugallangan (Completed)
+270    | Suv pari shahzoda (The Mermaid Prince)         | 2020   | 10/10        | Tugallangan (Completed)
+271    | Kel turmush quramiz (Marry YOU)                | 2024   | 11/11        | Tugallangan (Completed)
+272    | O'lmas daryo nolasi (Lament of the River Immor | 2025   | 32/32        | Tugallangan (Completed)
+273    | Qayta gullash (Bloom Again / Reborn)           | 2024   | 18/18        | Tugallangan (Completed)
+274    | Yovuz ruh (Revenant)                           | 2023   | 12/12        | Tugallangan (Completed)
+275    | Qulayotgan yulduz (Shooting Stars)             | 2022   | 16/16        | Tugallangan (Completed)
+276    | Yoshlik bahori (Spring of Youth)               | 2025   | 10/10        | Tugallangan (Completed)
+277    | SamdalRiga xush kelibsiz (Welcome to Samdal-ri | 2023   | 16/16        | Tugallangan (Completed)
+278    | Samast ishq (Brewing Love)                     | 2024   | 12/12        | Tugallangan (Completed)
+279    | O'zing bo'lishdan qo'rqma (It's Okay to Be Sen | 2020   | 8/8          | Tugallangan (Completed)
+280    | Xotirjam boʻling janob Ling (Please Feel at Ea | 2021   | 24/24        | Tugallangan (Completed)
+281    | Oilaviy reja (Family Plan)                     | 2024   | 6/6          | Tugallangan (Completed)
+282    | Sen uxlayotganingda (While You Were Sleeping)  | 2017   | 32/32        | Tugallangan (Completed)
+283    | Koinot yulduzi (The Universe's Star)           | 2017   | 6/6          | Tugallangan (Completed)
+284    | Yozilmagan Seul hikoyasi (Our Unwritten Seoul) | 2025   | 12/12        | Tugallangan (Completed)
+285    | Ruh barmoqlari (Spirit Fingers)                | 2025   | 12/12        | Tugallangan (Completed)
+286    | Yonimda boʻlganingda (As You Stood By)         | 2025   | 8/8          | Tugallangan (Completed)
+287    | Bosh qahramonning birinchi kechasini oʻgʻirlad | 2025   | 12/12        | Tugallangan (Completed)
+288    | 19-hayotimda koʻrishguncha (See You in My 19th | 2023   | 12/12        | Tugallangan (Completed)
+289    | Mening sevimli partadoshim (My Deskmate)       | 2021   | 30/30        | Tugallangan (Completed)
+290    | Qadrli Hong Rang (Dear Hong Rang / Tangeum)    | 2025   | 11/11        | Tugallangan (Completed)
+291    | Mening sevgilim zombi (Warm Bodies)            | 2013   | 1/1          | Tugallangan (Film / Movie)
+292    | Bashoratdagi qahramon (Omniscient Reader: The  | 2025   | 1/1          | Tugallangan (Film / Movie)
+293    | Anna (Anna)                                    | 2022   | 6/6          | Tugallangan (Completed)
+294    | Aloqa (Connect)                                | 2022   | 6/6          | Tugallangan (Completed)
+295    | Kumixo: 1938 (Tale of the Nine Tailed 1938)    | 2023   | 12/12        | Tugallangan (Completed)
+296    | Shifokorlar qismati (Doctors)                  | 2016   | 20/20        | Tugallangan (Completed)
+297    | Xotirasiz sevgi / Unutilgan muhabbat (Love Res | 2023   | 1/1          | Tugallangan (Film / Movie)
+298    | Farzand (The Childe)                           | 2023   | 1/1          | Tugallangan (Film / Movie)
+299    | XO, Kitty (XO, Kitty)                          | 2023   | 10/10        | Tugallangan (1-mavsum yakunlangan)
+300    | Do'stona raqobat (Friendly Rivalry)            | 2025   | 15/15        | Tugallangan (Completed)
+301    | Mening idolim mening boshlig'im (My Bias, My B | 2026   | 12/12        | Tugallangan (Completed)
+302    | Signal (Signal)                                | 2016   | 16/16        | Tugallangan (Completed)
+303    | Qasoskorlar (The Avengers)                     | 2012   | 1/1          | Film (Movie)
+304    | Qasoskorlar / Avengers Assemble (2013)         | 2013   | 30/30        | Serial (30 qism)
+305    | Qasoskorlar 2: Altron davri (Avengers: Age of  | 2015   | 1/1          | Film (Movie)
+306    | Qasoskorlar 3: Cheksizlik jangi (Avengers: Inf | 2018   | 1/1          | Film (Movie)
+307    | Qasoskorlar 4: Intiho / Yakuniy jang (Avengers | 2019   | 1/1          | Film (Movie)
+308    | Ikki Sonata (Page Turner)                      | 2016   | 12/12        | Serial (12 qism)
+309    | Itevon sinfi                                   | 2020   | 16/16        | Tugallangan (Completed)
+310    | Moviy dengiz afsonasi                          | 2016   | 20/20        | Tugallangan (Completed)
+311    | Kalmar o'yini 1 fasl                           | 2024   | 7/7          | Tugallangan (Completed)
+312    | Kalmar O'yini 2 fasl                           | 2021   | 9/9          | Tugallangan (Completed)
+313    | Farishtaning sevgisi                           | 2019   | 16/16        | Tugallangan (Completed)
+314    | Kalmar oʻyini 3-fasl (Squid Game Season 3)     | 2025   | 6/6          | Tugallangan (Completed)
+315    | Sevgi hikoyasi / Melo film (Melo Movie)        | 2025   | 10/10        | Tugallangan (Completed)
+316    | Tabassumingga oshiqman (Falling Into Your Smil | 2021   | 12/12        | Tugallangan (Completed)
+317    | Yulduzlardan soʻra / Yulduzlar gʻiybati (When  | 2025   | 16/16        | Tugallangan (Completed)
+318    | F4 Tailand / Gullardan goʻzal yigitlar (F4 Tha | 2021   | 36/36        | Tugallangan (Completed)
+319    | Venzdey | 1-fasl                               | 2022   | 8/8          | Tugallangan (Completed)
+320    | Venzdey | 2-fasl                               | 2025   | 8/8          | Tugallangan (Completed)
+321    | Kulrang parazitlar / Parazit: Kulrang (Parasyt | 2024   | 6/6          | Tugallangan (Completed)
+322    | Tabassumingga oshiqma / Kulgingga maftunman (F | 2021   | 32/32        | Tugallangan (Completed)
+323    | Menga yana turmushga chiq / Yana menga uylan ( | 2025   | 31/31        | Tugallangan (Completed)
+324    | Yashirin sevgi / Pinhona muhabbat (Hidden Love | 2023   | 25/25        | Tugallangan (Completed)
+325    | Kapalak / Batterflay (Butterfly)               | 2025   | 10/10        | Tugallangan (Completed)
+326    | Mening IDyim Gangnam go‘zali (My ID is Gangnam | 2018   | 16/16        | Tugallangan (Completed)
+327    | Birinchi qor / Yashirin sevgi 2: Birinchi izgʻ | 2025   | 32/32        | Tugallangan (Completed)
+328    | Qoʻrqmas va malika / Zippo va malika (Lighter  | 2022   | 36/36        | Tugallangan (Completed)
+329    | Zomvivor / Zombilar universiteti (Zomvivor)    | 2025   | 7/7          | Tugallangan (Completed)
+330    | Jodugar qiz 1 - 2 / Jodugar (The Witch: Part 1 | 2018   | 2/2          | Tugallangan (Film / Movie)
+331    | Daryo uzra suzayotgan oy / Oy chiqadigan daryo | 2021   | 14/14        | Tugallangan (Completed)
+332    | Mukammal toj / 21-asr qirollik oilasi (Perfect | 2026   | 12/12        | Tugallangan (Completed)
+333    | Taxi delux / Namunali taksi (Taxi Driver)      | 2021   | 2/2          | Tugallangan (Completed)
+334    | Tezlik va Muhabbat / Tezlik va sevgi (Speed an | 2025   | 29/29        | Tugallangan (Completed)
+335    | E boʻlimining marvaridi 2-fasl (He's Into Her  | 2022   | 9/9          | Tugallangan (Completed)
+336    | Bizning ajralmas sevgimiz / Yopishqoq muhabbat | 2026   | 12/12        | Tugallangan (Completed)
+337    | Iblis bilan pari oʻrtasidagi muhabbat / Orxide | 2022   | 36/36        | Tugallangan (Completed)
+338    | Seongsu-dong brendingi / Seongsuda brending (B | 2024   | 12/12        | Tugallangan (Completed)
+339    | Sevgi qorboʻroni / Qor boʻroni paytidagi sevgi | 2024   | 1/1          | Tugallangan (Completed)
+340    | Hovli (Avlu) 1-2 fasl                          | 2018   | 123/123      | Tugallangan 
+341    | Vanda va Vijn (WandaVision)                    | 2021   | 9/9          | Tugallangan 
+342    | Vijnning izlanishi / Vijinning jumbog'i (Visio | 2026   | 2/8          | Ongoing     
+343    | Agarda... (What If...?) 1-fasl                 | 2021   | 9/9          | Tugallangan 
+344    | Agarda... (What If...?) 2-fasl                 | 2023   | 9/9          | Tugallangan 
+345    | Superqiz (Supergirl)                           | 2026   | 1/1          | Tugallangan 
+346    | Agent Kimning qaytishi (Manager Kim 2025)      | 2025   | 10/10        | Tugallangan 
+347    | Xalk / Xalk 1 (Hulk 2003)                      | 2003   | 1/1          | Tugallangan 
+348    | Xalk 2: Aqlbovar qilmas Xalk (The Incredible H | 2008   | 1/1          | Tugallangan 
+349    | Ayol Xalk: Advokat (She-Hulk: Attorney at Law  | 2022   | 9/9          | Tugallangan 
+350    | Y loyihasi (Project Y 2026)                    | 2026   | 1/1          | Tugallangan 
+351    | Bugun barchasi sotildi (Sold Out Today)        | 2024   | 12/12        | Tugallangan 
+352    | Park xonimning nikoh shartnomasi (The Story of | 2023   | 12/12        | Tugallangan 
+353    | Chekka qishloqdagi doktor (Dr. Romantic)       | 2016   | 12/12        | Tugallangan 
+354    | Muhabbatning abadiy ifori (The Scent of Time)  | 2023   | 33/33        | Tugallangan 
+355    | Choson nikoh agentligi (Flower Crew: Joseon Ma | 2019   | 3/3          | Ongoing     
+356    | Sharqiy saroy                                  | 2024   | 8/8          | Tugallangan 
+357    | Oddiy bir kun (One Ordinary Day)               | 2021   | 6/6          | Tugallangan 
+358    | Ilohiy g'azab (The Divine Fury 2019)           | 2019   | 1/1          | Tugallangan 
+359    | Taksi haydovchisi 1-fasl (Taxi Driver)         | 2021   | 9/9          | Tugallangan 
+360    | Boylik kelmoqda                                | 2024   | 27/27        | Tugallangan 
+361    | Jinlar isyoni                                  | 2024   | 5/5          | Tugallangan 
+362    | Mening sevimli yolg'onchim (My Lovely Liar)    | 2023   | 16/16        | Tugallangan 
+363    | G'amgin tug'ilgan kun (Blue Birthday)          | 2021   | 16/16        | Tugallangan 
+364    | Qasos: Iljimae (Iljimae)                       | 2008   | 42/42        | Tugallangan 
+365    | Tom and jerry                                  | 2024   | 11/11        | Tugallangan 
+366    | Sirli qirolicha yasovchilar                    | 2024   | 7/7          | Tugallangan 
+367    | Ruyi pavilonidagi gullar (The Blooms at Ruyi P | 2020   | 41/41        | Tugallangan 
+368    | Najot Shifoxonasi 2 fasl                       | 2024   | 16/16        | Tugallangan 
+369    | Najot Shifoxonasi 3 fasl                       | 2024   | 16/16        | Tugallangan 
+370    | Men uchun kurash (Fight for My Way)            | 2017   | 16/16        | Tugallangan 
+371    | Arvohlar joylashgan poezd                      | 2024   | 1/1          | Tugallangan 
+372    | Bogota: Yo'qolganlar shahri (Bogota: City of t | 2024   | 1/1          | Tugallangan 
+373    | Yomg'ir ostidagi sevgi                         | 2024   | 30/30        | Tugallangan 
+374    | Qon daryosi                                    | 2024   | 38/38        | Tugallangan 
+375    | 90 yillardagi sahifam                          | 2024   | 24/24        | Tugallangan 
+376    | Bizning sevgimiz                               | 2024   | 24/24        | Tugallangan 
+377    | Zulmat pardasi                                 | 2024   | 29/29        | Tugallangan 
+378    | meow sirli yigit                               | 2024   | 5/5          | Tugallangan 
+379    | Qo’g’irchoq joylashgan uy                      | 2024   | 1/1          | Tugallangan 
+380    | So’ngi Samuray                                 | 2024   | 6/6          | Tugallangan 
+381    | 7 qochqin 1-fasl (The Escape of the Seven)     | 2023   | 16/16        | Tugallangan 
+382    | Qirolicha (The Empress / The Queen)            | 2020   | 85/85        | Tugallangan 
+383    | Ditto (Ditto 2022)                             | 2022   | 1/1          | Tugallangan 
+384    | Minamahal                                      | 2024   | 1/1          | Tugallangan 
+385    | Sevgi bu kecha dunyodan yo'qolsa ham           | 2022   | 1/1          | Tugallangan 
+386    | So'nggi 10 yil (The Last 10 Years)             | 2022   | 1/1          | Tugallangan 
+387    | Yangi yilingiz bilan (A Year-End Medley 2021)  | 2021   | 1/1          | Tugallangan 
+388    | Joze (Josee 2020)                              | 2020   | 1/1          | Tugallangan 
+389    | Butuk To’fon                                   | 2024   | 1/1          | Tugallangan 
+390    | Odamzod bog’i                                  | 2024   | 1/1          | Tugallangan 
+391    | Soyaning chegarasi                             | 2024   | 1/1          | Tugallangan 
+392    | Kelajakdan xotiralar                           | 2024   | 1/1          | Tugallangan 
+393    | Sevgi Qorbo’roni                               | 2024   | 1/1          | Tugallangan 
+394    | Ov vaqti (Time to Hunt 2020)                   | 2020   | 1/1          | Tugallangan 
+395    | Yaxshiroq Kunlar                               | 2024   | 1/1          | Tugallangan 
+396    | Kichik o'rmon (Little Forest 2018)             | 2018   | 1/1          | Tugallangan 
+397    | O'g'irlangan shaxsiyat (Unlocked 2023)         | 2023   | 1/1          | Tugallangan 
+398    | Taqdir iblis olib kelganda (Doom at Your Servi | 2021   | 33/33        | Tugallangan 
+399    | Ertaga (Tomorrow 2022)                         | 2022   | 16/16        | Tugallangan 
+400    | Marvarid Qizning Hikoyasi                      | 2024   | 40/40        | Tugallangan 
+401    | Arvoh Poezd                                    | 2024   | 1/1          | Tugallangan 
+402    | Pavan: Bajrangi birodar (Bajrangi Bhaijaan)    | 2015   | 1/1          | Tugallangan 
+403    | Shiddatli Joziba                               | 2024   | 40/40        | Tugallangan 
+404    | Zulmat Malikasi                                | 2024   | 24/24        | Tugallangan 
+405    | Darsdan tashqarida (Extracurricular)           | 2020   | 10/10        | Tugallangan 
+406    | Osmon Bag’ridagi Muhabbat                      | 2024   | 36/36        | Tugallangan 
+407    | Sen bilan birga                                | 2024   | 24/24        | Tugallangan 
+408    | Jimjitlik loyihasi (Project Silence 2024)      | 2024   | 1/1          | Tugallangan 
+409    | Qaytmas                                        | 2024   | 1/1          | Tugallangan 
+410    | Sevgimiz barhayot                              | 2024   | 1/1          | Tugallangan 
+411    | Parazitlar (Parasite 2019)                     | 2019   | 1/1          | Tugallangan 
+412    | Ziam zombilarga qarshi                         | 2024   | 1/1          | Tugallangan 
+413    | Qonli gul                                      | 2024   | 8/8          | Tugallangan 
+414    | Yashirin agent                                 | 2024   | 1/1          | Tugallangan 
+415    | Qasoskor.Ov boshlandi                          | 2024   | 1/1          | Tugallangan 
+416    | Qadirli Odri                                   | 2024   | 1/1          | Tugallangan 
+417    | Sichqon (Mouse 2021)                           | 2021   | 20/20        | Tugallangan 
+418    | Singan yurak                                   | 2024   | 22/22        | Tugallangan 
+419    | Mo’jizakor telbalar (The WONDERfools)          | 2026   | 8/8          | Tugallangan 
+420    | Tuzoqlar shahri                                | 2024   | 1/1          | Tugallangan 
+421    | Qutubdagi ta’qib 12soat                        | 2024   | 1/1          | Tugallangan 
+422    | Alam va zavq (Love and Leashes 2022)           | 2022   | 1/1          | Tugallangan 
+423    | O’limimdan bir hafta oldin                     | 2024   | 1/1          | Tugallangan 
+424    | Oshxona jangchilari afsonasi                   | 2024   | 12/12        | Tugallangan 
+425    | Efirdagi jang                                  | 2024   | 6/6          | Tugallangan 
+426    | Qismat virusi                                  | 2024   | 40/40        | Tugallangan 
+427    | Sevgi uchun ariza                              | 2024   | 12/12        | Tugallangan 
+428    | Mabudlar va ikki dunyo                         | 2024   | 1/1          | Tugallangan 
+429    | Zulmatdagi quyosh                              | 2024   | 24/24        | Tugallangan 
+430    | Orqa Qatordagi Yigit                           | 2024   | 6/6          | Tugallangan 
+431    | Ğaroyib dunyo                                  | 2024   | 14/14        | Tugallangan 
+432    | Menejerim bo’lib bera olasanmi?                | 2024   | 6/6          | Tugallangan 
+433    | Gullash fasli (Seasons of Blossom)             | 2022   | 16/16        | Tugallangan 
+434    | Ramantikaning mutloq qiymati                   | 2024   | 16/16        | Tugallangan 
+435    | Arvohlar joylashgan poezd (2-variant)          | 2024   | 1/1          | Tugallangan 
+436    | Bogota: Yo'qolganlar shahri (2-variant)        | 2024   | 1/1          | Tugallangan 
+437    | Yomg'ir ostidagi sevgi (2-variant)             | 2024   | 30/30        | Tugallangan 
+438    | Katta Dunyo Yoxud Kichik Men                   | 2024   | 1/1          | Tugallangan 
+439    | Galaktika Tartibchilari                        | 2024   | 1/1          | Tugallangan 
+440    | Arosat                                         | 2024   | 1/1          | Tugallangan 
+441    | Ilohiylikka Moyil Sevgi                        | 2024   | 24/24        | Tugallangan 
+442    | Birga O‘sish Va‘dasi                           | 2024   | 24/24        | Tugallangan 
+443    | Imkonsiz merosxo'r (The Impossible Heir)       | 2024   | 12/12        | Tugallangan 
+444    | Maydagi yoshlik (Youth of May)                 | 2021   | 12/12        | Tugallangan 
+445    | Shavqat Qilinmaydi                             | 2024   | 7/7          | Tugallangan 
+446    | Sen tergan raqam (When the Phone Rings 2024)   | 2024   | 12/12        | Tugallangan 
+447    | Umid Niholi                                    | 2024   | 36/36        | Tugallangan 
+448    | Baxt Taomi (Pasta)                             | 2010   | 20/20        | Tugallangan 
+449    | Meni kechiring                                 | 2024   | 1/1          | Tugallangan 
+450    | Egizaklar                                      | 2024   | 40/40        | Tugallangan 
+451    | Taqdir tuhfasi (Fated to Love You)             | 2014   | 16/16        | Tugallangan 
+452    | Yovuz va badavlat 1-fasl (Bitch X Rich)        | 2023   | 10/10        | Tugallangan 
+453    | Yovuz va badavlat 2-fasl (Bitch X Rich Season  | 2024   | 10/10        | Tugallangan 
+454    | Hayolingni bir bo’lagi                         | 2024   | 12/12        | Tugallangan 
+455    | Saroy tabibi (The King's Doctor / Horse Doctor | 2012   | 50/50        | Tugallangan 
+456    | Ishonch Qirolichasi                            | 2024   | 12/12        | Tugallangan 
+457    | Shafqatsiz shahar (Cruel City / Heartless City | 2013   | 20/20        | Tugallangan 
+458    | Seul poygachilari (Seoul Vibe 2022)            | 2022   | 1/1          | Tugallangan 
+459    | Cheksizlikka sayohat                           | 2024   | 1/1          | Tugallangan 
+460    | Yaxshi Xabar                                   | 2024   | 1/1          | Tugallangan 
+461    | Chiqish (Exit 2019)                            | 2019   | 1/1          | Tugallangan 
+462    | Iblisi Haqida Afsona                           | 2024   | 1/1          | Tugallangan 
+463    | AEMA (Aema 2025)                               | 2025   | 6/6          | Tugallangan 
+464    | Oshiqning Qasosi                               | 2024   | 8/8          | Tugallangan 
+465    | Afina:Urush Ma’budasi                          | 2024   | 20/20        | Tugallangan 
+466    | Kelishgan Yigitlar                             | 2024   | 1/1          | Tugallangan 
+467    | Shunchaki seni sevaman                         | 2024   | 1/1          | Tugallangan 
+468    | Yig’layotgan Qotil                             | 2024   | 1/1          | Tugallangan 
+469    | Xotiralar Kundaligi                            | 2024   | 1/1          | Tugallangan 
+470    | Boshqa Tanlov Yoq                              | 2024   | 1/1          | Tugallangan 
+471    | Umid                                           | 2024   | 1/1          | Tugallangan 
+472    | Baxt Izlab                                     | 2024   | 35/35        | Tugallangan 
+473    | Xotinlar Isyoni                                | 2024   | 26/26        | Tugallangan 
+474    | Minnatdorman                                   | 2024   | 16/16        | Tugallangan 
+475    | Kuz Do’Li                                      | 2024   | 16/16        | Tugallangan 
+476    | Qayta Boshlash                                 | 2024   | 15/15        | Tugallangan 
+477    | Non isi: Kim Tak Gu (King of Baking, Kim Takgu | 2010   | 30/30        | Tugallangan 
+478    | Sevgi Va O’lim                                 | 2024   | 16/16        | Tugallangan 
+479    | Mening Ilohiy Elchim                           | 2024   | 24/24        | Tugallangan 
+480    | Mukammal ish (Dead-End Job)                    | 2026   | 8/8          | Tugallangan (8/8 qism)
+481    | Bechoralar                                     | 2026   | 42/42        | Davom etmoqda (42 qism)
