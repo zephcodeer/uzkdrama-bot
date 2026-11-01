@@ -29,6 +29,7 @@ async def apply_sqlite_pragmas(db: aiosqlite.Connection):
     await db.execute("PRAGMA temp_store = MEMORY;")
     await db.execute("PRAGMA mmap_size = 0;")
     await db.execute("PRAGMA wal_autocheckpoint = 100;")
+    await db.execute("PRAGMA busy_timeout = 30000;")
 
 
 async def optimize_db():

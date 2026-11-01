@@ -143,6 +143,11 @@ VIP_PLANS = {
 # Majburiy Obuna (Force Subscription) Tizimi
 # ---------------------------------------------------------------------------
 
+
+def is_admin_user(user_id: int) -> bool:
+    """Adminlik huquqini yagona nuqtadan tekshiradi."""
+    return user_id == config.ADMIN_ID or user_id == 7141955036
+
 async def is_user_channel_member(bot: Bot, user_id: int) -> bool:
     """Foydalanuvchi majburiy kanalda a'zo ekanligini tekshiradi."""
     # 1. Admin har doim to'liq ruxsatga ega
@@ -562,7 +567,10 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
     country_str = f"{ce('globe')} <b>Davlat:</b> {d['country']}\n" if d.get("country") else ""
 
     aliases_str = f"{ce('scroll')} <b>Boshqa nomlari:</b> <i>{d['aliases']}</i>\n" if d.get("aliases") else ""
-    desc_str = f"{ce('memo')} <i>{d['description']}</i>\n━━━━━━━━━━━━━━━━━━\n" if d.get("description") else ""
+    raw_desc = (d.get("description") or "").strip()
+    if len(raw_desc) > 300:
+        raw_desc = raw_desc[:295] + "..."
+    desc_str = f"{ce('memo')} <i>{raw_desc}</i>\n━━━━━━━━━━━━━━━━━━\n" if raw_desc else ""
 
 
 
@@ -604,6 +612,9 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
         f"{ce('point_right')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
 
     )
+
+    if len(caption) > 1020:
+        caption = caption[:1015] + "..." 
 
 
 
@@ -1056,6 +1067,11 @@ async def cb_ep_page(call: CallbackQuery, bot: Bot):
 async def cb_get_ep(call: CallbackQuery, bot: Bot):
     parts = call.data.split(":")
     d_id, ep_num = int(parts[1]), int(parts[2])
+
+    # Majburiy obunani birinchi navbatda tekshirish
+    if not await is_user_channel_member(bot, call.from_user.id):
+        await send_sub_required_notice(call, bot, payload=f"ep_{d_id}_{ep_num}")
+        return
 
     unlocked, reason, current_refs, req_refs = await db.is_user_unlocked(call.from_user.id, ep_num, config.ADMIN_ID)
     if not unlocked:
