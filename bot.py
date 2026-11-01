@@ -2658,7 +2658,7 @@ async def send_dorama_exists_notification(bot: Bot, user_id: int, sug_id: int, d
     play_kb = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
-                text=f"{ce('play')} Doramani tomosha qilish",
+                text="🎬 Doramani tomosha qilish", icon_custom_emoji_id="5348125953090403204",
                 url=f"https://t.me/{bot_user}?start={code}"
             )
         ]
@@ -3058,7 +3058,7 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
         item_kb = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=f"{ce('play')} Doramani tomosha qilish",
+                    text="🎬 Doramani tomosha qilish", icon_custom_emoji_id="5348125953090403204",
                     url=f"https://t.me/{bot_username}?start={code}"
                 )
             ],
