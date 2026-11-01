@@ -745,7 +745,7 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def suggestion_admin_kb(suggestion_id: int, user_id: int) -> InlineKeyboardMarkup:
+def suggestion_admin_kb(suggestion_id: int, user_id: int, matched_code: int | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
@@ -759,6 +759,22 @@ def suggestion_admin_kb(suggestion_id: int, user_id: int) -> InlineKeyboardMarku
             icon_custom_emoji_id=ICON_CROSS_RED
         )
     )
+    if matched_code:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"🎬 Allaqachon bor ({matched_code}-kod)",
+                callback_data=f"sug_exist:{suggestion_id}:{user_id}:{matched_code}",
+                icon_custom_emoji_id=ICON_PLAY
+            )
+        )
+    else:
+        builder.row(
+            InlineKeyboardButton(
+                text="🎬 Allaqachon bor",
+                callback_data=f"sug_exist_ask:{suggestion_id}:{user_id}",
+                icon_custom_emoji_id=ICON_PLAY
+            )
+        )
     builder.row(
         InlineKeyboardButton(
             text="Foydalanuvchiga Javob Yozish",
