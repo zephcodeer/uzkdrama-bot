@@ -273,12 +273,11 @@ CUSTOM_EMOJIS = {
 }
 
 
-def ce(name: str, fallback_only: bool = False) -> str:
-    """Telegram Premium Custom Emoji tegi yoki fallback."""
+def ce(name: str, fallback_only: bool = True) -> str:
+    """Barcha qurilmalarda 100% toza, chiroyli va standart Unicode emojilarni qaytaradi."""
     item = CUSTOM_EMOJIS.get(name)
     if not item:
         return "✨"
     emoji_id, fallback = item
-    if fallback_only:
-        return fallback
-    return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+    # Agar botda premium bo'lmasa, <tg-emoji> qotib qolmasligi uchun toza fallback qaytariladi
+    return fallback
