@@ -52,7 +52,7 @@ from aiogram.enums import ParseMode
 
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 from aiogram.fsm.context import FSMContext
 
@@ -2411,6 +2411,87 @@ async def cmd_admin_direct_msg(message: Message, command: CommandObject, bot: Bo
         await message.answer(f"{ce('check_green')} <b>Xabar foydalanuvchiga ({target_uid}) muvaffaqiyatli yetkazildi!</b>")
     except Exception as e:
         await message.answer(f"{ce('cross_red')} Xatolik: {e}")
+
+
+@router.message(Command("send"))
+async def cmd_admin_send(message: Message, bot: Bot):
+    """
+    Admin buyrug'i: Foydalanuvchiga to'g'ridan-to'g'ri kino kodi yoki xabar yuborish.
+    Format: /send <user_id> <kino_kodi> yoki /send <user_id> <matn>
+    Masalan: /send 8777393066 482
+    """
+    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+        return
+    args = message.text.split(maxsplit=2)
+    if len(args) < 3:
+        await bot.send_message(
+            chat_id=message.chat.id,
+            text=f"{ce('info')} <b>/send buyrug'idan foydalanish:</b>\n\n"
+                 f"1) <b>Kino kodi bilan xabar:</b> <code>/send &lt;user_id&gt; &lt;kino_kodi&gt;</code>\n"
+                 f"<i>(Masalan: <code>/send 8777393066 482</code>)</i>\n\n"
+                 f"2) <b>Ixtiyoriy matn yuborish:</b> <code>/send &lt;user_id&gt; &lt;xabar matni&gt;</code>\n"
+                 f"<i>(Masalan: <code>/send 8777393066 Salom, taklifingiz qabul qilindi!</code>)</i>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    target_id_str, payload = args[1].strip(), args[2].strip()
+    if not target_id_str.isdigit():
+        await bot.send_message(chat_id=message.chat.id, text=f"{ce('cross_red')} Noto'g'ri foydalanuvchi ID raqami: <code>{target_id_str}</code>", parse_mode=ParseMode.HTML)
+        return
+
+    target_user_id = int(target_id_str)
+
+    # 1. Agar dorama kodi yozilgan bo'lsa
+    if payload.isdigit():
+        code = int(payload)
+        d = await db.get_dorama_by_code(code)
+        if d:
+            title = d.get('title', f'{code}-kodli dorama')
+            msg_text = (
+                f"{ce('party')} <b>Assalomu alaykum! Dorama taklifingiz yuklandi!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Siz so'ragan/taklif qilgan <b>«{html.escape(title)}»</b> seriali botimizga to'liq joylandi! {ce('popcorn')}\n\n"
+                f"{ce('diamond')} <b>Kino kodi:</b> <code>{code}</code>\n\n"
+                f"<i>Botga <b>{code}</b> deb yozib yoki pastdagi tugma orqali bemalol tomosha qilishingiz mumkin. Maroqli hordiq tilaymiz!</i> {ce('sparkles')}"
+            )
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text="🎬 Serialni tomosha qilish",
+                    url=f"https://t.me/uzkdrama_app?start={code}"
+                )]
+            ])
+            try:
+                await bot.send_message(target_user_id, msg_text, reply_markup=markup, parse_mode=ParseMode.HTML)
+                await bot.send_message(chat_id=message.chat.id, text=f"{ce('check_green')} Foydalanuvchiga <b>[{code}] {html.escape(title)}</b> seriali haqida bildirishnoma yetkazildi!", parse_mode=ParseMode.HTML)
+            except TelegramForbiddenError:
+                await bot.send_message(
+                    chat_id=message.chat.id,
+                    text=f"{ce('warning')} <b>Xatolik:</b> Foydalanuvchi botni bloklagan (Forbidden: bot was blocked by the user).\n"
+                         f"Foydalanuvchi botni qayta ochmaguncha xabar yetkazib bo'lmaydi.",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                await bot.send_message(chat_id=message.chat.id, text=f"{ce('cross_red')} Xabar yuborishda xatolik: {e}", parse_mode=ParseMode.HTML)
+            return
+
+    # 2. Oddiy matn yuborish
+    try:
+        custom_msg = (
+            f"{ce('broadcast')} <b>Admin xabari:</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{html.escape(payload)}"
+        )
+        await bot.send_message(target_user_id, custom_msg, parse_mode=ParseMode.HTML)
+        await bot.send_message(chat_id=message.chat.id, text=f"{ce('check_green')} Foydalanuvchiga xabar muvaffaqiyatli yetkazildi!", parse_mode=ParseMode.HTML)
+    except TelegramForbiddenError:
+        await bot.send_message(
+            chat_id=message.chat.id,
+            text=f"{ce('warning')} <b>Xatolik:</b> Foydalanuvchi botni bloklagan (Forbidden: bot was blocked by the user).",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        await bot.send_message(chat_id=message.chat.id, text=f"{ce('cross_red')} Xabar yuborishda xatolik: {e}", parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("update"))
