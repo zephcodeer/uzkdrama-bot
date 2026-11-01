@@ -325,7 +325,7 @@ async def cmd_start(message: Message, command: CommandObject, bot: Bot, state: F
 
                     f"{ce('party')} <b>Yangi do'stingiz botga qo'shildi!</b>\n\n"
 
-                    f"{ce('user')} <b>{user.first_name}</b> sizning havolangiz orqali kirdi.\n"
+                    f"{ce('user')} <b>{html.escape(user.first_name or 'Foydalanuvchi')}</b> sizning havolangiz orqali kirdi.\n"
 
                     f"{ce('sparkles')} Jami takliflaringiz: <b>{ref_total} ta</b>.\n\n"
 
@@ -403,7 +403,7 @@ async def cmd_start(message: Message, command: CommandObject, bot: Bot, state: F
 
         f"{ce('film')} <b>DORAMA HUB — Rasmiy Kinoteatr</b>\n\n"
 
-        f"{ce('sparkles')} Assalomu alaykum, <b>{user.first_name}</b>{prem_badge}!\n\n"
+        f"{ce('sparkles')} Assalomu alaykum, <b>{html.escape(user.first_name or 'Foydalanuvchi')}</b>{prem_badge}!\n\n"
 
         f"{ce('popcorn')} Bu yerda eng sara Koreys, Xitoy va Osiyo doramalarini bepul, "
 
@@ -958,7 +958,7 @@ async def cb_menu_home(call: CallbackQuery, state: FSMContext):
 
     text = (
         f"{ce('film')} <b>DORAMA HUB — Bosh Sahifa</b>\n\n"
-        f"{ce('sparkles')} <b>{user.first_name}</b>{prem_badge}, quyidagi bo'limlardan birini tanlang:"
+        f"{ce('sparkles')} <b>{html.escape(user.first_name or 'Foydalanuvchi')}</b>{prem_badge}, quyidagi bo'limlardan birini tanlang:"
     )
     is_promo = await db.is_promo_free_mode()
     await render_text_screen(call, text, reply_markup=kb.main_menu_kb(is_admin=is_admin, is_promo=is_promo))
@@ -1069,7 +1069,7 @@ async def cb_get_ep(call: CallbackQuery, bot: Bot):
         lock_text = (
             f"{ce('lock')} <b>{ep_num}-QISM QULFLANGAN!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"Hurmatli <b>{call.from_user.first_name}</b>, 1, 2 va 3-qismlar mutlaqo bepul.\n\n"
+            f"Hurmatli <b>{html.escape(call.from_user.first_name or 'Foydalanuvchi')}</b>, 1, 2 va 3-qismlar mutlaqo bepul.\n\n"
             f"{ce('stats')} Sizning takliflaringiz: <b>{current_refs} ta</b>\n"
             f"{ce('target')} <b>{ep_num}-qism uchun talab:</b> <b>{req_refs} ta</b> do'st "
             f"<i>(Yana <b>{needed} ta</b> do'stingiz botga kirishi kerak)</i>.\n\n"
@@ -1142,7 +1142,7 @@ async def handle_menu_trigger(message: Message, state: FSMContext):
 
         f"{ce('film')} <b>DORAMA HUB — Asosiy Menyu</b>\n\n"
 
-        f"{ce('sparkles')} <b>{user.first_name}</b>{prem_badge}, quyidagi bo'limlardan birini tanlang:"
+        f"{ce('sparkles')} <b>{html.escape(user.first_name or 'Foydalanuvchi')}</b>{prem_badge}, quyidagi bo'limlardan birini tanlang:"
 
     )
 
@@ -2401,10 +2401,11 @@ async def cmd_admin_direct_msg(message: Message, command: CommandObject, bot: Bo
 
     text_to_send = args[1].strip()
     try:
+        safe_msg_to_send = html.escape(text_to_send)
         await bot.send_message(
             target_uid,
             f"{ce('broadcast')} <b>Admin xabari:</b>\n━━━━━━━━━━━━━━━━━━\n"
-            f"<blockquote>{text_to_send}</blockquote>\n\n"
+            f"<blockquote>{safe_msg_to_send}</blockquote>\n\n"
             f"<i>Maroqli hordiq tilaymiz! {ce('popcorn')}</i>",
             parse_mode=ParseMode.HTML
         )
@@ -2661,7 +2662,7 @@ async def process_dorama_suggestion(message: Message, state: FSMContext, bot: Bo
     user_reply = (
         f"{ce('check_green')} <b>Katta rahmat! Taklifingiz qabul qilindi.</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"Siz taklif qilgan: <b>{suggestion_text}</b>\n\n"
+        f"Siz taklif qilgan: <b>{html.escape(suggestion_text)}</b>\n\n"
         f"{ce('sparkles')} Adminlarimiz taklifingizni tez orada ko'rib chiqishadi va dorama botga yuklanganda xabar berishadi!\n\n"
         f"<i>Boshqa dorama tomosha qilish uchun pastdagi tugmani bosing:</i>"
     )
@@ -2678,13 +2679,16 @@ async def process_dorama_suggestion(message: Message, state: FSMContext, bot: Bo
 
     # 3. Adminga zudlik bilan bildirishnoma yuborish
     admin_targets = list(set([config.ADMIN_ID, 7141955036]))
+    safe_u_name = html.escape(u.first_name or "Foydalanuvchi")
+    safe_u_user = html.escape(u.username or "username_yoq")
+    safe_sug_text = html.escape(suggestion_text)
     admin_notify = (
         f"{ce('bulb')} <b>YANGI DORAMA TAKLIFI #{sug_id}!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('user')} <b>Foydalanuvchi:</b> {u.first_name} (@{u.username or 'username_yoq'})\n"
+        f"{ce('user')} <b>Foydalanuvchi:</b> {safe_u_name} (@{safe_u_user})\n"
         f"{ce('id_badge')} ID: <code>{u.id}</code>\n\n"
         f"{ce('memo')} <b>Taklif qilingan dorama:</b>\n"
-        f"<blockquote>{suggestion_text}</blockquote>\n"
+        f"<blockquote>{safe_sug_text}</blockquote>\n"
         f"{matched_info}"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Quyidagi tugmalar orqali javob berishingiz mumkin:"
@@ -2777,8 +2781,9 @@ async def send_dorama_exists_notification(bot: Bot, user_id: int, sug_id: int, d
     except Exception:
         bot_user = "uzkdrama_app"
 
+    safe_exists_title = html.escape(str(d.get('title', '')))
     user_msg = (
-        f"Assalomu alaykum! <b>«{d['title']}»</b> doramasi allaqachon botimizda mavjud! 🎉\n\n"
+        f"Assalomu alaykum! <b>«{safe_exists_title}»</b> doramasi allaqachon botimizda mavjud! 🎉\n\n"
         f"🔑 <b>Kino kodi:</b> <code>{code}</code>\n"
         f"🎞 <b>Mavjud:</b> {ep_info}.\n\n"
         f"Botga <b>{code}</b> deb yozib yoki qidiruv orqali bemalol tomosha qilishingiz mumkin. Maroqli hordiq tilaymiz! 🎬🍿"
@@ -3089,13 +3094,13 @@ async def process_search_query(message: Message, state: FSMContext, bot: Bot):
     results = await db.search_doramas(query, limit=10)
     if not results:
         text = (
-            f"{ce('bell')} <b>'{query}'</b> bo'yicha hech narsa topilmadi.\n\n"
+            f"{ce('bell')} <b>'{html.escape(query)}'</b> bo'yicha hech narsa topilmadi.\n\n"
             f"{ce('bulb')} <i>Nomini to'g'ri yozganingizni tekshiring yoki kino kodini kiriting (masalan: <code>101</code>).</i>"
         )
         await message.answer(text, reply_markup=kb.back_to_menu_kb(), parse_mode=ParseMode.HTML)
         return
 
-    text = f"{ce('search')} <b>'{query}'</b> bo'yicha topilgan natijalar:"
+    text = f"{ce('search')} <b>'{html.escape(query)}'</b> bo'yicha topilgan natijalar:"
     markup = kb.doramas_list_kb(results, prefix="search", page=0, has_next=False)
     await message.answer(text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
