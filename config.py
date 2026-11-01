@@ -18,6 +18,11 @@ ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 7141955036
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 
+REQUIRED_CHANNEL_ID_RAW = os.getenv("REQUIRED_CHANNEL_ID", "-1003845843606").strip()
+REQUIRED_CHANNEL_ID = int(REQUIRED_CHANNEL_ID_RAW) if REQUIRED_CHANNEL_ID_RAW.lstrip("-").isdigit() else -1003845843606
+REQUIRED_CHANNEL_USERNAME = os.getenv("REQUIRED_CHANNEL_USERNAME", "uz_kdramalar").strip().lstrip("@")
+REQUIRED_CHANNEL_URL = f"https://t.me/{REQUIRED_CHANNEL_USERNAME}"
+
 VIP_CARD_NUMBER = os.getenv("VIP_CARD_NUMBER", "4916 9903 7054 4030").strip()
 VIP_CARD_HOLDER = os.getenv("VIP_CARD_HOLDER", "Visa").strip()
 

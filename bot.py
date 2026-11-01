@@ -138,6 +138,123 @@ VIP_PLANS = {
 
 
 
+
+# ---------------------------------------------------------------------------
+# Majburiy Obuna (Force Subscription) Tizimi
+# ---------------------------------------------------------------------------
+
+async def is_user_channel_member(bot: Bot, user_id: int) -> bool:
+    """Foydalanuvchi majburiy kanalda a'zo ekanligini tekshiradi."""
+    # 1. Admin har doim to'liq ruxsatga ega
+    if user_id == config.ADMIN_ID or user_id == 7141955036:
+        return True
+
+    # 2. VIP foydalanuvchilar majburiy obunasiz tomosha qilish huquqiga ega
+    try:
+        if await db.is_vip(user_id):
+            return True
+    except Exception:
+        pass
+
+    # 3. Kanal a'zoligini tekshirish
+    try:
+        member = await bot.get_chat_member(chat_id=config.REQUIRED_CHANNEL_ID, user_id=user_id)
+        if member.status in ["creator", "administrator", "member", "restricted"]:
+            return True
+        return False
+    except TelegramBadRequest as e:
+        err = str(e).lower()
+        if "participant_id_invalid" in err or "user not found" in err:
+            return False
+        # Agar bot huquqlari yoki chat topilmasa, botni qotirib qo'ymaslik uchun True
+        return True
+    except Exception:
+        return True
+
+
+def sub_required_kb(target_payload: str = "") -> InlineKeyboardMarkup:
+    btn_check_data = f"sub_check:{target_payload}" if target_payload else "sub_check:home"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Kanalga a'zo bo'lish ↗️", url=config.REQUIRED_CHANNEL_URL)],
+        [InlineKeyboardButton(text="🔄 A'zolikni tekshirish", callback_data=btn_check_data)]
+    ])
+
+
+async def send_sub_required_notice(target: Message | CallbackQuery | int, bot: Bot, payload: str = ""):
+    text = (
+        "<blockquote>🔒 <b>Seriallarni tomosha qilish uchun rasmiy kanalimizga a'zo bo'ling!</b></blockquote>\n\n"
+        f"🎬 <b>@{config.REQUIRED_CHANNEL_USERNAME}</b> kanalimizda barcha yangi premyeralar, "
+        "chiqqan qismlar va eng sara doramalar birinchi bo'lib e'lon qilib boriladi.\n\n"
+        "<i>Kanalga obuna bo'ling va quyidagi <b>«🔄 A'zolikni tekshirish»</b> tugmasini bosing:</i>"
+    )
+    kb_markup = sub_required_kb(payload)
+    if isinstance(target, int):
+        try:
+            await bot.send_message(chat_id=target, text=text, reply_markup=kb_markup, parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
+    elif isinstance(target, CallbackQuery):
+        try:
+            await target.message.answer(text, reply_markup=kb_markup, parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
+    elif isinstance(target, Message):
+        try:
+            await target.answer(text, reply_markup=kb_markup, parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
+
+
+@router.callback_query(F.data.startswith("sub_check:"))
+async def cb_sub_check(call: CallbackQuery, bot: Bot, state: FSMContext):
+    user_id = call.from_user.id
+    payload = call.data.split("sub_check:")[1].strip()
+
+    is_sub = await is_user_channel_member(bot, user_id)
+    if not is_sub:
+        await safe_answer(call, f"❌ Siz hali @{config.REQUIRED_CHANNEL_USERNAME} kanaliga a'zo bo'lmadingiz. Iltimos, avval kanalga obuna bo'ling!", show_alert=True)
+        return
+
+    await safe_answer(call, "✅ Obunangiz tasdiqlandi! Maroqli hordiq tilaymiz.", show_alert=False)
+
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+
+    if payload.startswith("code_"):
+        code_str = payload.replace("code_", "")
+        if code_str.isdigit():
+            d = await db.get_dorama_by_code(int(code_str))
+            if d:
+                await show_dorama_detail(call.message, d["id"], bot, user_id=user_id)
+                return
+    elif payload.startswith("d_"):
+        try:
+            d_id = int(payload.split("_")[1])
+            await show_dorama_detail(call.message, d_id, bot, user_id=user_id)
+            return
+        except Exception:
+            pass
+    elif payload.startswith("ep_"):
+        try:
+            parts = payload.split("_")
+            d_id, ep_num = int(parts[1]), int(parts[2])
+            await send_episode(user_id, d_id, ep_num, bot)
+            return
+        except Exception:
+            pass
+
+    # Default / home
+    is_admin = (user_id == config.ADMIN_ID)
+    is_promo = await db.is_promo_free_mode()
+    welcome_text = (
+        f"{ce('sparkles')} <b>Xush kelibsiz!</b>\n\n"
+        f"Kino kodini yozing yoki quyidagi menyudan foydalaning:"
+    )
+    await call.message.answer(welcome_text, reply_markup=kb.main_menu_kb(is_admin=is_admin, is_promo=is_promo), parse_mode=ParseMode.HTML)
+
+
 # ---------------------------------------------------------------------------
 
 # Handlers: Start va Deep-linking
@@ -385,6 +502,10 @@ async def render_text_screen(event: CallbackQuery | Message, text: str, reply_ma
 # ---------------------------------------------------------------------------
 
 async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bot: Bot, user_id: int, page: int = 0):
+    if not await is_user_channel_member(bot, user_id):
+        await send_sub_required_notice(target, bot, payload=f"d_{dorama_id}")
+        return
+
 
     d = await db.get_dorama_by_id(dorama_id)
 
@@ -633,6 +754,10 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 # ---------------------------------------------------------------------------
 
 async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
+    if not await is_user_channel_member(bot, user_id):
+        await send_sub_required_notice(user_id, bot, payload=f"ep_{dorama_id}_{ep_num}")
+        return
+
 
     ep = await db.get_episode(dorama_id, ep_num)
 
@@ -2909,6 +3034,9 @@ async def process_numeric_code(message: Message, state: FSMContext, bot: Bot):
     code = int(message.text.strip())
     d = await db.get_dorama_by_code(code)
     if d:
+        if not await is_user_channel_member(bot, message.from_user.id):
+            await send_sub_required_notice(message, bot, payload=f"code_{code}")
+            return
         await show_dorama_detail(message, d["id"], bot, user_id=message.from_user.id)
     else:
         await message.answer(
@@ -2931,6 +3059,9 @@ async def process_search_query(message: Message, state: FSMContext, bot: Bot):
         code = int(query)
         d = await db.get_dorama_by_code(code)
         if d:
+            if not await is_user_channel_member(bot, message.from_user.id):
+                await send_sub_required_notice(message, bot, payload=f"code_{code}")
+                return
             await show_dorama_detail(message, d["id"], bot, user_id=message.from_user.id)
             return
         else:
@@ -3093,6 +3224,130 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
         switch_pm_text="🎬 Bot menyusiga o'tish",
         switch_pm_parameter="from_inline"
     )
+
+
+
+# ---------------------------------------------------------------------------
+# Admin & Kanal Yangi Qismlar Post Tizimi (/post)
+# ---------------------------------------------------------------------------
+
+@router.message(Command("post"))
+async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: Bot):
+    """Admin buyrug'i: Yangi qismni @uz_kdramalar kanaliga chiroyli post qilib chiqaradi.
+    Format: /post <kod> [qism] (masalan: /post 168 7 yoki /post 101)
+    """
+    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+        return
+
+    args = (command.args or "").strip().split()
+    if not args:
+        await message.answer(
+            "<b>Yangi qismni kanalga chiqarish:</b>\n\n"
+            "Format: <code>/post &lt;kino_kodi&gt; [qism_raqami]</code>\n"
+            "Masalan:\n"
+            "• <code>/post 168 7</code> — 168-doramaning 7-qism posti\n"
+            "• <code>/post 101</code> — 101-doramaning oxirgi qismi",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    if not args[0].isdigit():
+        await message.answer("❌ Kino kodi faqat raqam bo'lishi kerak!")
+        return
+
+    code = int(args[0])
+    d = await db.get_dorama_by_code(code)
+    if not d:
+        await message.answer(f"❌ <code>{code}</code> kodli dorama bazada topilmadi!")
+        return
+
+    episodes = await db.get_episodes(d["id"])
+    if not episodes:
+        await message.answer(f"❌ <code>{code}</code> kodli doramaga hali qism yuklanmagan!")
+        return
+
+    if len(args) > 1 and args[1].isdigit():
+        ep_num = int(args[1])
+    else:
+        ep_num = max(e["episode_number"] for e in episodes)
+
+    title = d.get("title", "")
+    caption = (
+        "🔔 <b>Yangi qism yuklandi!</b>\n"
+        "<i>(Oʻzbek tilida)</i>\n"
+        "————————————\n"
+        f"« <b>{title}</b> »\n\n"
+        f"<blockquote><b>1-fasl | {ep_num}-qism</b>\n"
+        f"🔑 Kodi: <code>{code}</code></blockquote>\n\n"
+        "👇 <b>Tomosha qilish uchun pastdagi tugmani bosing:</b>"
+    )
+
+    kb_post = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"🎬 1–{ep_num} qismgacha ko'rish",
+            url=f"https://t.me/uzkdrama_app?start={code}"
+        )]
+    ])
+
+    poster_rel = d.get("poster_url")
+    poster_path = os.path.join(r"E:\Agent\Drama Bot", poster_rel) if poster_rel else None
+
+    try:
+        if poster_path and os.path.exists(poster_path):
+            sent = await bot.send_photo(
+                chat_id=config.REQUIRED_CHANNEL_ID,
+                photo=FSInputFile(poster_path),
+                caption=caption,
+                reply_markup=kb_post,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            sent = await bot.send_message(
+                chat_id=config.REQUIRED_CHANNEL_ID,
+                text=caption,
+                reply_markup=kb_post,
+                parse_mode=ParseMode.HTML
+            )
+        await message.answer(
+            f"✅ <b>{title}</b> ({ep_num}-qism) muvaffaqiyatli kanalga joylandi!\n"
+            f"🔗 Post ID: <code>{sent.message_id}</code>",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        await message.answer(f"❌ Kanalga yuborishda xatolik: {e}")
+
+
+@router.edited_channel_post()
+async def on_channel_post_edited(message: Message, bot: Bot):
+    """Kanalda post tahrirlanganda (masalan Premium emoji qo'yilganda) bot tugmasini avtomatik qayta ulab qo'yadi."""
+    if message.chat.id != config.REQUIRED_CHANNEL_ID and message.chat.username != config.REQUIRED_CHANNEL_USERNAME:
+        return
+
+    # Agar tugma o'chib ketgan bo'lsa
+    if not message.reply_markup or not message.reply_markup.inline_keyboard:
+        text = message.caption or message.text or ""
+        import re
+        match = re.search(r"(?:kod|kodi)[\s:–—\-]+(\d+)", text, re.IGNORECASE)
+        if match:
+            code = int(match.group(1))
+            d = await db.get_dorama_by_code(code)
+            if d:
+                episodes = await db.get_episodes(d["id"])
+                ep_count = len(episodes)
+                raw_status = (d.get("status") or "").lower()
+                is_ongoing = "ongo" in raw_status
+                btn_text = f"🎬 1–{ep_count} qismgacha ko'rish" if is_ongoing else "🎬 Barcha qismlarni ko'rish"
+                kb_restored = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text=btn_text, url=f"https://t.me/uzkdrama_app?start={code}")]
+                ])
+                try:
+                    await bot.edit_message_reply_markup(
+                        chat_id=message.chat.id,
+                        message_id=message.message_id,
+                        reply_markup=kb_restored
+                    )
+                except Exception:
+                    pass
 
 
 async def main():
