@@ -564,45 +564,49 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
 
 
+    safe_title = html.escape(str(d.get("title", "")))
+    safe_aliases = html.escape(str(d.get("aliases", ""))) if d.get("aliases") else ""
+    safe_genre = html.escape(str(d.get("genre", "Romantika")))
+    safe_country = html.escape(str(d.get("country", "Janubiy Koreya")))
+    safe_actors = html.escape(str(d.get("actors", ""))) if d.get("actors") else ""
+    code = d.get("code", d["id"])
+    total_ep = d.get("total_episodes") or len(episodes)
     uploaded_ep = len(episodes)
     raw_status = (d.get("status") or "Ongoing").strip()
-    status_txt = f"{uploaded_ep} qism (Davom etmoqda) ⏳" if "ongo" in raw_status.lower() else f"{uploaded_ep} qism (To'liq) ✅"
+    status_str = f"{ce('green_circle')} Davom etmoqda" if "ongo" in raw_status.lower() else f"{ce('red_circle')} Tugallangan"
 
-    safe_title = html.escape(str(d.get("title", "")))
-    if len(safe_title) > 55:
-        safe_title = safe_title[:52] + "..."
-
-    orig_title = d.get("original_title") or ""
-    sub_title = f"<i>({html.escape(orig_title[:35])})</i>" if orig_title and orig_title.lower() != safe_title.lower() else ""
-
-    c_raw = (d.get("country") or "").lower()
-    flag = "🇰🇷" if "kore" in c_raw or "korea" in c_raw else ("🇨🇳" if "xitoy" in c_raw or "china" in c_raw else ("🇯🇵" if "yapon" in c_raw or "japan" in c_raw else "🌏"))
-    safe_country = html.escape(str(d.get("country", "Janubiy Koreya")))
-    safe_genre = html.escape(str(d.get("genre", "Drama")))[:30]
+    code_badge = f"{ce('code')} <b>Kino kodi:</b> <code>{code}</code>\n"
+    aliases_str = f"{ce('scroll')} <b>Boshqa nomlari:</b> {safe_aliases}\n" if safe_aliases else ""
+    actors_str = f"{ce('masks')} <b>Bosh rollarda:</b> {safe_actors}\n" if safe_actors else ""
+    country_str = f"{ce('globe')} <b>Davlat:</b> {safe_country}\n" if safe_country else ""
+    watched_str = f"{ce('red_circle')} <b>Oxirgi ko'rgan qism:</b> {last_watched}-qism\n" if last_watched else ""
 
     raw_desc = (d.get("description") or "Qiziqarli dorama voqealari...").strip()
-    if len(raw_desc) > 120:
-        raw_desc = raw_desc[:115] + "..."
+    if len(raw_desc) > 170:
+        raw_desc = raw_desc[:165] + "..."
     safe_desc = html.escape(raw_desc)
 
-    code = d.get("code", d["id"])
-
     caption = (
-        f"<blockquote>{ce('film')} “<b>{safe_title}</b>” {ce('fire')}\n"
-        f"{sub_title}</blockquote>\n\n"
-        f"► {ce('microphone')} <b>Tili:</b> Oʻzbek tilida\n"
-        f"► <b>Davlati:</b> {safe_country} {flag}\n"
-        f"► {ce('calendar')} <b>Yili:</b> {d.get('year', 2026)}\n"
-        f"► {ce('tv')} <b>Qismlar:</b> {status_txt}\n"
-        f"► {ce('popcorn')} <b>Janri:</b> {safe_genre}\n"
-        f"► 🔑 <b>Kodi:</b> <code>{code}</code>\n"
-        f"{watched_text}"
-        f"\n<blockquote expandable>{ce('action')} <b>Qisqacha syujet:</b>\n"
-        f"{safe_desc}</blockquote>\n\n"
-        f"{ce('point_down')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
+        f"{ce('film')} <b>{safe_title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{code_badge}"
+        f"{aliases_str}"
+        f"{ce('sparkles')} <b>Yili:</b> {d.get('year', 2026)}\n"
+        f"{ce('popcorn')} <b>Janr:</b> {safe_genre}\n"
+        f"{ce('lightning')} <b>Holati:</b> {status_str}\n"
+        f"{ce('tv')} <b>Jami qismlar:</b> {total_ep} ta\n"
+        f"{ce('tray')} <b>Yuklangan qismlar:</b> {uploaded_ep} ta\n"
+        f"{country_str}"
+        f"{actors_str}"
+        f"{ce('eyes')} <b>Ko'rishlar:</b> {d.get('views', 0):,} marta\n"
+        f"{watched_str}"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('memo')} <i>{safe_desc}</i>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('scale')} <i>Eslatma: Seriallar reklamalari tarjimonlarga tegishli bo'lib, bot ma'muriyatiga aloqador emas.</i>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ce('point_right')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
     )
-    if len(caption) > 1010:
-        caption = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', caption)
 
 
 
