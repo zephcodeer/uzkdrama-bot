@@ -1,3 +1,4 @@
+import html
 import re
 
 import gc
@@ -483,18 +484,29 @@ async def render_text_screen(event: CallbackQuery | Message, text: str, reply_ma
             await msg.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
     except TelegramBadRequest as e:
-
         if "message is not modified" in str(e).lower():
-
             pass
-
+        elif "can't parse entities" in str(e).lower():
+            clean_text = re.sub(r'<[^>]+>', '', text)
+            try:
+                await msg.answer(clean_text, reply_markup=reply_markup, parse_mode=None)
+            except Exception:
+                pass
         else:
-
-            await msg.answer(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-
+            try:
+                await msg.answer(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception:
+                clean_text = re.sub(r'<[^>]+>', '', text)
+                await msg.answer(clean_text, reply_markup=reply_markup, parse_mode=None)
     except Exception:
-
-        await msg.answer(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        clean_text = re.sub(r'<[^>]+>', '', text)
+        try:
+            await msg.answer(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        except Exception:
+            try:
+                await msg.answer(clean_text, reply_markup=reply_markup, parse_mode=None)
+            except Exception:
+                pass
 
 
 
@@ -562,59 +574,45 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
 
 
-    actors_str = f"{ce('masks')} <b>Bosh rollarda:</b> {d['actors']}\n" if d.get("actors") else ""
+    safe_title = html.escape(str(d.get("title", "")))
+    safe_genre = html.escape(str(d.get("genre", "Dorama")))
+    safe_country = html.escape(str(d.get("country", "Janubiy Koreya")))
+    
+    safe_actors = ""
+    if d.get("actors"):
+        act = str(d["actors"])
+        if len(act) > 60:
+            act = act[:57] + "..."
+        safe_actors = html.escape(act)
 
-    country_str = f"{ce('globe')} <b>Davlat:</b> {d['country']}\n" if d.get("country") else ""
-
-    aliases_str = f"{ce('scroll')} <b>Boshqa nomlari:</b> <i>{d['aliases']}</i>\n" if d.get("aliases") else ""
     raw_desc = (d.get("description") or "").strip()
-    if len(raw_desc) > 300:
-        raw_desc = raw_desc[:295] + "..."
-    desc_str = f"{ce('memo')} <i>{raw_desc}</i>\n━━━━━━━━━━━━━━━━━━\n" if raw_desc else ""
+    if len(raw_desc) > 170:
+        raw_desc = raw_desc[:165] + "..."
+    safe_desc = html.escape(raw_desc)
 
-
+    actors_str = f"{ce('masks')} <b>Rollarda:</b> {safe_actors}\n" if safe_actors else ""
+    country_str = f"{ce('globe')} <b>Davlat:</b> {safe_country}\n" if safe_country else ""
+    desc_str = f"{ce('memo')} <i>{safe_desc}</i>\n━━━━━━━━━━━━━━━━━━\n" if safe_desc else ""
 
     caption = (
-
-        f"{ce('film')} <b>{d['title']}</b>\n"
-
+        f"{ce('film')} <b>{safe_title}</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-
         f"{code_badge}"
-        f"{aliases_str}"
-
-        f"{ce('sparkles')} <b>Yili:</b> {d['year']}\n"
-
-        f"{ce('popcorn')} <b>Janr:</b> {d['genre']}\n"
-
+        f"{ce('sparkles')} <b>Yili:</b> {d.get('year', 2026)}\n"
+        f"{ce('popcorn')} <b>Janr:</b> {safe_genre}\n"
         f"{ce('lightning')} <b>Holati:</b> {status_str}\n"
-
         f"{ce('tv')} <b>Jami qismlar:</b> {total_ep} ta\n"
-
         f"{ce('tray')} <b>Yuklangan qismlar:</b> {uploaded_ep} ta\n"
-
         f"{country_str}"
-
         f"{actors_str}"
-
-        f"{ce('eyes')} <b>Ko'rishlar:</b> {d['views']:,} marta\n"
-
+        f"{ce('eyes')} <b>Ko'rishlar:</b> {d.get('views', 0):,} marta\n"
         f"{watched_text}"
-
         f"━━━━━━━━━━━━━━━━━━\n"
-
         f"{desc_str}"
-
-        f"{ce('scale')} <i>Eslatma: Seriallar ichidagi har qanday bukmekerlik reklamalari tarjimon guruhlarga tegishli bo'lib, bot ma'muriyatiga aloqador emas va unga targ'ib qilinmaydi.</i>\n"
-
+        f"{ce('scale')} <i>Eslatma: Serial ichidagi reklamalar tarjimonlarga tegishli bo'lib, botga aloqador emas.</i>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-
         f"{ce('point_right')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
-
     )
-
-    if len(caption) > 1020:
-        caption = caption[:1015] + "..." 
 
 
 
@@ -703,56 +701,46 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
                 photo_sent = True
 
         except TelegramBadRequest as e:
-
-            if "message is not modified" in str(e).lower():
-
+            err_str = str(e).lower()
+            if "message is not modified" in err_str:
                 photo_sent = True
-
+            elif "can't parse entities" in err_str:
+                logger.warning(f"HTML entity xatoligi ({e}), toza matn rejimiga o'tilmoqda...")
+                clean_text = re.sub(r'<[^>]+>', '', caption)
+                try:
+                    await bot.send_message(chat_id=user_id, text=clean_text, reply_markup=markup, parse_mode=None)
+                    photo_sent = True
+                except Exception:
+                    photo_sent = False
             else:
-
                 logger.warning(f"Rasm yuborishda xatolik ({e}), matn rejimiga o'tilmoqda...")
-
                 photo_sent = False
-
         except Exception as e:
-
-            logger.warning(f"Rasm yuborishda xatolik ({e}), matn rejimiga o'tilmoqda...")
-
+            logger.warning(f"Rasm yuborishda kutilmagan xatolik ({e}), matn rejimiga o'tilmoqda...")
             photo_sent = False
 
-
-
     if not photo_sent:
-
+        clean_text = re.sub(r'<[^>]+>', '', caption)
         try:
-
             if isinstance(target, CallbackQuery):
-
                 msg = target.message
-
                 if msg.photo or msg.video or msg.document:
-
                     try:
-
                         await msg.delete()
-
                     except Exception:
-
                         pass
-
                     await bot.send_message(chat_id=user_id, text=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
-
                 else:
-
                     await msg.edit_text(caption, reply_markup=markup, parse_mode=ParseMode.HTML)
-
             else:
-
                 await target.answer(caption, reply_markup=markup, parse_mode=ParseMode.HTML)
-
+        except TelegramBadRequest as e:
+            if "can't parse entities" in str(e).lower():
+                await bot.send_message(chat_id=user_id, text=clean_text, reply_markup=markup, parse_mode=None)
+            else:
+                await bot.send_message(chat_id=user_id, text=clean_text, reply_markup=markup, parse_mode=None)
         except Exception:
-
-            await bot.send_message(chat_id=user_id, text=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
+            await bot.send_message(chat_id=user_id, text=clean_text, reply_markup=markup, parse_mode=None)
 
 
 
