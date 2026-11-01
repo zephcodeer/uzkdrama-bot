@@ -564,55 +564,45 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
 
 
-    total_ep = d.get("total_episodes") or 12
-
     uploaded_ep = len(episodes)
-
     raw_status = (d.get("status") or "Ongoing").strip()
-
-    status_str = f"{ce('green_circle')} Davom etmoqda (Ongoing)" if "ongo" in raw_status.lower() else f"{ce('red_circle')} Tugallangan (Completed)"
-
-
+    status_txt = f"{uploaded_ep} qism (Davom etmoqda) ⏳" if "ongo" in raw_status.lower() else f"{uploaded_ep} qism (To'liq) ✅"
 
     safe_title = html.escape(str(d.get("title", "")))
-    safe_genre = html.escape(str(d.get("genre", "Dorama")))
-    safe_country = html.escape(str(d.get("country", "Janubiy Koreya")))
-    
-    safe_actors = ""
-    if d.get("actors"):
-        act = str(d["actors"])
-        if len(act) > 60:
-            act = act[:57] + "..."
-        safe_actors = html.escape(act)
+    if len(safe_title) > 55:
+        safe_title = safe_title[:52] + "..."
 
-    raw_desc = (d.get("description") or "").strip()
-    if len(raw_desc) > 170:
-        raw_desc = raw_desc[:165] + "..."
+    orig_title = d.get("original_title") or ""
+    sub_title = f"<i>({html.escape(orig_title[:35])})</i>" if orig_title and orig_title.lower() != safe_title.lower() else ""
+
+    c_raw = (d.get("country") or "").lower()
+    flag = "🇰🇷" if "kore" in c_raw or "korea" in c_raw else ("🇨🇳" if "xitoy" in c_raw or "china" in c_raw else ("🇯🇵" if "yapon" in c_raw or "japan" in c_raw else "🌏"))
+    safe_country = html.escape(str(d.get("country", "Janubiy Koreya")))
+    safe_genre = html.escape(str(d.get("genre", "Drama")))[:30]
+
+    raw_desc = (d.get("description") or "Qiziqarli dorama voqealari...").strip()
+    if len(raw_desc) > 120:
+        raw_desc = raw_desc[:115] + "..."
     safe_desc = html.escape(raw_desc)
 
-    actors_str = f"{ce('masks')} <b>Rollarda:</b> {safe_actors}\n" if safe_actors else ""
-    country_str = f"{ce('globe')} <b>Davlat:</b> {safe_country}\n" if safe_country else ""
-    desc_str = f"{ce('memo')} <i>{safe_desc}</i>\n━━━━━━━━━━━━━━━━━━\n" if safe_desc else ""
+    code = d.get("code", d["id"])
 
     caption = (
-        f"{ce('film')} <b>{safe_title}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{code_badge}"
-        f"{ce('sparkles')} <b>Yili:</b> {d.get('year', 2026)}\n"
-        f"{ce('popcorn')} <b>Janr:</b> {safe_genre}\n"
-        f"{ce('lightning')} <b>Holati:</b> {status_str}\n"
-        f"{ce('tv')} <b>Jami qismlar:</b> {total_ep} ta\n"
-        f"{ce('tray')} <b>Yuklangan qismlar:</b> {uploaded_ep} ta\n"
-        f"{country_str}"
-        f"{actors_str}"
-        f"{ce('eyes')} <b>Ko'rishlar:</b> {d.get('views', 0):,} marta\n"
+        f"<blockquote>{ce('film')} “<b>{safe_title}</b>” {ce('fire')}\n"
+        f"{sub_title}</blockquote>\n\n"
+        f"► {ce('microphone')} <b>Tili:</b> Oʻzbek tilida\n"
+        f"► <b>Davlati:</b> {safe_country} {flag}\n"
+        f"► {ce('calendar')} <b>Yili:</b> {d.get('year', 2026)}\n"
+        f"► {ce('tv')} <b>Qismlar:</b> {status_txt}\n"
+        f"► {ce('popcorn')} <b>Janri:</b> {safe_genre}\n"
+        f"► 🔑 <b>Kodi:</b> <code>{code}</code>\n"
         f"{watched_text}"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{desc_str}"
-        f"{ce('scale')} <i>Eslatma: Serial ichidagi reklamalar tarjimonlarga tegishli bo'lib, botga aloqador emas.</i>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('point_right')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
+        f"\n<blockquote expandable>{ce('action')} <b>Qisqacha syujet:</b>\n"
+        f"{safe_desc}</blockquote>\n\n"
+        f"{ce('point_down')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
     )
+    if len(caption) > 1010:
+        caption = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', caption)
 
 
 
