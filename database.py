@@ -1,3 +1,4 @@
+import os
 import difflib
 import re
 
@@ -119,9 +120,21 @@ async def init_db():
                 referrals_count INTEGER DEFAULT 0,
                 invited_by INTEGER DEFAULT NULL,
                 is_vip INTEGER DEFAULT 0,
-                vip_until TIMESTAMP DEFAULT NULL
+                vip_until TIMESTAMP DEFAULT NULL,
+                last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        try:
+            await udb.execute("ALTER TABLE users ADD COLUMN last_active_at TIMESTAMP;")
+        except Exception:
+            pass
+        try:
+            await udb.execute("UPDATE users SET last_active_at = COALESCE(joined_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;")
+            await udb.execute("CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at);")
+            await udb.execute("CREATE INDEX IF NOT EXISTS idx_users_joined_at ON users(joined_at);")
+        except Exception:
+            pass
+
         await udb.execute("""
             CREATE TABLE IF NOT EXISTS bookmarks (
                 user_id INTEGER NOT NULL,
@@ -828,7 +841,7 @@ async def register_user(tg_id: int, username: str, first_name: str, is_premium: 
 
             await db.execute(
 
-                """UPDATE users SET username = ?, first_name = ?, is_premium = ?
+                """UPDATE users SET username = ?, first_name = ?, is_premium = ?, last_active_at = CURRENT_TIMESTAMP
 
                    WHERE tg_id = ?""",
 
@@ -862,9 +875,9 @@ async def register_user(tg_id: int, username: str, first_name: str, is_premium: 
 
         await db.execute(
 
-            """INSERT INTO users (tg_id, username, first_name, is_premium, invited_by)
+            """INSERT INTO users (tg_id, username, first_name, is_premium, invited_by, last_active_at)
 
-               VALUES (?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
 
             (tg_id, username or "", first_name or "", 1 if is_premium else 0, rewarded_ref)
 
@@ -876,6 +889,25 @@ async def register_user(tg_id: int, username: str, first_name: str, is_premium: 
 
 
 
+
+
+async def touch_user_activity(tg_id: int, username: str = "", first_name: str = "", is_premium: bool = False):
+    """Foydalanuvchi faolligini yangilash (DAU/WAU/MAU uchun)."""
+    try:
+        async with aiosqlite.connect(USER_DB_PATH) as db:
+            await db.execute(
+                """INSERT INTO users (tg_id, username, first_name, is_premium, joined_at, last_active_at)
+                   VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                   ON CONFLICT(tg_id) DO UPDATE SET
+                       username = CASE WHEN excluded.username != '' THEN excluded.username ELSE users.username END,
+                       first_name = CASE WHEN excluded.first_name != '' THEN excluded.first_name ELSE users.first_name END,
+                       is_premium = CASE WHEN excluded.is_premium = 1 THEN 1 ELSE users.is_premium END,
+                       last_active_at = CURRENT_TIMESTAMP""",
+                (tg_id, username or "", first_name or "", 1 if is_premium else 0)
+            )
+            await db.commit()
+    except Exception as e:
+        logger.debug(f"touch_user_activity xatosi: {e}")
 
 
 async def get_user(tg_id: int):
@@ -1338,6 +1370,147 @@ async def get_stats():
         "total_doramas": total_doramas,
         "total_episodes": total_episodes,
         "total_views": total_views,
+    }
+
+
+async def get_admin_detailed_stats() -> dict:
+    """Admin uchun to'liq boshqaruv, faollik (DAU/WAU/MAU) va resurslar statistikasi."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        # 1. Jami a'zolar
+        async with udb.execute("SELECT COUNT(*) FROM users") as cur:
+            total_users = (await cur.fetchone())[0]
+
+        # 2. Faollik (24 soat, 7 kun, 30 kun)
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE last_active_at >= datetime('now', '-24 hours')") as cur:
+            active_24h = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE last_active_at >= datetime('now', '-7 days')") as cur:
+            active_7d = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE last_active_at >= datetime('now', '-30 days')") as cur:
+            active_30d = (await cur.fetchone())[0]
+
+        # 3. Yangi a'zolar o'sishi
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE DATE(joined_at) = DATE('now')") as cur:
+            joined_today = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE joined_at >= datetime('now', '-7 days')") as cur:
+            joined_7d = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE joined_at >= datetime('now', '-30 days')") as cur:
+            joined_30d = (await cur.fetchone())[0]
+
+        # 4. Premium & VIP
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE is_premium = 1") as cur:
+            premium_users = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1") as cur:
+            vip_users = (await cur.fetchone())[0]
+
+        # 5. Referallar
+        async with udb.execute("SELECT COUNT(*) FROM users WHERE invited_by IS NOT NULL") as cur:
+            referred_users = (await cur.fetchone())[0]
+
+        top_referrers = []
+        async with udb.execute("""
+            SELECT tg_id, username, first_name, referrals_count 
+            FROM users 
+            WHERE referrals_count > 0 
+            ORDER BY referrals_count DESC LIMIT 3
+        """) as cur:
+            top_referrers = await cur.fetchall()
+
+        # 6. Takliflar
+        async with udb.execute("SELECT COUNT(*) FROM dorama_suggestions") as cur:
+            total_suggestions = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM dorama_suggestions WHERE status = 'pending'") as cur:
+            pending_suggestions = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM dorama_suggestions WHERE status IN ('accepted', 'approved')") as cur:
+            approved_suggestions = (await cur.fetchone())[0]
+
+        # 7. Xatcho'plar va Obunachilar
+        async with udb.execute("SELECT COUNT(*) FROM bookmarks") as cur:
+            total_bookmarks = (await cur.fetchone())[0]
+
+        async with udb.execute("SELECT COUNT(*) FROM dorama_subscribers") as cur:
+            total_subscribers = (await cur.fetchone())[0]
+
+    # 8. Kontent bazasi (doramas.db)
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM doramas") as cur:
+            total_doramas = (await cur.fetchone())[0]
+
+        async with db.execute("SELECT COUNT(*) FROM episodes") as cur:
+            total_episodes = (await cur.fetchone())[0]
+
+        async with db.execute("SELECT SUM(views) FROM doramas") as cur:
+            total_views = (await cur.fetchone())[0] or 0
+
+        # TOP 5 eng ko'p ko'rilgan dorama
+        top_doramas = []
+        async with db.execute("""
+            SELECT code, title, views 
+            FROM doramas 
+            ORDER BY views DESC LIMIT 5
+        """) as cur:
+            top_doramas = await cur.fetchall()
+
+    # 9. Baza fayllari hajmi (MB)
+    doramas_db_size = 0
+    userdata_db_size = 0
+    try:
+        if os.path.exists(DB_PATH):
+            doramas_db_size = round(os.path.getsize(DB_PATH) / (1024 * 1024), 2)
+        if os.path.exists(USER_DB_PATH):
+            userdata_db_size = round(os.path.getsize(USER_DB_PATH) / (1024 * 1024), 2)
+    except Exception:
+        pass
+
+    # 10. RAM va Tizim resurslari
+    ram_total_mb = 0
+    ram_used_mb = 0
+    ram_percent = 0
+    bot_ram_mb = 0
+    try:
+        import psutil
+        vmem = psutil.virtual_memory()
+        ram_total_mb = round(vmem.total / (1024 * 1024), 1)
+        ram_used_mb = round(vmem.used / (1024 * 1024), 1)
+        ram_percent = vmem.percent
+        bot_proc = psutil.Process(os.getpid())
+        bot_ram_mb = round(bot_proc.memory_info().rss / (1024 * 1024), 1)
+    except Exception:
+        pass
+
+    return {
+        "total_users": total_users,
+        "active_24h": active_24h,
+        "active_7d": active_7d,
+        "active_30d": active_30d,
+        "joined_today": joined_today,
+        "joined_7d": joined_7d,
+        "joined_30d": joined_30d,
+        "premium_users": premium_users,
+        "vip_users": vip_users,
+        "referred_users": referred_users,
+        "top_referrers": top_referrers,
+        "total_doramas": total_doramas,
+        "total_episodes": total_episodes,
+        "total_views": total_views,
+        "top_doramas": top_doramas,
+        "total_bookmarks": total_bookmarks,
+        "total_subscribers": total_subscribers,
+        "total_suggestions": total_suggestions,
+        "pending_suggestions": pending_suggestions,
+        "approved_suggestions": approved_suggestions,
+        "doramas_db_size": doramas_db_size,
+        "userdata_db_size": userdata_db_size,
+        "ram_total_mb": ram_total_mb,
+        "ram_used_mb": ram_used_mb,
+        "ram_percent": ram_percent,
+        "bot_ram_mb": bot_ram_mb,
     }
 
 

@@ -1,3 +1,4 @@
+from datetime import datetime
 import html
 import re
 
@@ -42,7 +43,7 @@ import socket
 
 from aiohttp import TCPConnector
 
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import BaseMiddleware, Bot, Dispatcher, F, Router
 
 from aiogram.client.default import DefaultBotProperties
 
@@ -63,7 +64,7 @@ import sqlite3
 import subprocess
 
 from aiogram.types import (
-    CallbackQuery, Message, FSInputFile, ErrorEvent, BotCommand,
+    TelegramObject, CallbackQuery, Message, FSInputFile, ErrorEvent, BotCommand,
     BotCommandScopeChat, MenuButtonCommands, ReplyKeyboardRemove,
     InlineQuery, InlineQueryResultArticle, InputTextMessageContent,
     InlineKeyboardMarkup, InlineKeyboardButton
@@ -94,6 +95,38 @@ logger = logging.getLogger("DoramaBot")
 
 
 router = Router()
+
+BOT_START_TIME = datetime.now()
+
+
+def get_bot_uptime() -> str:
+    """Bot ishga tushgandan beri o'tgan vaqtni hisoblash."""
+    now = datetime.now()
+    delta = now - BOT_START_TIME
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    parts = []
+    if days > 0:
+        parts.append(f"{days} kun")
+    if hours > 0:
+        parts.append(f"{hours} soat")
+    parts.append(f"{minutes} daqiqa")
+    return " ".join(parts) if parts else "yangi ishga tushdi"
+
+
+class UserActivityMiddleware(BaseMiddleware):
+    """Har qanday xabar yoki tugma bosilganda foydalanuvchi faolligini avtomatik yangilash."""
+    async def __call__(self, handler, event: TelegramObject, data: dict):
+        user = data.get("event_from_user")
+        if user and not user.is_bot:
+            asyncio.create_task(db.touch_user_activity(
+                tg_id=user.id,
+                username=user.username or "",
+                first_name=user.first_name or "",
+                is_premium=bool(getattr(user, "is_premium", False))
+            ))
+        return await handler(event, data)
 
 
 
@@ -3071,29 +3104,100 @@ async def cb_view_suggestion(call: CallbackQuery):
 # ========================================================
 
 async def _render_statistics_screen(event: CallbackQuery | Message):
-    stats = await db.get_stats()
+    user_id = event.from_user.id
+    is_admin = is_admin_user(user_id)
+
     promo = await db.get_promo_status()
     st_active = f"{ce('check_green')} FAOL (100% Bepul)" if promo["is_active"] else f"{ce('lock')} VIP Paywall Faol"
 
-    text = (
-        f"{ce('stats')} <b>DORAMA HUB — JONLI STATISTIKA</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('friends')} <b>Foydalanuvchilar:</b>\n"
-        f"• Jami a'zolar: <b>{stats['total_users']:,} ta</b>\n"
-        f"• Bugun qo'shilganlar: <b>+{stats['today_users']} ta</b>\n"
-        f"• Telegram Premium: <b>{stats.get('premium_users', 0)} ta</b>\n\n"
-        f"{ce('action')} <b>Kino va Seriallar:</b>\n"
-        f"• Jami doramalar: <b>{stats['total_doramas']} ta</b>\n"
-        f"• Yuklangan qismlar: <b>{stats['total_episodes']} ta</b>\n"
-        f"• Jami ko'rishlar: <b>{stats.get('total_views', 0):,} marta</b>\n\n"
-        f"{ce('gift')} <b>Aksiya Holati:</b>\n"
-        f"• Barcha qismlar: <b>{st_active}</b>\n"
-        f"• Cheklov me'yori: <b>{promo['user_count']} / {promo['min_users']} ta</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Botimizdan maroqli foydalaning! {ce('popcorn')}</i>"
-    )
+    if is_admin:
+        s = await db.get_admin_detailed_stats()
+        uptime_str = get_bot_uptime()
 
-    await render_text_screen(event, text, reply_markup=kb.stats_kb())
+        # Top 5 eng ko'p ko'rilgan seriallar
+        top_list_str = ""
+        if s["top_doramas"]:
+            for idx, item in enumerate(s["top_doramas"], 1):
+                d_code, d_title, d_views = item
+                clean_title = d_title.split("(")[0].strip()[:24]
+                top_list_str += f"  {idx}. <b>{html.escape(clean_title)}</b> (<code>{d_code}</code>) — <b>{d_views:,}</b> ko'rish\n"
+        else:
+            top_list_str = "  <i>Hozircha ma'lumot yo'q</i>\n"
+
+        # Top referallarni formatlash
+        ref_list_str = ""
+        if s["top_referrers"]:
+            for idx, r in enumerate(s["top_referrers"], 1):
+                r_id, r_user, r_name, r_cnt = r
+                uname = f"@{r_user}" if r_user else html.escape(r_name or str(r_id))
+                ref_list_str += f"  {idx}. {uname} — <b>{r_cnt} ta</b> do'st\n"
+
+        # RAM sarfi
+        ram_str = f"{s['ram_used_mb']:,} MB / {s['ram_total_mb']:,} MB ({s['ram_percent']}%)" if s['ram_total_mb'] else "N/A"
+        bot_ram_str = f"{s['bot_ram_mb']} MB" if s['bot_ram_mb'] else "N/A"
+
+        text = (
+            f"{ce('stats')} <b>BOSH ADMIN — BOSHQARUV STATISTIKASI</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ce('friends')} <b>Foydalanuvchilar Faolligi:</b>\n"
+            f"• Jami a'zolar: <b>{s['total_users']:,} ta</b>\n"
+            f"• 🟢 Faol (so'nggi 24 soat): <b>{s['active_24h']:,} ta</b> (DAU)\n"
+            f"• 🟡 Faol (so'nggi 7 kun): <b>{s['active_7d']:,} ta</b> (WAU)\n"
+            f"• 🔵 Faol (so'nggi 30 kun): <b>{s['active_30d']:,} ta</b> (MAU)\n\n"
+            f"{ce('fire')} <b>O'sish Ko'rsatkichlari:</b>\n"
+            f"• Bugun qo'shilganlar: <b>+{s['joined_today']} ta</b>\n"
+            f"• Hafta davomida: <b>+{s['joined_7d']} ta</b>\n"
+            f"• Oy davomida: <b>+{s['joined_30d']} ta</b>\n\n"
+            f"{ce('diamond')} <b>Monetizatsiya & Segment:</b>\n"
+            f"• Telegram Premium: <b>{s['premium_users']:,} ta</b>\n"
+            f"• VIP a'zolar: <b>{s['vip_users']:,} ta</b>\n"
+            f"• Do'st taklifi orqali: <b>{s['referred_users']:,} ta</b>\n"
+            + (f"• Yetakchilar:\n{ref_list_str}\n" if ref_list_str else "\n") +
+            f"{ce('action')} <b>Kontent & Auditoriya:</b>\n"
+            f"• Jami doramalar: <b>{s['total_doramas']} ta</b>\n"
+            f"• Yuklangan qismlar: <b>{s['total_episodes']} ta</b>\n"
+            f"• Jami ko'rishlar: <b>{s['total_views']:,} marta</b>\n"
+            f"• Saqlanganlar (Bookmarks): <b>{s['total_bookmarks']:,} ta</b>\n"
+            f"• Obunachilar: <b>{s['total_subscribers']:,} ta</b>\n\n"
+            f"{ce('star')} <b>Eng Ko'p Ko'rilgan Top-5:</b>\n"
+            f"{top_list_str}\n"
+            f"{ce('bulb')} <b>Takliflar & Fikrlar:</b>\n"
+            f"• Jami kelgan: <b>{s['total_suggestions']} ta</b>\n"
+            f"• ⏳ Kutilayotgan: <b>{s['pending_suggestions']} ta</b>\n"
+            f"• ✅ Qabul qilingan: <b>{s['approved_suggestions']} ta</b>\n\n"
+            f"{ce('settings')} <b>Server & Tizim Holati:</b>\n"
+            f"• Server RAM: <b>{ram_str}</b>\n"
+            f"• Bot RAM sarfi: <b>{bot_ram_str}</b>\n"
+            f"• Kontent bazasi (doramas.db): <b>{s['doramas_db_size']} MB</b>\n"
+            f"• Foydalanuvchilar (userdata.db): <b>{s['userdata_db_size']} MB</b>\n"
+            f"• Uptime: <b>{uptime_str}</b>\n"
+            f"• Aksiya holati: <b>{st_active}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Ma'lumotlar jonli SQLite bazasidan yangilandi.</i>"
+        )
+        markup = kb.admin_stats_kb()
+    else:
+        stats = await db.get_stats()
+        text = (
+            f"{ce('stats')} <b>DORAMA HUB — JONLI STATISTIKA</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ce('friends')} <b>Foydalanuvchilar:</b>\n"
+            f"• Jami a'zolar: <b>{stats['total_users']:,} ta</b>\n"
+            f"• Bugun qo'shilganlar: <b>+{stats['today_users']} ta</b>\n"
+            f"• Telegram Premium: <b>{stats.get('premium_users', 0)} ta</b>\n\n"
+            f"{ce('action')} <b>Kino va Seriallar:</b>\n"
+            f"• Jami doramalar: <b>{stats['total_doramas']} ta</b>\n"
+            f"• Yuklangan qismlar: <b>{stats['total_episodes']} ta</b>\n"
+            f"• Jami ko'rishlar: <b>{stats.get('total_views', 0):,} marta</b>\n\n"
+            f"{ce('gift')} <b>Aksiya Holati:</b>\n"
+            f"• Barcha qismlar: <b>{st_active}</b>\n"
+            f"• Cheklov me'yori: <b>{promo['user_count']} / {promo['min_users']} ta</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Botimizdan maroqli foydalaning! {ce('popcorn')}</i>"
+        )
+        markup = kb.stats_kb()
+
+    await render_text_screen(event, text, reply_markup=markup)
     if isinstance(event, CallbackQuery):
         await safe_answer(event)
 
@@ -3647,7 +3751,8 @@ async def main():
     )
 
     dp = Dispatcher()
-
+    dp.message.outer_middleware(UserActivityMiddleware())
+    dp.callback_query.outer_middleware(UserActivityMiddleware())
     dp.include_router(router)
 
 

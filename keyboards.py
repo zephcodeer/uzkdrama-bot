@@ -25,7 +25,7 @@ ICON_FRIENDS = "5453957997418004470"
 ICON_TARGET = "5350460637182993292"
 ICON_PARTY = "5208541126583136130"
 ICON_USER = "5408846628763217930"
-ICON_DIAMOND = "5229173741451230931"
+ICON_DIAMOND = "5309958691854754293"
 ICON_CARD = "5445353829304387411"
 ICON_CAMERA = "5235837920081887219"
 ICON_PACKAGE = "5854908544712707500"
@@ -807,6 +807,35 @@ def suggestions_list_kb(suggestions: list) -> InlineKeyboardMarkup:
             text="Admin Panel",
             callback_data="menu_admin",
             icon_custom_emoji_id=ICON_ARROW_LEFT
+        )
+    )
+    return builder.as_markup()
+
+
+def admin_stats_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Yangilash",
+            callback_data="menu_stats",
+            icon_custom_emoji_id=ICON_RESTART
+        ),
+        InlineKeyboardButton(
+            text="Dorama Takliflari",
+            callback_data="admin_suggestions",
+            icon_custom_emoji_id=ICON_BULB
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Ommaviy Xabar",
+            callback_data="admin_broadcast",
+            icon_custom_emoji_id=ICON_BROADCAST
+        ),
+        InlineKeyboardButton(
+            text="Bosh Menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_HOME
         )
     )
     return builder.as_markup()

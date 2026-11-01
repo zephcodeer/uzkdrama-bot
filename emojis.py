@@ -37,7 +37,7 @@ CUSTOM_EMOJIS = {
     "calendar": ("5262556520788273962", "🗓"),
     "year": ("5262556520788273962", "🗓"),
     "date": ("5262556520788273962", "🗓"),
-    "code": ("5229173741451230931", "💎"),
+    "code": ("5309958691854754293", "💎"),
     "number": ("5229173741451230931", "💎"),
 
     # 8. Ovoz / Mikrofon / Dublyaj - Pack: Topics (#102)
@@ -134,9 +134,9 @@ CUSTOM_EMOJIS = {
     "vip_crown": ("5229011542011299168", "👑"),
 
     # 32. Moviy Brilliant (Olmos / Premium 💎) - Pack: statuspack_uz (#44)
-    "diamond": ("5229173741451230931", "💎"),
-    "diamond_blue": ("5229173741451230931", "💎"),
-    "diamond_red": ("5229173741451230931", "💎"),
+    "diamond": ("5309958691854754293", "💎"),
+    "diamond_blue": ("5309958691854754293", "💎"),
+    "diamond_red": ("5309958691854754293", "💎"),
 
     # === XAVFSIZLIK, BILDIRISHNOMA & QIDIRUV ===
     # 33. Oltin Qo'ng'iroq (Bildirishnoma / Obuna 🔔)
