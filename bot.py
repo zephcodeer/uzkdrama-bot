@@ -895,11 +895,9 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
             message_id=ep["channel_message_id"],
 
             caption=(
-
-                f"{ce('film')} <b>«{title}» — {ep_label}</b> [{quality_badge}]\n"
-
+                f"{ce('film')} <b>«{title}»</b>\n"
+                f"{ce('play')} <b>{ep_label}</b> • {quality_badge}\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
-
                 f"{ce('popcorn')} <i>Yoqimli tomosha!</i>\n\n"
 
                 f"{ce('scale')} <b>Eslatma va ogohlantirish:</b>\n"
