@@ -556,57 +556,64 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
     subscribed = await db.is_subscribed(user_id, dorama_id)
 
-
-
-    code_badge = f"{ce('code')} <b>Kino kodi:</b> <code>{d.get('code', d['id'])}</code>\n" if d.get('code') else ""
-
-    watched_text = f"{ce('play')} <b>Oxirgi ko'rgan qismingiz:</b> {last_watched}-qism\n" if last_watched else ""
-
-
-
-    safe_title = html.escape(str(d.get("title", "")))
-    safe_aliases = html.escape(str(d.get("aliases", ""))) if d.get("aliases") else ""
-    safe_genre = html.escape(str(d.get("genre", "Romantika")))
-    safe_country = html.escape(str(d.get("country", "Janubiy Koreya")))
-    safe_actors = html.escape(str(d.get("actors", ""))) if d.get("actors") else ""
+    safe_title = html.escape(str(d.get("title", "")).strip()[:45])
     code = d.get("code", d["id"])
     total_ep = d.get("total_episodes") or len(episodes)
     uploaded_ep = len(episodes)
     raw_status = (d.get("status") or "Ongoing").strip()
-    status_str = f"{ce('green_circle')} Davom etmoqda" if "ongo" in raw_status.lower() else f"{ce('red_circle')} Tugallangan"
+    is_ongoing = "ongo" in raw_status.lower() or "davom" in raw_status.lower()
+    status_str = f"{ce('ongoing')} Davom etmoqda" if is_ongoing else f"{ce('completed')} Tugallangan"
 
     code_badge = f"{ce('code')} <b>Kino kodi:</b> <code>{code}</code>\n"
-    aliases_str = f"{ce('scroll')} <b>Boshqa nomlari:</b> {safe_aliases}\n" if safe_aliases else ""
-    actors_str = f"{ce('masks')} <b>Bosh rollarda:</b> {safe_actors}\n" if safe_actors else ""
-    country_str = f"{ce('globe')} <b>Davlat:</b> {safe_country}\n" if safe_country else ""
-    watched_str = f"{ce('red_circle')} <b>Oxirgi ko'rgan qism:</b> {last_watched}-qism\n" if last_watched else ""
 
-    raw_desc = (d.get("description") or "Qiziqarli dorama voqealari...").strip()
-    if len(raw_desc) > 170:
-        raw_desc = raw_desc[:165] + "..."
-    safe_desc = html.escape(raw_desc)
+    aliases_str = ""
+    raw_aliases = d.get("aliases")
+    if raw_aliases:
+        clean_alias = str(raw_aliases).split(",")[0].strip()
+        if clean_alias and clean_alias.lower() != safe_title.lower():
+            aliases_str = f"📜 <b>Boshqa nomi:</b> {html.escape(clean_alias[:35])}\n"
 
-    caption = (
+    actors_str = ""
+    raw_actors = d.get("actors")
+    if raw_actors:
+        actors_list = [a.strip() for a in str(raw_actors).split(",") if a.strip()]
+        if actors_list:
+            actors_str = f"🎭 <b>Bosh rollarda:</b> {html.escape(', '.join(actors_list[:2]))}\n"
+
+    safe_genre = html.escape(str(d.get("genre", "Romantika"))[:30])
+    watched_str = f"🔴 <b>Oxirgi ko'rgan qism:</b> {last_watched}-qism\n" if last_watched else ""
+
+    fixed_header = (
         f"{ce('film')} <b>{safe_title}</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{code_badge}"
         f"{aliases_str}"
-        f"{ce('sparkles')} <b>Yili:</b> {d.get('year', 2026)}\n"
+        f"🗓 <b>Yili:</b> {d.get('year', 2026)}\n"
         f"{ce('popcorn')} <b>Janr:</b> {safe_genre}\n"
-        f"{ce('lightning')} <b>Holati:</b> {status_str}\n"
+        f"⚡ <b>Holati:</b> {status_str}\n"
         f"{ce('tv')} <b>Jami qismlar:</b> {total_ep} ta\n"
-        f"{ce('tray')} <b>Yuklangan qismlar:</b> {uploaded_ep} ta\n"
-        f"{country_str}"
+        f"📥 <b>Yuklangan qismlar:</b> {uploaded_ep} ta\n"
         f"{actors_str}"
         f"{ce('eyes')} <b>Ko'rishlar:</b> {d.get('views', 0):,} marta\n"
         f"{watched_str}"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('memo')} <i>{safe_desc}</i>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('scale')} <i>Eslatma: Seriallar reklamalari tarjimonlarga tegishli bo'lib, bot ma'muriyatiga aloqador emas.</i>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('point_right')} <b>Kerakli qism tugmasini bosib tomosha qiling:</b>"
+        f"📝 <i>"
     )
+    fixed_footer = (
+        f"</i>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"⚖️ <i>Seriallar reklamalari tarjimonlarga tegishli.</i>\n"
+        f"{ce('point_right')} <b>Kerakli qism tugmasini bosing:</b>"
+    )
+
+    raw_desc = (d.get("description") or "Qiziqarli dorama voqealari...").strip()
+    safe_desc = html.escape(raw_desc)
+
+    while len(fixed_header) + len(safe_desc) + len(fixed_footer) > 1010 and len(raw_desc) > 15:
+        raw_desc = raw_desc[:-8]
+        safe_desc = html.escape(raw_desc.strip()) + "..."
+
+    caption = f"{fixed_header}{safe_desc}{fixed_footer}"
 
 
 
