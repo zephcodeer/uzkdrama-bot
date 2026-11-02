@@ -1056,6 +1056,26 @@ async def grant_vip(tg_id: int, days: int = 30):
 
 
 
+
+
+async def grant_vip_to_all_existing_users(days: int = 90) -> int:
+    """Mavjud barcha foydalanuvchilarga N kunlik (standart 90 kun = 3 oy) VIP beradi va aksiya rejimini to'xtatadi."""
+    import datetime
+    vip_until = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET is_vip = 1, vip_until = ?",
+            (vip_until,)
+        )
+        await db.commit()
+        async with db.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1") as cur:
+            row = await cur.fetchone()
+            count = row[0] if row else 0
+    # Aksiya rejimini to'liq to'xtatish
+    await set_system_setting("promo_free_override", "0")
+    return count
+
+
 async def create_vip_order(user_id: int, plan: str, amount: int, receipt_file_id: str = "") -> int:
 
     async with aiosqlite.connect(USER_DB_PATH) as db:

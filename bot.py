@@ -2273,6 +2273,83 @@ async def cb_admin_broadcast_promo(call: CallbackQuery, bot: Bot):
     await call.message.answer(f"{ce('check_green')} <b>Aksiya xabari {sent_cnt} ta foydalanuvchiga muvaffaqiyatli yetkazildi!</b>")
 
 
+@router.message(Command("reward_promo", "promo_reward", "finish_promo"))
+async def cmd_admin_reward_promo(message: Message, bot: Bot):
+    await execute_promo_reward(message, bot)
+
+
+@router.callback_query(F.data == "admin_reward_promo_3m")
+async def cb_admin_reward_promo_3m(call: CallbackQuery, bot: Bot):
+    await execute_promo_reward(call, bot)
+
+
+async def execute_promo_reward(event: Message | CallbackQuery, bot: Bot):
+    user_id = event.from_user.id
+    if user_id != config.ADMIN_ID and user_id != 7141955036:
+        if isinstance(event, CallbackQuery):
+            await safe_answer(event, "Siz admin emassiz!", show_alert=True)
+        else:
+            await event.answer(f"{ce('warning')} Siz admin emassiz!")
+        return
+
+    if isinstance(event, CallbackQuery):
+        await safe_answer(event, "Aksiya yakunlanmoqda va 3 oylik VIP berilmoqda...", show_alert=True)
+        status_msg = await event.message.answer(
+            f"{ce('sparkles')} <b>Mavjud foydalanuvchilarga 3 oylik VIP berilmoqda va aksiya yopilmoqda...</b>\n<i>Iltimos, kuting...</i>",
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        status_msg = await event.answer(
+            f"{ce('sparkles')} <b>Mavjud foydalanuvchilarga 3 oylik VIP berilmoqda va aksiya yopilmoqda...</b>\n<i>Iltimos, kuting...</i>",
+            parse_mode=ParseMode.HTML
+        )
+
+    rewarded_count = await db.grant_vip_to_all_existing_users(days=90)
+    user_ids = await db.get_all_user_ids()
+
+    reward_text = (
+        f"{ce('party')} <b>TABRIKLAYMIZ! SIZ 3 OYLIK BEPUL VIP GA EGA BOʻLDINGIZ!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Hurmatli foydalanuvchi! {ce('sparkles')}\n\n"
+        f"Siz botimizning <b>ilk 100 nafar faol foydalanuvchisi</b> aksiyasida ishtirok etib, maxsus mukofot — "
+        f"<b>3 OYLIK MUTLAQO BEPUL VIP OBUNA</b> yutib oldingiz! {ce('gift')}\n\n"
+        f"{ce('crown')} <b>Sizning VIP imtiyozlaringiz:</b>\n"
+        f"✅ Barcha dorama va eng soʻnggi premyerani 1080p Full HD sifatda koʻrish\n"
+        f"✅ 1-qismdan oxirgi qismgacha barchasi cheklovsiz ochiq\n"
+        f"✅ Doʻst taklif qilish yoki toʻlov qilish mutlaqo talab qilinmaydi\n"
+        f"⏳ <b>Amal qilish muddati:</b> 3 oy (90 kun) davomida toʻliq faol!\n\n"
+        f"<i>Biz bilan birga boʻlganingiz uchun minnatdormiz! Maroqli hordiq tilaymiz! {ce('popcorn')}</i>"
+    )
+    kb_reward = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🎬 Doramalarni tomosha qilish",
+            url="https://t.me/uzkdrama_app"
+        )]
+    ])
+
+    sent_cnt = 0
+    for uid in user_ids:
+        if uid == user_id:
+            continue
+        try:
+            await bot.send_message(uid, reward_text, reply_markup=kb_reward, parse_mode=ParseMode.HTML)
+            sent_cnt += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            pass
+
+    res_text = (
+        f"{ce('check_green')} <b>AKSIYA MUVAFFAQIYATLI YAKUNLANDI!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🎁 <b>3 oylik VIP berildi:</b> <code>{rewarded_count}</code> ta foydalanuvchiga\n"
+        f"📨 <b>Tabrik xabari yetkazildi:</b> <code>{sent_cnt}</code> ta foydalanuvchiga\n"
+        f"🔒 <b>Aksiya rejimi:</b> OʻCHIRILDI (VIP Paywall faollashtirildi)\n\n"
+        f"<i>Bundan keyin botga qoʻshiladigan barcha yangi aʼzolar uchun VIP faqat pullik yoki doʻst taklif qilish orqali boʻladi!</i>"
+    )
+    await status_msg.edit_text(res_text, parse_mode=ParseMode.HTML)
+
+
+
 
 
 def execute_git_update() -> tuple[bool, str]:

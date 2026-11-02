@@ -427,6 +427,13 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
+            text=f"Aksiya: {user_cnt} ta a'zoga 3 oylik VIP berish",
+            callback_data="admin_reward_promo_3m",
+            icon_custom_emoji_id=ICON_VIP
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
             text="Aksiya Xabarini Tarqatish",
             callback_data="admin_broadcast_promo",
             icon_custom_emoji_id=ICON_BROADCAST
