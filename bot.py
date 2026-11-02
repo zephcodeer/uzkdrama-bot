@@ -3459,10 +3459,23 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
         await message.answer(f"❌ <code>{code}</code> kodli doramaga hali qism yuklanmagan!")
         return
 
-    if len(args) > 1 and args[1].isdigit():
-        ep_num = int(args[1])
-    else:
+    ep_text = None
+    btn_text = None
+    if len(args) > 1:
+        raw_ep = args[1].strip()
+        if raw_ep.isdigit():
+            ep_num = int(raw_ep)
+            ep_text = f"{ep_num}-qism"
+            btn_text = f"🎬 1–{ep_num} qismgacha ko'rish"
+        elif "-" in raw_ep:
+            parts = raw_ep.split("-")
+            if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                ep_text = f"{parts[0].strip()}–{parts[1].strip()}-qismlar"
+                btn_text = f"🎬 {parts[0].strip()}–{parts[1].strip()} qismlarni ko'rish"
+    if not ep_text:
         ep_num = max(e["episode_number"] for e in episodes)
+        ep_text = f"{ep_num}-qism"
+        btn_text = f"🎬 1–{ep_num} qismgacha ko'rish"
 
     title = d.get("title", "")
     caption = (
@@ -3470,14 +3483,14 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
         "<i>(Oʻzbek tilida)</i>\n"
         "————————————\n"
         f"« <b>{title}</b> »\n\n"
-        f"<blockquote><b>1-fasl | {ep_num}-qism</b>\n"
+        f"<blockquote><b>1-fasl | {ep_text}</b>\n"
         f"🔑 Kodi: <code>{code}</code></blockquote>\n\n"
         "👇 <b>Tomosha qilish uchun pastdagi tugmani bosing:</b>"
     )
 
     kb_post = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f"🎬 1–{ep_num} qismgacha ko'rish",
+            text=btn_text,
             url=f"https://t.me/uzkdrama_app?start={code}"
         )]
     ])
