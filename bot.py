@@ -120,12 +120,16 @@ class UserActivityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event: TelegramObject, data: dict):
         user = data.get("event_from_user")
         if user and not user.is_bot:
-            asyncio.create_task(db.touch_user_activity(
-                tg_id=user.id,
-                username=user.username or "",
-                first_name=user.first_name or "",
-                is_premium=bool(getattr(user, "is_premium", False))
-            ))
+            # Referal orqali kirgan yangi a'zolarni cmd_start to'g'ri hisobga olishi uchun touch ni chetlab o'tish
+            msg_text = getattr(event, "text", "") or ""
+            is_ref = msg_text.startswith("/start ref_") or msg_text.startswith("/start r_")
+            if not is_ref:
+                asyncio.create_task(db.touch_user_activity(
+                    tg_id=user.id,
+                    username=user.username or "",
+                    first_name=user.first_name or "",
+                    is_premium=bool(getattr(user, "is_premium", False))
+                ))
         return await handler(event, data)
 
 
@@ -860,7 +864,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
     d = await db.get_dorama_by_id(dorama_id)
 
-    title = d["title"] if d else "Dorama"
+    title = html.escape(d["title"]) if d else "Dorama"
 
 
 
@@ -2278,6 +2282,12 @@ async def cmd_admin_reward_promo(message: Message, bot: Bot):
     await execute_promo_reward(message, bot)
 
 
+@router.message(Command("finish_promo"))
+async def cmd_admin_finish_promo(message: Message, bot: Bot):
+    """Admin buyrug'i: Ilk 100 ta foydalanuvchiga 3 oylik VIP beradi, aksiyani to'xtatadi va xabar yuboradi."""
+    await execute_promo_reward(message, bot)
+
+
 @router.callback_query(F.data == "admin_reward_promo_3m")
 async def cb_admin_reward_promo_3m(call: CallbackQuery, bot: Bot):
     await execute_promo_reward(call, bot)
@@ -3121,7 +3131,7 @@ async def process_suggestion_reply(message: Message, state: FSMContext, bot: Bot
             await message.answer(f"{ce('cross_red')} Foydalanuvchiga xabar yetkazib bo'lmadi: {e}")
 
 
-@router.callback_query(F.data == "admin_suggestions_list")
+@router.callback_query(F.data.in_({"admin_suggestions", "admin_suggestions_list"}))
 async def cb_admin_suggestions_list(call: CallbackQuery):
     if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
@@ -3549,6 +3559,7 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
             if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
                 ep_text = f"{parts[0].strip()}–{parts[1].strip()}-qismlar"
                 btn_text = f"🎬 {parts[0].strip()}–{parts[1].strip()} qismlarni ko'rish"
+                ep_num = int(parts[1].strip())
     if not ep_text:
         ep_num = max(e["episode_number"] for e in episodes)
         ep_text = f"{ep_num}-qism"
@@ -3602,7 +3613,7 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
                 parse_mode=ParseMode.HTML
             )
         await message.answer(
-            f"✅ <b>{title}</b> ({ep_num}-qism) muvaffaqiyatli kanalga joylandi!\n"
+            f"✅ <b>{title}</b> ({ep_text}) muvaffaqiyatli kanalga joylandi!\n"
             f"🔗 Post ID: <code>{sent.message_id}</code>",
             parse_mode=ParseMode.HTML
         )
@@ -3917,7 +3928,14 @@ async def main():
 
         try:
 
-            admin_commands = commands + [BotCommand(command="update", description="🚀 GitHub'dan yangilash"), BotCommand(command="ongoing", description="🟢 Davom etayotgan seriallar")]
+            admin_commands = commands + [
+            BotCommand(command="update", description="🚀 GitHub'dan yangilash"),
+            BotCommand(command="card", description="🎴 Dorama kartasini kanalga joylash"),
+            BotCommand(command="post", description="🔔 Yangi qismni kanalga chiqarish"),
+            BotCommand(command="finish_promo", description="🎁 100 ta a'zoga 3 oylik VIP berish & Aksiyani yopish"),
+            BotCommand(command="restore_btn", description="🛠 Kanal postlariga tugma ulash"),
+            BotCommand(command="ongoing", description="🟢 Davom etayotgan seriallar")
+        ]
 
             await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=config.ADMIN_ID))
 
@@ -3948,6 +3966,11 @@ async def main():
 
 
 
+@router.callback_query(F.data == "ignore")
+async def cb_ignore_callback(call: CallbackQuery):
+    await safe_answer(call, "Siz hozir shu fasldasiz!")
+
+
 if __name__ == "__main__":
 
     try:
@@ -3960,6 +3983,4 @@ if __name__ == "__main__":
 
 
 
-@router.callback_query(F.data == "ignore")
-async def cb_ignore_callback(call: CallbackQuery):
-    await safe_answer(call, "Siz hozir shu fasldasiz!")
+

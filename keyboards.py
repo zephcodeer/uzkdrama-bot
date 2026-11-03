@@ -829,7 +829,7 @@ def admin_stats_kb() -> InlineKeyboardMarkup:
         ),
         InlineKeyboardButton(
             text="Dorama Takliflari",
-            callback_data="admin_suggestions",
+            callback_data="admin_suggestions_list",
             icon_custom_emoji_id=ICON_BULB
         )
     )

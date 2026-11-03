@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 import difflib
 import re
@@ -1020,6 +1022,32 @@ async def is_user_unlocked(tg_id: int, episode_number: int, admin_id: int = 0) -
 
 
 
+async def is_vip(tg_id: int) -> bool:
+    """Foydalanuvchi hozir VIP maqomiga ega ekanligini tekshiradi."""
+    import datetime
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        async with db.execute("SELECT is_vip, vip_until FROM users WHERE tg_id = ?", (tg_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return False
+            is_vip_val, vip_until = row[0], row[1]
+            if not is_vip_val:
+                return False
+            if vip_until is None:
+                return True
+            try:
+                now = datetime.datetime.now()
+                expire = datetime.datetime.strptime(vip_until, "%Y-%m-%d %H:%M:%S")
+                if now < expire:
+                    return True
+                else:
+                    await db.execute("UPDATE users SET is_vip = 0 WHERE tg_id = ?", (tg_id,))
+                    await db.commit()
+                    return False
+            except Exception:
+                return bool(is_vip_val)
+
+
 async def grant_vip(tg_id: int, days: int = 30):
 
     import datetime
@@ -1064,8 +1092,9 @@ async def grant_vip_to_all_existing_users(days: int = 90) -> int:
     vip_until = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     async with aiosqlite.connect(USER_DB_PATH) as db:
         await db.execute(
-            "UPDATE users SET is_vip = 1, vip_until = ?",
-            (vip_until,)
+            """UPDATE users SET is_vip = 1, vip_until = ?
+               WHERE is_vip = 0 OR (vip_until IS NOT NULL AND vip_until < ?)""",
+            (vip_until, vip_until)
         )
         await db.commit()
         async with db.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1") as cur:
