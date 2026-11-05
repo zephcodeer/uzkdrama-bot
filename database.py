@@ -1,4 +1,5 @@
 import logging
+import config
 logger = logging.getLogger(__name__)
 import os
 import difflib
@@ -174,6 +175,11 @@ async def init_db():
             );
         """)
         await udb.execute("""
+            CREATE TABLE IF NOT EXISTS pending_receipts (
+                user_id INTEGER PRIMARY KEY, plan TEXT NOT NULL
+            );
+        """)
+        await udb.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -217,10 +223,7 @@ async def init_db():
                             await udb.execute("""
                                 INSERT INTO users (tg_id, username, first_name, is_premium, joined_at, referrals_count, invited_by, is_vip, vip_until)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                ON CONFLICT(tg_id) DO UPDATE SET
-                                    is_vip = MAX(users.is_vip, excluded.is_vip),
-                                    vip_until = COALESCE(users.vip_until, excluded.vip_until),
-                                    referrals_count = MAX(users.referrals_count, excluded.referrals_count)
+                                ON CONFLICT(tg_id) DO NOTHING
                             """, tuple(r))
                     await udb.commit()
     except Exception:
@@ -948,7 +951,7 @@ async def is_user_unlocked(tg_id: int, episode_number: int, admin_id: int = 0) -
 
         return True, "free", 0, 0
 
-    if (admin_id and tg_id == admin_id) or tg_id == 7141955036:
+    if tg_id in config.ADMIN_IDS:
 
         return True, "admin", 0, 0
 
@@ -1048,42 +1051,68 @@ async def is_vip(tg_id: int) -> bool:
                 return bool(is_vip_val)
 
 
-async def grant_vip(tg_id: int, days: int = 30):
-
+async def _grant_vip_in_transaction(db, tg_id: int, days: int):
     import datetime
+    now = datetime.datetime.now()
+    async with db.execute("SELECT is_vip, vip_until FROM users WHERE tg_id = ?", (tg_id,)) as cur:
+        current = await cur.fetchone()
+    if current and current[0] and current[1] is None:
+        return  # Lifetime VIP must never be shortened.
+    if days >= 3650:
+        until = None
+    else:
+        base = now
+        if current and current[0] and current[1]:
+            try:
+                base = max(now, datetime.datetime.fromisoformat(str(current[1])))
+            except ValueError:
+                logger.warning("Invalid VIP expiration for user %s", tg_id)
+        until = (base + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    await db.execute("""INSERT INTO users (tg_id, is_vip, vip_until, referrals_count)
+        VALUES (?, 1, ?, 0) ON CONFLICT(tg_id) DO UPDATE SET
+        is_vip=1, vip_until=excluded.vip_until""", (tg_id, until))
 
+
+async def grant_vip(tg_id: int, days: int = 30):
     async with aiosqlite.connect(USER_DB_PATH) as db:
-
-        if days >= 3650:
-
-            vip_until = None
-
-        else:
-
-            vip_until = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-
-
-
-        # Foydalanuvchi bo'lmasa ham bazaga kiritib, VIP ni kafolatli faollashtirish (UPSERT)
-
-        await db.execute(
-
-            """INSERT INTO users (tg_id, is_vip, vip_until, referrals_count)
-
-               VALUES (?, 1, ?, 0)
-
-               ON CONFLICT(tg_id) DO UPDATE SET is_vip = 1, vip_until = excluded.vip_until""",
-
-            (tg_id, vip_until)
-
-        )
-
+        await db.execute("BEGIN IMMEDIATE")
+        await _grant_vip_in_transaction(db, tg_id, days)
         await db.commit()
 
 
+async def resolve_vip_order(order_id: int, approve: bool, plans: dict):
+    """Resolve a pending order exactly once and grant VIP in the same transaction."""
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        await db.execute("BEGIN IMMEDIATE")
+        async with db.execute("SELECT user_id, plan, status FROM vip_orders WHERE id = ?", (order_id,)) as cur:
+            row = await cur.fetchone()
+        if not row or row[2] != "pending" or row[1] not in plans:
+            await db.rollback()
+            return None
+        user_id, plan, _ = row
+        days = plans[plan]["days"]
+        if approve:
+            await _grant_vip_in_transaction(db, user_id, days)
+        await db.execute("UPDATE vip_orders SET status = ? WHERE id = ? AND status = 'pending'",
+                         ("approved" if approve else "rejected", order_id))
+        await db.commit()
+        return user_id, days
 
 
+async def set_pending_receipt(user_id: int, plan: str | None):
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        if plan is None:
+            await db.execute("DELETE FROM pending_receipts WHERE user_id = ?", (user_id,))
+        else:
+            await db.execute("INSERT INTO pending_receipts(user_id, plan) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET plan=excluded.plan", (user_id, plan))
+        await db.commit()
 
+
+async def get_pending_receipt(user_id: int):
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        async with db.execute("SELECT plan FROM pending_receipts WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else None
 
 
 async def grant_vip_to_all_existing_users(days: int = 90) -> int:
@@ -1127,6 +1156,13 @@ async def create_vip_order(user_id: int, plan: str, amount: int, receipt_file_id
 
 
 
+
+
+async def get_pending_vip_orders(limit: int = 30):
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM vip_orders WHERE status = 'pending' ORDER BY id LIMIT ?", (limit,)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
 
 
 async def get_vip_order(order_id: int):

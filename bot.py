@@ -184,12 +184,12 @@ VIP_PLANS = {
 
 def is_admin_user(user_id: int) -> bool:
     """Adminlik huquqini yagona nuqtadan tekshiradi."""
-    return user_id == config.ADMIN_ID or user_id == 7141955036
+    return user_id in config.ADMIN_IDS
 
 async def is_user_channel_member(bot: Bot, user_id: int) -> bool:
     """Foydalanuvchi majburiy kanalda a'zo ekanligini tekshiradi."""
     # 1. Admin har doim to'liq ruxsatga ega
-    if user_id == config.ADMIN_ID or user_id == 7141955036:
+    if is_admin_user(user_id):
         return True
 
     # 2. VIP foydalanuvchilar majburiy obunasiz tomosha qilish huquqiga ega
@@ -202,17 +202,20 @@ async def is_user_channel_member(bot: Bot, user_id: int) -> bool:
     # 3. Kanal a'zoligini tekshirish
     try:
         member = await bot.get_chat_member(chat_id=config.REQUIRED_CHANNEL_ID, user_id=user_id)
-        if member.status in ["creator", "administrator", "member", "restricted"]:
+        if member.status in ["creator", "administrator", "member"]:
             return True
+        if member.status == "restricted":
+            return bool(getattr(member, "is_member", False))
         return False
     except TelegramBadRequest as e:
         err = str(e).lower()
         if "participant_id_invalid" in err or "user not found" in err:
             return False
-        # Agar bot huquqlari yoki chat topilmasa, botni qotirib qo'ymaslik uchun True
-        return True
+        logger.warning("Kanal a'zoligini tekshirib bo'lmadi: %s", e)
+        return False
     except Exception:
-        return True
+        logger.exception("Kanal a'zoligini tekshirib bo'lmadi")
+        return False
 
 
 def sub_required_kb(target_payload: str = "") -> InlineKeyboardMarkup:
@@ -289,7 +292,7 @@ async def cb_sub_check(call: CallbackQuery, bot: Bot, state: FSMContext):
             pass
 
     # Default / home
-    is_admin = (user_id == config.ADMIN_ID)
+    is_admin = is_admin_user(user_id)
     is_promo = await db.is_promo_free_mode()
     welcome_text = (
         f"{ce('sparkles')} <b>Xush kelibsiz!</b>\n\n"
@@ -432,7 +435,7 @@ async def cmd_start(message: Message, command: CommandObject, bot: Bot, state: F
 
     prem_badge = f" {ce('crown')} [PREMIUM]" if user.is_premium else ""
 
-    is_admin = (user.id == config.ADMIN_ID)
+    is_admin = is_admin_user(user.id)
 
 
 
@@ -856,10 +859,6 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
 
 
-    await db.increment_views(dorama_id)
-
-    await db.save_last_watched(user_id, dorama_id, ep_num)
-
 
 
     d = await db.get_dorama_by_id(dorama_id)
@@ -882,7 +881,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
         ep_label = current_item['label']
 
-        await db.save_last_watched(user_id, dorama_id, current_item['end_ep'])
+        watched_episode = current_item['end_ep']
 
         next_item = next((it for it in display_items if it['start_ep'] > current_item['end_ep']), None)
 
@@ -894,7 +893,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
         ep_label = f"{ep_num}-qism"
 
-        await db.save_last_watched(user_id, dorama_id, ep_num)
+        watched_episode = ep_num
 
         has_next = any(e['episode_number'] == ep_num + 1 for e in episodes)
 
@@ -961,7 +960,6 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
             protect_content=True
 
         )
-
     except Exception as e:
 
         logger.error(f"Videoni uzatishda xatolik: {e}")
@@ -975,6 +973,12 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
             f"Botingiz maxfiy kanalga admin qilinganini tekshiring!"
 
         )
+    else:
+        try:
+            await db.increment_views(dorama_id)
+            await db.save_last_watched(user_id, dorama_id, watched_episode)
+        except Exception:
+            logger.exception("Video yuborildi, lekin ko'rish tarixi saqlanmadi")
 
 
 
@@ -990,7 +994,7 @@ async def cb_menu_home(call: CallbackQuery, state: FSMContext):
     await state.clear()
     user = call.from_user
     prem_badge = f" {ce('crown')} [PREMIUM]" if user.is_premium else ""
-    is_admin = (user.id == config.ADMIN_ID)
+    is_admin = is_admin_user(user.id)
 
     text = (
         f"{ce('film')} <b>DORAMA HUB — Bosh Sahifa</b>\n\n"
@@ -1168,7 +1172,7 @@ async def handle_menu_trigger(message: Message, state: FSMContext):
 
     await state.clear()
 
-    is_admin = (message.from_user.id == config.ADMIN_ID)
+    is_admin = is_admin_user(message.from_user.id)
 
     user = message.from_user
 
@@ -1472,6 +1476,7 @@ async def cb_buy_vip(call: CallbackQuery, state: FSMContext):
     await state.set_state(VipStates.waiting_for_receipt)
 
     await state.update_data(plan=plan_code)
+    await db.set_pending_receipt(call.from_user.id, plan_code)
 
 
 
@@ -1487,8 +1492,8 @@ async def cb_buy_vip(call: CallbackQuery, state: FSMContext):
 
         f"<b>To'lov usuli:</b>\n"
         f"{ce('card')} <b>Visa / Humo / Uzcard / Click / Payme:</b>\n"
-        f"💳 Karta raqami: <code>4916 9903 7054 4030</code>\n"
-        f"{ce('user')} Qabul qiluvchi: <b>Visa</b>\n\n"
+        f"💳 Karta raqami: <code>{html.escape(config.VIP_CARD_NUMBER)}</code>\n"
+        f"{ce('user')} Qabul qiluvchi: <b>{html.escape(config.VIP_CARD_HOLDER)}</b>\n\n"
 
         f"{ce('camera')} <b>QADAMLAR:</b>\n"
 
@@ -1511,14 +1516,16 @@ async def cb_buy_vip(call: CallbackQuery, state: FSMContext):
 
 
 @router.message(VipStates.waiting_for_receipt, F.photo | F.document)
+@router.message(StateFilter(None), F.photo | F.document)
 
 async def process_receipt(message: Message, state: FSMContext, bot: Bot):
 
     data = await state.get_data()
 
-    plan_code = data.get("plan", "1m")
-
-    plan = VIP_PLANS.get(plan_code, VIP_PLANS["1m"])
+    plan_code = data.get("plan") or await db.get_pending_receipt(message.from_user.id)
+    if plan_code not in VIP_PLANS:
+        return
+    plan = VIP_PLANS[plan_code]
 
     await state.clear()
 
@@ -1541,6 +1548,7 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
         receipt_file_id=file_id
 
     )
+    await db.set_pending_receipt(user.id, None)
 
 
 
@@ -1558,7 +1566,6 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
 
     )
 
-    await message.answer(user_msg, reply_markup=kb.back_to_menu_kb(), parse_mode=ParseMode.HTML)
 
 
 
@@ -1568,7 +1575,7 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
 
         f"━━━━━━━━━━━━━━━━━━\n"
 
-        f"{ce('user')} Foydalanuvchi: <a href='tg://user?id={user.id}'>{user.full_name}</a>\n"
+        f"{ce('user')} Foydalanuvchi: <a href='tg://user?id={user.id}'>{html.escape(user.full_name)}</a>\n"
 
         f"{ce('code')} Telegram ID: <code>{user.id}</code>\n"
 
@@ -1623,8 +1630,12 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
             )
 
     except Exception as e:
-
-        logger.error(f"Adminga chek yuborishda xatolik: {e}")
+        logger.error("Adminga chek yuborishda xatolik: %s", e)
+        await message.answer(
+            f"Chekingiz #{order_id} raqam bilan saqlandi, lekin adminga xabar yetmadi. Iltimos, buyurtma raqami bilan adminga murojaat qiling.",
+            reply_markup=kb.back_to_menu_kb())
+    else:
+        await message.answer(user_msg, reply_markup=kb.back_to_menu_kb(), parse_mode=ParseMode.HTML)
 
 
 
@@ -1635,10 +1646,12 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
 async def cb_submit_receipt(call: CallbackQuery, state: FSMContext):
 
     plan_code = call.data.split(":")[1]
-
+    if plan_code not in VIP_PLANS:
+        await safe_answer(call, "Noma'lum tarif!", show_alert=True)
+        return
     await state.set_state(VipStates.waiting_for_receipt)
-
     await state.update_data(plan=plan_code)
+    await db.set_pending_receipt(call.from_user.id, plan_code)
 
     text = (
 
@@ -1658,7 +1671,12 @@ async def cb_submit_receipt(call: CallbackQuery, state: FSMContext):
 
 @router.message(VipStates.waiting_for_receipt, F.text)
 
-async def process_receipt_text_guide(message: Message):
+async def process_receipt_text_guide(message: Message, state: FSMContext):
+    if (message.text or "").strip().lower() == "/cancel":
+        await db.set_pending_receipt(message.from_user.id, None)
+        await state.clear()
+        await message.answer("Bekor qilindi.", reply_markup=kb.back_to_menu_kb())
+        return
 
     if message.text.startswith("/"):
 
@@ -1680,11 +1698,38 @@ async def process_receipt_text_guide(message: Message):
 
 
 
+@router.message(Command("orders"))
+async def pending_vip_orders(message: Message, bot: Bot):
+    if not is_admin_user(message.from_user.id):
+        return
+    orders = await db.get_pending_vip_orders()
+    if not orders:
+        await message.answer("Kutilayotgan VIP buyurtmalar yo'q.")
+        return
+    await message.answer(f"Kutilayotgan buyurtmalar: {len(orders)} ta.")
+    for order in orders:
+        plan = VIP_PLANS.get(order["plan"])
+        if not plan:
+            continue
+        caption = (f"<b>VIP buyurtma #{order['id']}</b>\n"
+                   f"Foydalanuvchi: <code>{order['user_id']}</code>\n"
+                   f"Tarif: {html.escape(plan['title'])} — {html.escape(plan['price_str'])}")
+        markup = kb.admin_order_kb(order['id'], order['user_id'], plan['days'])
+        try:
+            await bot.send_photo(message.chat.id, order['receipt_file_id'], caption=caption, reply_markup=markup)
+        except TelegramBadRequest:
+            try:
+                await bot.send_document(message.chat.id, order['receipt_file_id'], caption=caption, reply_markup=markup)
+            except Exception:
+                logger.exception("Buyurtma chekini qayta ko'rsatib bo'lmadi: %s", order['id'])
+                await message.answer(caption + "\nChekni ochib bo'lmadi.", reply_markup=markup)
+
+
 @router.callback_query(F.data.startswith("admin_approve:"))
 
 async def cb_admin_approve(call: CallbackQuery, bot: Bot):
 
-    if call.from_user.id != config.ADMIN_ID:
+    if not is_admin_user(call.from_user.id):
 
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
 
@@ -1702,9 +1747,11 @@ async def cb_admin_approve(call: CallbackQuery, bot: Bot):
 
 
 
-    await db.update_order_status(order_id, "approved")
-
-    await db.grant_vip(target_user_id, days=days)
+    result = await db.resolve_vip_order(order_id, True, VIP_PLANS)
+    if result is None:
+        await safe_answer(call, "Buyurtma topilmadi yoki avval ko'rib chiqilgan.", show_alert=True)
+        return
+    target_user_id, days = result
 
 
 
@@ -1766,7 +1813,7 @@ async def cb_admin_approve(call: CallbackQuery, bot: Bot):
 
 async def cb_admin_reject(call: CallbackQuery, bot: Bot):
 
-    if call.from_user.id != config.ADMIN_ID:
+    if not is_admin_user(call.from_user.id):
 
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
 
@@ -1782,7 +1829,11 @@ async def cb_admin_reject(call: CallbackQuery, bot: Bot):
 
 
 
-    await db.update_order_status(order_id, "rejected")
+    result = await db.resolve_vip_order(order_id, False, VIP_PLANS)
+    if result is None:
+        await safe_answer(call, "Buyurtma topilmadi yoki avval ko'rib chiqilgan.", show_alert=True)
+        return
+    target_user_id, _ = result
 
 
 
@@ -1854,7 +1905,7 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
 
     user_id = event.from_user.id
 
-    if user_id != config.ADMIN_ID and user_id != 7141955036:
+    if not is_admin_user(user_id):
 
         if isinstance(event, CallbackQuery):
 
@@ -1944,7 +1995,7 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
 
     user_id = event.from_user.id
 
-    if user_id != config.ADMIN_ID and user_id != 7141955036:
+    if not is_admin_user(user_id):
 
         if isinstance(event, CallbackQuery):
 
@@ -1993,15 +2044,13 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
 
 
 
-@router.message(Command("vip"))
-
 @router.message(Command("setvip"))
 
 async def handle_set_vip_command(message: Message):
 
     user_id = message.from_user.id
 
-    if user_id != config.ADMIN_ID and user_id != 7141955036:
+    if not is_admin_user(user_id):
 
         return
 
@@ -2091,7 +2140,7 @@ async def handle_my_vip_command(message: Message):
 
 async def cb_admin_broadcast(call: CallbackQuery, state: FSMContext):
 
-    if call.from_user.id != config.ADMIN_ID:
+    if not is_admin_user(call.from_user.id):
 
         return
 
@@ -2118,10 +2167,11 @@ async def cb_admin_broadcast(call: CallbackQuery, state: FSMContext):
 @router.message(Command("cancel"))
 
 async def cmd_cancel(message: Message, state: FSMContext):
+    await db.set_pending_receipt(message.from_user.id, None)
 
     await state.clear()
 
-    await message.answer("Amal bekor qilindi.", reply_markup=kb.main_menu_kb(is_admin=(message.from_user.id == config.ADMIN_ID)))
+    await message.answer("Amal bekor qilindi.", reply_markup=kb.main_menu_kb(is_admin=is_admin_user(message.from_user.id)))
 
 
 
@@ -2131,7 +2181,7 @@ async def cmd_cancel(message: Message, state: FSMContext):
 
 async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
 
-    if message.from_user.id != config.ADMIN_ID:
+    if not is_admin_user(message.from_user.id):
 
         return
 
@@ -2173,7 +2223,7 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
 
         f"{ce('mailbox')} Yuborildi: <b>{sent}</b> ta\n"
 
-        f"{ce('cross_red')} Yetib bormadi (bloklagan): <b>{failed}</b> ta"
+        f"{ce('cross_red')} Yetib bormadi (sabablar turlicha bo'lishi mumkin): <b>{failed}</b> ta"
 
     )
 
@@ -2187,7 +2237,7 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(Command("promo"))
 async def handle_promo_command(message: Message):
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
     parts = (message.text or "").split()
     if len(parts) > 1:
@@ -2222,7 +2272,7 @@ async def handle_promo_command(message: Message):
 
 @router.callback_query(F.data == "admin_toggle_promo")
 async def cb_admin_toggle_promo(call: CallbackQuery):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     st = await db.get_promo_status()
@@ -2249,7 +2299,7 @@ async def cb_admin_toggle_promo(call: CallbackQuery):
 
 @router.callback_query(F.data == "admin_broadcast_promo")
 async def cb_admin_broadcast_promo(call: CallbackQuery, bot: Bot):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     await safe_answer(call, "Aksiya xabari barcha foydalanuvchilarga yuborilmoqda...", show_alert=True)
@@ -2295,7 +2345,7 @@ async def cb_admin_reward_promo_3m(call: CallbackQuery, bot: Bot):
 
 async def execute_promo_reward(event: Message | CallbackQuery, bot: Bot):
     user_id = event.from_user.id
-    if user_id != config.ADMIN_ID and user_id != 7141955036:
+    if not is_admin_user(user_id):
         if isinstance(event, CallbackQuery):
             await safe_answer(event, "Siz admin emassiz!", show_alert=True)
         else:
@@ -2363,94 +2413,33 @@ async def execute_promo_reward(event: Message | CallbackQuery, bot: Bot):
 
 
 def execute_git_update() -> tuple[bool, str]:
-    """
-    GitHub'dan so'nggi yangilanishlarni (git fetch + reset --hard) xavfsiz tortib oladi.
-    Foydalanuvchilar ma'lumotlarini (userdata.db) to'liq saqlab,
-    yangi doramalar, posterlar va kod bilan benuqson sinxronlaydi.
-    """
-    base_dir = config.BASE_DIR
+    """Only fast-forward a clean checkout; never overwrite a live database."""
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
-
-    github_token = getattr(config, "GITHUB_TOKEN", "")
-    origin_url = f"https://{github_token}@github.com/zephcodeer/uzkdrama-bot.git" if github_token else "https://github.com/zephcodeer/uzkdrama-bot.git"
-
-    # 0. index.lock mavjud bo'lsa tozalash
-    lock_file = os.path.join(base_dir, ".git", "index.lock")
-    if os.path.exists(lock_file):
-        try:
-            os.remove(lock_file)
-        except Exception:
-            pass
-
-    # 1. Git mavjudligini tekshirish
+    def run(*args):
+        return subprocess.run(["git", *args], cwd=config.BASE_DIR, env=env,
+                              capture_output=True, text=True, timeout=30)
     try:
-        ver = subprocess.run(["git", "--version"], cwd=base_dir, capture_output=True, text=True, timeout=10, env=env)
-        if ver.returncode != 0:
-            return False, "Git serverda o'rnatilmagan yoki topilmadi."
-    except Exception as e:
-        return False, f"Git tekshirishda xatolik: {e}"
+        status = run("status", "--porcelain", "--untracked-files=no")
+        if status.returncode or status.stdout.strip():
+            return False, "Mahalliy kuzatiladigan fayllar o'zgargan. Yangilash to'xtatildi; avval ularni saqlang."
+        fetch = run("fetch", "origin", "main")
+        if fetch.returncode:
+            return False, "Git fetch bajarilmadi. Git ulanishi va autentifikatsiyasini tekshiring."
+        changed = run("diff", "--name-only", "HEAD", "origin/main")
+        if changed.returncode:
+            return False, "Git o'zgarishlarini tekshirib bo'lmadi."
+        if "doramas.db" in changed.stdout.splitlines():
+            return False, "Yangilanish doramas.db ni almashtiradi. Bazani zaxiralab, yangilanishni qo'lda bajaring."
+        merge = run("merge", "--ff-only", "origin/main")
+        if merge.returncode:
+            return False, "Xavfsiz fast-forward yangilash imkoni bo'lmadi."
+        return True, "ALREADY_UP_TO_DATE" if "Already up to date" in merge.stdout else "Kod xavfsiz yangilandi."
+    except (OSError, subprocess.TimeoutExpired):
+        logger.exception("Git yangilash xatosi")
+        return False, "Git yangilash ishlamadi; server loglarini tekshiring."
 
-    # 2. Origin URL ni o'rnatish
-    try:
-        subprocess.run(["git", "remote", "set-url", "origin", origin_url], cwd=base_dir, capture_output=True, timeout=10, env=env)
-    except Exception as e:
-        logger.warning(f"Git remote url o'rnatishda ogohlantirish: {e}")
 
-    # 3. Git fetch origin main
-    try:
-        fetch_proc = subprocess.run(
-            ["git", "fetch", "origin", "main"],
-            cwd=base_dir,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=env
-        )
-        if fetch_proc.returncode != 0:
-            err = (fetch_proc.stderr or fetch_proc.stdout or "").strip()
-            return False, f"Git fetch xatoligi (kod {fetch_proc.returncode}):\n{err[:400]}"
-    except subprocess.TimeoutExpired:
-        return False, "Git fetch 30 soniya ichida javob bermadi (Timeout)."
-    except Exception as e:
-        return False, f"Git fetch kutilmagan xatolik: {e}"
-
-    # 4. Git reset --hard origin/main (userdata.db .gitignore da, mutlaqo tegilmaydi)
-    try:
-        reset_proc = subprocess.run(
-            ["git", "reset", "--hard", "origin/main"],
-            cwd=base_dir,
-            capture_output=True,
-            text=True,
-            timeout=20,
-            env=env
-        )
-        if reset_proc.returncode != 0:
-            err = (reset_proc.stderr or reset_proc.stdout or "").strip()
-            return False, f"Git reset xatoligi (kod {reset_proc.returncode}):\n{err[:400]}"
-        stdout = (reset_proc.stdout or "").strip()
-    except subprocess.TimeoutExpired:
-        return False, "Git reset 20 soniya ichida yakunlanmadi (Timeout)."
-    except Exception as e:
-        return False, f"Git reset kutilmagan xatolik: {e}"
-
-    # 5. Git log ma'lumotini olish
-    try:
-        log_proc = subprocess.run(
-            ["git", "log", "-1", "--pretty=format:%h - %s (%cd)", "--date=short"],
-            cwd=base_dir,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            env=env
-        )
-        commit_info = (log_proc.stdout or "").strip()
-    except Exception:
-        commit_info = "Noma'lum commit"
-
-    return True, f"Muvaffaqiyatli yangilandi!\n\nSo'nggi versiya: {commit_info}\n\nBot 2 soniyadan so'ng yangi kod va baza bilan qayta ishga tushadi."
-
-@router.message(Command("send"))
 async def cmd_admin_send_dorama(message: Message, command: CommandObject, bot: Bot):
     """
     Faqat admin uchun:
@@ -2458,7 +2447,7 @@ async def cmd_admin_send_dorama(message: Message, command: CommandObject, bot: B
     Masalan: /send 8890746889 301
     Foydalanuvchiga to'g'ridan-to'g'ri 'Allaqachon mavjud' shabloni va tomosha qilish tugmasini yuboradi.
     """
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
     args = (command.args or "").strip().split(maxsplit=1)
     if len(args) < 2:
@@ -2502,7 +2491,7 @@ async def cmd_admin_direct_msg(message: Message, command: CommandObject, bot: Bo
     /msg <user_id> <xabar matni>
     Foydalanuvchiga to'g'ridan-to'g'ri ixtiyoriy xabar yuboradi.
     """
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
     args = (command.args or "").strip().split(maxsplit=1)
     if len(args) < 2:
@@ -2540,7 +2529,7 @@ async def cmd_admin_send(message: Message, bot: Bot):
     Format: /send <user_id> <kino_kodi> yoki /send <user_id> <matn>
     Masalan: /send 8777393066 482
     """
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
@@ -2628,7 +2617,7 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
 
     user_id = event.from_user.id
 
-    if user_id != config.ADMIN_ID and user_id != 7141955036:
+    if not is_admin_user(user_id):
 
         if isinstance(event, CallbackQuery):
 
@@ -2770,7 +2759,7 @@ async def cmd_help_menu(message: Message, state: FSMContext):
 
     await state.clear()
 
-    is_admin = (message.from_user.id == config.ADMIN_ID)
+    is_admin = is_admin_user(message.from_user.id)
 
     text = (
 
@@ -2878,7 +2867,7 @@ async def process_dorama_suggestion(message: Message, state: FSMContext, bot: Bo
         matched_info = f"\n{ce('search')} <b>Bazada topildi:</b> [{m['code']}] {m['title']} ({len(m_eps)}/{m.get('total_episodes', len(m_eps))} qism)\n"
 
     # 3. Adminga zudlik bilan bildirishnoma yuborish
-    admin_targets = list(set([config.ADMIN_ID, 7141955036]))
+    admin_targets = list(config.ADMIN_IDS)
     safe_u_name = html.escape(u.first_name or "Foydalanuvchi")
     safe_u_user = html.escape(u.username or "username_yoq")
     safe_sug_text = html.escape(suggestion_text)
@@ -2903,7 +2892,7 @@ async def process_dorama_suggestion(message: Message, state: FSMContext, bot: Bo
 
 @router.callback_query(F.data.startswith("sug_accept:"))
 async def cb_sug_accept(call: CallbackQuery, bot: Bot):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     parts = call.data.split(":")
@@ -2931,7 +2920,7 @@ async def cb_sug_accept(call: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data.startswith("sug_reject:"))
 async def cb_sug_reject(call: CallbackQuery):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     parts = call.data.split(":")
@@ -2946,7 +2935,7 @@ async def cb_sug_reject(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("sug_reply:"))
 async def cb_sug_reply(call: CallbackQuery, state: FSMContext):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     parts = call.data.split(":")
@@ -3005,7 +2994,7 @@ async def send_dorama_exists_notification(bot: Bot, user_id: int, sug_id: int, d
 
 @router.callback_query(F.data.startswith("sug_exist:"))
 async def cb_sug_exist(call: CallbackQuery, bot: Bot):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     parts = call.data.split(":")
@@ -3031,7 +3020,7 @@ async def cb_sug_exist(call: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data.startswith("sug_exist_ask:"))
 async def cb_sug_exist_ask(call: CallbackQuery, state: FSMContext):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     parts = call.data.split(":")
@@ -3049,7 +3038,7 @@ async def cb_sug_exist_ask(call: CallbackQuery, state: FSMContext):
 
 @router.message(BotStates.waiting_for_suggestion_exist_code)
 async def process_suggestion_exist_code(message: Message, state: FSMContext, bot: Bot):
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
     raw = (message.text or "").strip()
     if raw.lower() == "/cancel":
@@ -3084,7 +3073,7 @@ async def process_suggestion_exist_code(message: Message, state: FSMContext, bot
 
 @router.message(BotStates.waiting_for_suggestion_reply)
 async def process_suggestion_reply(message: Message, state: FSMContext, bot: Bot):
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
     reply_text = (message.text or "").strip()
     if reply_text.lower() == "/cancel":
@@ -3133,7 +3122,7 @@ async def process_suggestion_reply(message: Message, state: FSMContext, bot: Bot
 
 @router.callback_query(F.data.in_({"admin_suggestions", "admin_suggestions_list"}))
 async def cb_admin_suggestions_list(call: CallbackQuery):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     suggs = await db.get_dorama_suggestions(limit=25)
@@ -3157,7 +3146,7 @@ async def cb_admin_suggestions_list(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("view_sug:"))
 async def cb_view_suggestion(call: CallbackQuery):
-    if call.from_user.id != config.ADMIN_ID and call.from_user.id != 7141955036:
+    if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
     sug_id = int(call.data.split(":")[1])
@@ -3171,15 +3160,15 @@ async def cb_view_suggestion(call: CallbackQuery):
     text = (
         f"{ce('bulb')} <b>TAKLIF TAFSILOTLARI #{s['id']}</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('user')} <b>Foydalanuvchi:</b> {s['first_name']} (@{s['username'] or 'yoq'})\n"
+        f"{ce('user')} <b>Foydalanuvchi:</b> {html.escape(s['first_name'] or '')} (@{html.escape(s['username'] or 'yoq')})\n"
         f"{ce('id_badge')} ID: <code>{s['user_id']}</code>\n"
         f"{ce('calendar')} Sana: <code>{s['created_at']}</code>\n"
         f"Holati: <b>{st_text}</b>\n\n"
         f"{ce('memo')} <b>Taklif:</b>\n"
-        f"<blockquote>{s['suggestion']}</blockquote>"
+        f"<blockquote>{html.escape(s['suggestion'] or '')}</blockquote>"
     )
     if s.get("admin_response"):
-        text += f"\n\n{ce('broadcast')} <b>Admin javobi:</b>\n<blockquote>{s['admin_response']}</blockquote>"
+        text += f"\n\n{ce('broadcast')} <b>Admin javobi:</b>\n<blockquote>{html.escape(s['admin_response'])}</blockquote>"
 
     await render_text_screen(call, text, reply_markup=kb.suggestion_admin_kb(s['id'], s['user_id']))
     await safe_answer(call)
@@ -3307,6 +3296,23 @@ async def msg_stats(message: Message, state: FSMContext):
 # Qidiruv & Kino Kodi Matn Handlerlari (Kino kodi yoki Nom bo'yicha)
 # ---------------------------------------------------------------------------
 
+@router.callback_query(F.data.startswith("search:"))
+async def cb_search_page(call: CallbackQuery, state: FSMContext):
+    try:
+        page = max(0, int(call.data.split(":", 1)[1]))
+    except ValueError:
+        await safe_answer(call, "Sahifa topilmadi.")
+        return
+    query = (await state.get_data()).get("search_query")
+    if not query:
+        await safe_answer(call, "Iltimos, qayta qidiring.", show_alert=True)
+        return
+    results = await db.search_doramas(query, limit=11, offset=page * 10)
+    text = f"{ce('search')} <b>'{html.escape(query)}' bo'yicha natijalar (sahifa {page + 1}):</b>"
+    await render_text_screen(call, text, reply_markup=kb.doramas_list_kb(results[:10], prefix="search", page=page, has_next=len(results) > 10))
+    await safe_answer(call)
+
+
 @router.message(StateFilter(None, BotStates.waiting_for_query), F.text, F.text.regexp(r"^\d{1,6}$"))
 async def process_numeric_code(message: Message, state: FSMContext, bot: Bot):
     """Foydalanuvchi to'g'ridan-to'g'ri raqam yozganda (Kino Kodi)."""
@@ -3362,7 +3368,7 @@ async def process_search_query(message: Message, state: FSMContext, bot: Bot):
         )
         return
 
-    results = await db.search_doramas(query, limit=10)
+    results = await db.search_doramas(query, limit=11)
     if not results:
         text = (
             f"{ce('bell')} <b>'{html.escape(query)}'</b> bo'yicha hech narsa topilmadi.\n\n"
@@ -3372,7 +3378,8 @@ async def process_search_query(message: Message, state: FSMContext, bot: Bot):
         return
 
     text = f"{ce('search')} <b>'{html.escape(query)}'</b> bo'yicha topilgan natijalar:"
-    markup = kb.doramas_list_kb(results, prefix="search", page=0, has_next=False)
+    await state.update_data(search_query=query)
+    markup = kb.doramas_list_kb(results[:10], prefix="search", page=0, has_next=len(results) > 10)
     await message.answer(text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
@@ -3516,7 +3523,7 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
     """Admin buyrug'i: Yangi qismni @uz_kdramalar kanaliga chiroyli post qilib chiqaradi.
     Format: /post <kod> [qism] (masalan: /post 168 7 yoki /post 101)
     """
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
 
     args = (command.args or "").strip().split()
@@ -3628,7 +3635,7 @@ async def cmd_admin_post_card(message: Message, command: CommandObject, bot: Bot
     """Admin buyrug'i: Doramaning to'liq luxury premyera kartasini (expandable syujet bilan) kanalga chiqaradi.
     Format: /card <kino_kodi_yoki_nom>
     """
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
 
     arg = (command.args or "").strip()
@@ -3743,7 +3750,7 @@ async def cmd_admin_restore_button(message: Message, command: CommandObject, bot
     Format: /restore_btn <post_id> <kino_kodi>
     Masalan: /restore_btn 24 480
     """
-    if message.from_user.id != config.ADMIN_ID and message.from_user.id != 7141955036:
+    if not is_admin_user(message.from_user.id):
         return
 
     args = (command.args or "").strip().split()
@@ -3929,6 +3936,7 @@ async def main():
         try:
 
             admin_commands = commands + [
+            BotCommand(command="orders", description="💳 Kutilayotgan VIP buyurtmalar"),
             BotCommand(command="update", description="🚀 GitHub'dan yangilash"),
             BotCommand(command="card", description="🎴 Dorama kartasini kanalga joylash"),
             BotCommand(command="post", description="🔔 Yangi qismni kanalga chiqarish"),
@@ -3953,7 +3961,7 @@ async def main():
 
     try:
 
-        await bot.delete_webhook(drop_pending_updates=True)
+        await bot.delete_webhook(drop_pending_updates=False)
 
         asyncio.create_task(memory_cleanup_loop())
         await dp.start_polling(bot)

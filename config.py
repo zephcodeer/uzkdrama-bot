@@ -16,6 +16,7 @@ STORAGE_CHANNEL_ID = int(STORAGE_CHANNEL_ID_RAW) if STORAGE_CHANNEL_ID_RAW.lstri
 
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 7141955036
+ADMIN_IDS = {ADMIN_ID} | {int(value.strip()) for value in os.getenv("ADMIN_IDS", "").split(",") if value.strip().isdigit()}
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 
 REQUIRED_CHANNEL_ID_RAW = os.getenv("REQUIRED_CHANNEL_ID", "-1003845843606").strip()
