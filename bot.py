@@ -2974,6 +2974,26 @@ async def process_dorama_suggestion(message: Message, state: FSMContext, bot: Bo
         suggestion=suggestion_text
     )
 
+    # Reply immediately with catalog results instead of making users wait for an admin.
+    try:
+        matches = await db.search_doramas(suggestion_text, limit=5)
+        normalized = db.normalize_search_text(suggestion_text)
+        exact = next((d for d in matches if
+            normalized == str(d.get("code", "")) or
+            normalized in {db.normalize_search_text(name) for name in
+                [d["title"], re.split(r"[(/]", d["title"], maxsplit=1)[0]]}), None)
+        if exact:
+            await send_dorama_exists_notification(bot, u.id, sug_id, exact)
+            return
+        if matches:
+            await message.answer(
+                f"{ce('search')} <b>So'rovingizga mos doramalar topildi.</b>\n"
+                "Quyidagi nomlarni tekshirib, keraklisini bosing. "
+                "Siz izlagan dorama ular orasida bo'lmasa, taklifingizni admin ko'rib chiqadi.",
+                reply_markup=kb.doramas_list_kb(matches), parse_mode=ParseMode.HTML)
+    except Exception:
+        logger.exception("Taklifga avtomatik katalog javobini yuborib bo'lmadi: %s", sug_id)
+
     # 1. Foydalanuvchiga minnatdorchilik
     user_reply = (
         f"{ce('check_green')} <b>Katta rahmat! Taklifingiz qabul qilindi.</b>\n"

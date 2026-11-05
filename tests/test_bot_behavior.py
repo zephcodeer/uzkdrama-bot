@@ -31,3 +31,16 @@ class BotBehaviorTests(unittest.IsolatedAsyncioTestCase):
             await bot.send_episode(12, 1, 1, client)
             views.assert_not_awaited()
             history.assert_not_awaited()
+
+    async def test_existing_suggestion_gets_immediate_reply(self):
+        message = SimpleNamespace(text="Mening idolim mening boshlig‘im", caption=None,
+                                  from_user=SimpleNamespace(id=42, username=None, first_name="Test"),
+                                  answer=AsyncMock())
+        state = SimpleNamespace(clear=AsyncMock())
+        drama = {"id": 301, "code": 301, "title": "Mening idolim mening boshlig'im (My Bias, My Boss)"}
+        with patch.object(bot.db, "add_dorama_suggestion", AsyncMock(return_value=21)), \
+             patch.object(bot.db, "search_doramas", AsyncMock(return_value=[drama])), \
+             patch.object(bot, "send_dorama_exists_notification", AsyncMock()) as notify:
+            await bot.process_dorama_suggestion(message, state, SimpleNamespace())
+            notify.assert_awaited_once_with(unittest.mock.ANY, 42, 21, drama)
+            message.answer.assert_not_awaited()
