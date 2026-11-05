@@ -456,6 +456,11 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
+            text="Fikr bildirish",
+            callback_data=f"dorama_feedback:{dorama_id}",
+            icon_custom_emoji_id=ICON_BULB
+        ),
+        InlineKeyboardButton(
             text="Bosh menyu",
             callback_data="menu_home",
             icon_custom_emoji_id=ICON_HOME

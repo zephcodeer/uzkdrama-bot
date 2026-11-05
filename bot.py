@@ -148,6 +148,8 @@ class BotStates(StatesGroup):
 
     waiting_for_suggestion_exist_code = State()
 
+    waiting_for_dorama_feedback = State()
+
 
 
 
@@ -2806,6 +2808,123 @@ async def global_error_handler(event: ErrorEvent):
 # Asosiy bot ishga tushirish
 
 # ---------------------------------------------------------------------------
+
+
+
+# ========================================================
+# DORAMA FIKR BILDIRISH (USER PLAYER FEEDBACK FLOW)
+# ========================================================
+
+@router.callback_query(F.data.startswith("dorama_feedback:"))
+async def cb_dorama_feedback(call: CallbackQuery, state: FSMContext):
+    parts = call.data.split(":")
+    dorama_id = int(parts[1])
+    d = await db.get_dorama_by_id(dorama_id)
+    if not d:
+        await safe_answer(call, "Dorama topilmadi!", show_alert=True)
+        return
+
+    await state.clear()
+    await state.set_state(BotStates.waiting_for_dorama_feedback)
+    await state.update_data(
+        feedback_dorama_id=dorama_id,
+        feedback_dorama_title=d["title"],
+        feedback_dorama_code=d["code"]
+    )
+
+    cancel_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[
+            InlineKeyboardButton(
+                text="Bekor qilish",
+                callback_data=f"view_dorama:{dorama_id}",
+                icon_custom_emoji_id=kb.ICON_BACK
+            )
+        ]]
+    )
+
+    text = (
+        f"{ce('bulb')} <b>«{html.escape(d['title'])}» haqida fikringiz</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Ushbu film/serial haqidagi taassurotlaringiz, fikringiz yoki izohingizni yozib yuboring.\n\n"
+        f"{ce('sparkles')} <i>Fikringiz adminlarimiz va boshqa tomoshabinlar uchun juda qadrli!</i>\n\n"
+        f"<i>Bekor qilish uchun /cancel deb yozing yoki pastdagi tugmani bosing.</i>"
+    )
+    await call.message.answer(text, reply_markup=cancel_kb, parse_mode=ParseMode.HTML)
+    await safe_answer(call)
+
+
+@router.message(BotStates.waiting_for_dorama_feedback)
+async def process_dorama_feedback(message: Message, state: FSMContext, bot: Bot):
+    feedback_text = (message.text or message.caption or "").strip()
+    if feedback_text.lower() in ["/cancel", "bekor qilish"]:
+        await state.clear()
+        await message.answer("Bekor qilindi.", reply_markup=kb.main_menu_kb())
+        return
+
+    if not feedback_text:
+        await message.answer(f"{ce('warning')} Iltimos, fikringizni matn ko'rinishida yozing.")
+        return
+
+    data = await state.get_data()
+    dorama_id = data.get("feedback_dorama_id")
+    title = data.get("feedback_dorama_title", "Noma'lum dorama")
+    code = data.get("feedback_dorama_code", "---")
+    await state.clear()
+
+    u = message.from_user
+    formatted_content = f"[{code}] {title} haqida fikr: {feedback_text}"
+    sug_id = await db.add_dorama_suggestion(
+        user_id=u.id,
+        username=u.username,
+        first_name=u.first_name,
+        suggestion=formatted_content
+    )
+
+    # 1. Foydalanuvchiga minnatdorchilik
+    back_markup = InlineKeyboardMarkup(
+        inline_keyboard=[[
+            InlineKeyboardButton(
+                text="Doramaga qaytish",
+                callback_data=f"view_dorama:{dorama_id}" if dorama_id else "menu_home",
+                icon_custom_emoji_id=kb.ICON_SERIES
+            ),
+            InlineKeyboardButton(
+                text="Bosh menyu",
+                callback_data="menu_home",
+                icon_custom_emoji_id=kb.ICON_HOME
+            )
+        ]]
+    )
+    user_reply = (
+        f"{ce('check_green')} <b>Katta rahmat! Fikringiz qabul qilindi.</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🎬 <b>«{html.escape(title)}»</b> haqidagi fikringiz adminlarimizga yetkazildi.\n\n"
+        f"{ce('sparkles')} <i>Biz bilan birga bo'lganingiz uchun tashakkur!</i>"
+    )
+    await message.answer(user_reply, reply_markup=back_markup, parse_mode=ParseMode.HTML)
+
+    # 2. Adminga zudlik bilan bildirishnoma yuborish
+    admin_targets = list(config.ADMIN_IDS)
+    safe_u_name = html.escape(u.first_name or "Foydalanuvchi")
+    safe_u_user = html.escape(u.username or "username_yoq")
+    safe_text = html.escape(feedback_text)
+    admin_notify = (
+        f"{ce('bulb')} <b>YANGI DORAMA FIKRI / TAQRIZ #{sug_id}!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🎬 <b>Dorama:</b> [{code}] {html.escape(title)}\n"
+        f"{ce('user')} <b>Foydalanuvchi:</b> {safe_u_name} (@{safe_u_user})\n"
+        f"{ce('id_badge')} ID: <code>{u.id}</code>\n\n"
+        f"{ce('memo')} <b>Fikr / Izoh:</b>\n"
+        f"<blockquote>{safe_text}</blockquote>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Foydalanuvchiga javob berish uchun pastdagi tugmadan foydalanishingiz mumkin:"
+    )
+    admin_markup = kb.suggestion_admin_kb(sug_id, u.id, matched_code=code)
+    for admin_id in admin_targets:
+        try:
+            await bot.send_message(admin_id, admin_notify, reply_markup=admin_markup, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.warning(f"Admin {admin_id} ga dorama fikrini yuborishda xato: {e}")
 
 
 # ========================================================
