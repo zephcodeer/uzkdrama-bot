@@ -2415,31 +2415,39 @@ async def execute_promo_reward(event: Message | CallbackQuery, bot: Bot):
 
 
 def execute_git_update() -> tuple[bool, str]:
-    """Only fast-forward a clean checkout; never overwrite a live database."""
+    """Pull the latest code and doramas catalog from GitHub while preserving userdata.db."""
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
     def run(*args):
         return subprocess.run(["git", *args], cwd=config.BASE_DIR, env=env,
-                              capture_output=True, text=True, timeout=30)
+                              capture_output=True, text=True, timeout=45)
     try:
-        status = run("status", "--porcelain", "--untracked-files=no")
-        if status.returncode or status.stdout.strip():
-            return False, "Mahalliy kuzatiladigan fayllar o'zgargan. Yangilash to'xtatildi; avval ularni saqlang."
+        # 1. Fetch latest changes from origin
         fetch = run("fetch", "origin", "main")
         if fetch.returncode:
-            return False, "Git fetch bajarilmadi. Git ulanishi va autentifikatsiyasini tekshiring."
-        changed = run("diff", "--name-only", "HEAD", "origin/main")
-        if changed.returncode:
+            return False, f"Git fetch bajarilmadi: {fetch.stderr.strip() or 'Ulanish xatosi'}"
+
+        # 2. Check if already up to date
+        diff = run("diff", "--name-only", "HEAD", "origin/main")
+        if diff.returncode:
             return False, "Git o'zgarishlarini tekshirib bo'lmadi."
-        if "doramas.db" in changed.stdout.splitlines():
-            return False, "Yangilanish doramas.db ni almashtiradi. Bazani zaxiralab, yangilanishni qo'lda bajaring."
-        merge = run("merge", "--ff-only", "origin/main")
-        if merge.returncode:
-            return False, "Xavfsiz fast-forward yangilash imkoni bo'lmadi."
-        return True, "ALREADY_UP_TO_DATE" if "Already up to date" in merge.stdout else "Kod xavfsiz yangilandi."
-    except (OSError, subprocess.TimeoutExpired):
+
+        status = run("status", "--porcelain", "--untracked-files=no")
+        if not diff.stdout.strip() and not status.stdout.strip():
+            return True, "ALREADY_UP_TO_DATE"
+
+        # 3. Cleanly reset tracked catalog/files (e.g. doramas.db views counter or scripts)
+        # Note: userdata.db is gitignored/untracked, so it is 100% untouched and safe!
+        reset = run("reset", "--hard", "origin/main")
+        if reset.returncode:
+            return False, f"Git reset bajarilmadi: {reset.stderr.strip()}"
+
+        diff_summary = diff.stdout.strip()
+        lines = [l.strip() for l in diff_summary.splitlines() if l.strip()]
+        return True, f"Kod va doramalar bazasi muvaffaqiyatli yangilandi ({len(lines)} ta fayl):\n" + "\n".join(lines[:5])
+    except (OSError, subprocess.TimeoutExpired) as e:
         logger.exception("Git yangilash xatosi")
-        return False, "Git yangilash ishlamadi; server loglarini tekshiring."
+        return False, f"Git yangilash ishlamadi: {e}"
 
 
 async def cmd_admin_send_dorama(message: Message, command: CommandObject, bot: Bot):
