@@ -479,13 +479,14 @@ def episode_player_kb(
     current_ep: int,
     has_next: bool = False,
     bookmarked: bool = False,
-    next_ep: int | None = None
+    next_ep: int | None = None,
+    is_movie: bool = False
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     next_target = next_ep if next_ep is not None else (current_ep + 1)
     nav_row = []
-    if current_ep > 1:
+    if current_ep > 1 and not is_movie:
         nav_row.append(
             InlineKeyboardButton(
                 text="Oldingi qism",
@@ -493,7 +494,7 @@ def episode_player_kb(
                 icon_custom_emoji_id=ICON_ARROW_LEFT
             )
         )
-    if has_next:
+    if has_next and not is_movie:
         nav_row.append(
             InlineKeyboardButton(
                 text="Keyingi qism",
@@ -505,11 +506,13 @@ def episode_player_kb(
         builder.row(*nav_row)
 
     bm_text = "Saqlangan" if bookmarked else "Saqlab qo'yish"
+    info_btn_text = "Film haqida" if is_movie else "Barcha qismlar"
+    info_icon = ICON_INFO if is_movie else ICON_SERIES
     builder.row(
         InlineKeyboardButton(
-            text="Barcha qismlar",
+            text=info_btn_text,
             callback_data=f"view_dorama:{dorama_id}",
-            icon_custom_emoji_id=ICON_SERIES
+            icon_custom_emoji_id=info_icon
         ),
         InlineKeyboardButton(
             text=bm_text,

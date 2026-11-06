@@ -871,91 +871,58 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
 
     episodes = await db.get_episodes(dorama_id)
-
-    # Birlashgan qismlarni (1-2 qism) hisoblash
-
     display_items = kb.build_display_episodes(episodes)
-
     current_item = next((it for it in display_items if it['start_ep'] <= ep_num <= it['end_ep']), None)
 
-    
+    is_movie = (d.get('total_episodes', 0) <= 1) or (d.get('category') in ['movie', 'film', 'marvel']) or (len(episodes) <= 1)
 
-    if current_item:
-
+    if is_movie:
+        ep_label = "To'liq film"
+        watched_episode = 1
+        has_next = False
+        next_ep_target = None
+    elif current_item:
         ep_label = current_item['label']
-
         watched_episode = current_item['end_ep']
-
         next_item = next((it for it in display_items if it['start_ep'] > current_item['end_ep']), None)
-
         has_next = next_item is not None
-
         next_ep_target = next_item['start_ep'] if next_item else None
-
     else:
-
         ep_label = f"{ep_num}-qism"
-
         watched_episode = ep_num
-
         has_next = any(e['episode_number'] == ep_num + 1 for e in episodes)
-
         next_ep_target = ep_num + 1 if has_next else None
-
-
 
     bookmarked = await db.is_bookmarked(user_id, dorama_id)
 
-
-
     player_markup = kb.episode_player_kb(
-
         dorama_id=dorama_id,
-
         current_ep=ep_num,
-
         has_next=has_next,
-
         bookmarked=bookmarked,
-
-        next_ep=next_ep_target
-
+        next_ep=next_ep_target,
+        is_movie=is_movie
     )
 
-
-
     quality_badge = f"{ce('lightning')} 1080p Full HD" if ep.get("quality") == "1080p" else "720p HD"
-
-
+    disclaimer_media_type = "Film" if is_movie else "Serial"
 
     try:
-
         # protect_content=True: Galereyaga yuklash, boshqalarga forward qilish va skrinshot bloklanadi!
-
         await bot.copy_message(
-
             chat_id=user_id,
-
             from_chat_id=config.STORAGE_CHANNEL_ID,
-
             message_id=ep["channel_message_id"],
-
             caption=(
                 f"{ce('film')} <b>«{title}»</b>\n"
                 f"{ce('play')} <b>{ep_label}</b> • {quality_badge}\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ce('popcorn')} <i>Yoqimli tomosha!</i>\n\n"
-
                 f"{ce('scale')} <b>Eslatma va ogohlantirish:</b>\n"
-
-                f"<i>Serial ichida paydo bo'ladigan har qanday qimor yoki bukmekerlik reklamalari tarjimon studiyalar tomonidan joylangan bo'lib, bot ma'muriyatiga mutlaqo aloqador emas. Biz qimor va tavakkalchilik o'yinlariga aslo targ'ib qilmaymiz!</i>\n"
-
+                f"<i>{disclaimer_media_type} ichida paydo bo'ladigan har qanday qimor yoki bukmekerlik reklamalari tarjimon studiyalar tomonidan joylangan bo'lib, bot ma'muriyatiga mutlaqo aloqador emas. Biz qimor va tavakkalchilik o'yinlariga aslo targ'ib qilmaymiz!</i>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
-
                 f"{ce('sparkles')} @{(await bot.get_me()).username}"
-
             ),
-
             reply_markup=player_markup,
 
             parse_mode=ParseMode.HTML,
