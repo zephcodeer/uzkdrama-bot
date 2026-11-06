@@ -149,6 +149,7 @@ class BotStates(StatesGroup):
     waiting_for_suggestion_exist_code = State()
 
     waiting_for_dorama_feedback = State()
+    waiting_for_feedback_reply = State()
 
 
 
@@ -2880,12 +2881,14 @@ async def process_dorama_feedback(message: Message, state: FSMContext, bot: Bot)
     await state.clear()
 
     u = message.from_user
-    formatted_content = f"[{code}] {title} haqida fikr: {feedback_text}"
-    sug_id = await db.add_dorama_suggestion(
+    fb_id = await db.add_dorama_feedback(
+        dorama_id=dorama_id or 0,
+        dorama_code=int(code) if str(code).isdigit() else 0,
+        dorama_title=title,
         user_id=u.id,
         username=u.username,
         first_name=u.first_name,
-        suggestion=formatted_content
+        feedback_text=feedback_text
     )
 
     # 1. Foydalanuvchiga minnatdorchilik
@@ -2911,28 +2914,93 @@ async def process_dorama_feedback(message: Message, state: FSMContext, bot: Bot)
     )
     await message.answer(user_reply, reply_markup=back_markup, parse_mode=ParseMode.HTML)
 
-    # 2. Adminga zudlik bilan bildirishnoma yuborish
+    # 2. Adminga sof fikr / taqriz bildirishnomasi
     admin_targets = list(config.ADMIN_IDS)
     safe_u_name = html.escape(u.first_name or "Foydalanuvchi")
     safe_u_user = html.escape(u.username or "username_yoq")
     safe_text = html.escape(feedback_text)
     admin_notify = (
-        f"{ce('bulb')} <b>YANGI DORAMA FIKRI / TAQRIZ #{sug_id}!</b>\n"
+        f"{ce('bulb')} <b>YANGI DORAMA TAQRIZI / FIKRI #{fb_id}!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"🎬 <b>Dorama:</b> [{code}] {html.escape(title)}\n"
         f"{ce('user')} <b>Foydalanuvchi:</b> {safe_u_name} (@{safe_u_user})\n"
         f"{ce('id_badge')} ID: <code>{u.id}</code>\n\n"
         f"{ce('memo')} <b>Fikr / Izoh:</b>\n"
         f"<blockquote>{safe_text}</blockquote>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"Foydalanuvchiga javob berish uchun pastdagi tugmadan foydalanishingiz mumkin:"
+        f"━━━━━━━━━━━━━━━━━━"
     )
-    admin_markup = kb.suggestion_admin_kb(sug_id, u.id, matched_code=code)
+    admin_markup = kb.dorama_feedback_admin_kb(fb_id, u.id)
     for admin_id in admin_targets:
         try:
             await bot.send_message(admin_id, admin_notify, reply_markup=admin_markup, parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.warning(f"Admin {admin_id} ga dorama fikrini yuborishda xato: {e}")
+
+
+@router.callback_query(F.data.startswith("fb_read:"))
+async def cb_fb_read(call: CallbackQuery):
+    if not is_admin_user(call.from_user.id):
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    fb_id = int(call.data.split(":")[1])
+    await db.update_feedback_status(fb_id, "read")
+    await safe_answer(call, "Fikr o'qildi deb belgilandi.", show_alert=True)
+    try:
+        await call.message.edit_text(call.message.text + f"\n\n{ce('check_green')} <b>[ADMIN: O'QILDI]</b>", parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("fb_reply:"))
+async def cb_fb_reply(call: CallbackQuery, state: FSMContext):
+    if not is_admin_user(call.from_user.id):
+        await safe_answer(call, "Siz admin emassiz!", show_alert=True)
+        return
+    parts = call.data.split(":")
+    fb_id, user_id = int(parts[1]), int(parts[2])
+    fb = await db.get_dorama_feedback(fb_id)
+    title = fb.get("dorama_title", "Dorama") if fb else "Dorama"
+    await state.set_state(BotStates.waiting_for_feedback_reply)
+    await state.update_data(reply_fb_id=fb_id, reply_user_id=user_id, reply_fb_title=title)
+    await call.message.answer(
+        f"{ce('memo')} <b>«{html.escape(title)}»</b> bo'yicha foydalanuvchiga javob xabaringizni yozing:\n"
+        f"<i>Bekor qilish uchun /cancel deb yozing.</i>",
+        parse_mode=ParseMode.HTML
+    )
+    await safe_answer(call)
+
+
+@router.message(BotStates.waiting_for_feedback_reply)
+async def process_feedback_reply(message: Message, state: FSMContext, bot: Bot):
+    if not is_admin_user(message.from_user.id):
+        return
+    reply_text = (message.text or message.caption or "").strip()
+    if reply_text.lower() in ["/cancel", "bekor qilish"]:
+        await state.clear()
+        await message.answer("Bekor qilindi.", reply_markup=kb.admin_panel_kb())
+        return
+
+    data = await state.get_data()
+    fb_id = data.get("reply_fb_id")
+    user_id = data.get("reply_user_id")
+    title = data.get("reply_fb_title", "Dorama")
+    await state.clear()
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"{ce('broadcast')} <b>«{html.escape(title)}» haqidagi fikringiz bo'yicha Admin javobi:</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<blockquote>{html.escape(reply_text)}</blockquote>\n\n"
+            f"<i>Fikringiz uchun tashakkur! Maroqli tomosha tilaymiz! {ce('popcorn')}</i>",
+            reply_markup=kb.back_to_menu_kb(),
+            parse_mode=ParseMode.HTML
+        )
+        await message.answer(f"{ce('check_green')} <b>Javob foydalanuvchiga muvaffaqiyatli yetkazildi!</b>")
+        if fb_id:
+            await db.update_feedback_status(fb_id, "replied", reply_text)
+    except Exception as e:
+        await message.answer(f"{ce('cross_red')} Foydalanuvchiga xabar yetkazib bo'lmadi: {e}")
 
 
 # ========================================================

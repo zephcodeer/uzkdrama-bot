@@ -197,6 +197,21 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        await udb.execute("""
+            CREATE TABLE IF NOT EXISTS dorama_feedbacks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dorama_id INTEGER NOT NULL,
+                dorama_code INTEGER,
+                dorama_title TEXT,
+                user_id INTEGER NOT NULL,
+                username TEXT DEFAULT '',
+                first_name TEXT DEFAULT '',
+                feedback_text TEXT NOT NULL,
+                status TEXT DEFAULT 'unread',
+                admin_response TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
         await udb.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('promo_free_override', 'auto');")
         await udb.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('min_users_for_vip', '100');")
         for col_sql in [
@@ -1727,6 +1742,55 @@ async def get_dorama_suggestion(suggestion_id: int) -> dict | None:
         cursor = await udb.execute("SELECT * FROM dorama_suggestions WHERE id = ?", (suggestion_id,))
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+async def add_dorama_feedback(dorama_id: int, dorama_code: int, dorama_title: str, user_id: int, username: str, first_name: str, feedback_text: str) -> int:
+    """Foydalanuvchining dorama haqidagi fikrini alohida jadvalga saqlaydi."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        await udb.execute("""
+            CREATE TABLE IF NOT EXISTS dorama_feedbacks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dorama_id INTEGER NOT NULL,
+                dorama_code INTEGER,
+                dorama_title TEXT,
+                user_id INTEGER NOT NULL,
+                username TEXT DEFAULT '',
+                first_name TEXT DEFAULT '',
+                feedback_text TEXT NOT NULL,
+                status TEXT DEFAULT 'unread',
+                admin_response TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cursor = await udb.execute(
+            """
+            INSERT INTO dorama_feedbacks (dorama_id, dorama_code, dorama_title, user_id, username, first_name, feedback_text)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (dorama_id, dorama_code, dorama_title, user_id, username or '', first_name or '', feedback_text)
+        )
+        await udb.commit()
+        return cursor.lastrowid
+
+async def get_dorama_feedback(feedback_id: int) -> dict | None:
+    """Bitta fikr ma'lumotlarini qaytaradi."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        udb.row_factory = aiosqlite.Row
+        cursor = await udb.execute("SELECT * FROM dorama_feedbacks WHERE id = ?", (feedback_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+async def update_feedback_status(feedback_id: int, status: str, admin_response: str = "") -> bool:
+    """Fikr holatini yangilaydi (read / replied)."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
+        await udb.execute(
+            "UPDATE dorama_feedbacks SET status = ?, admin_response = ? WHERE id = ?",
+            (status, admin_response, feedback_id)
+        )
+        await udb.commit()
+        return True
 
 
 async def get_related_seasons(dorama_id: int) -> list:

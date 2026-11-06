@@ -796,6 +796,23 @@ def suggestion_admin_kb(suggestion_id: int, user_id: int, matched_code: int | No
     )
     return builder.as_markup()
 
+
+def dorama_feedback_admin_kb(feedback_id: int, user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Javob Yozish",
+            callback_data=f"fb_reply:{feedback_id}:{user_id}",
+            icon_custom_emoji_id=ICON_BROADCAST
+        ),
+        InlineKeyboardButton(
+            text="O'qildi",
+            callback_data=f"fb_read:{feedback_id}",
+            icon_custom_emoji_id=ICON_CHECK_GREEN
+        )
+    )
+    return builder.as_markup()
+
 def suggestions_list_kb(suggestions: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for s in suggestions:
