@@ -349,7 +349,37 @@ async def add_or_get_dorama(title: str, genre: str = "Dorama", year: int = 2026,
 
 
 
-async def add_episode(dorama_id: int, episode_number: int, channel_message_id: int, file_id: str = "", file_size: int = 0, quality: str = "720p"):
+async def check_channel_message_collision(channel_message_id: int, dorama_id: int):
+    """Tekshiradi: agar channel_message_id boshqa dramaga allaqachon biriktirilgan bo'lsa, o'sha dorama va qism ma'lumotlarini qaytaradi."""
+    if not channel_message_id or channel_message_id <= 0:
+        return None
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT e.dorama_id, e.episode_number, d.code, d.title
+               FROM episodes e
+               JOIN doramas d ON e.dorama_id = d.id
+               WHERE e.channel_message_id = ? AND e.dorama_id != ?
+               LIMIT 1""",
+            (channel_message_id, dorama_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def add_episode(dorama_id: int, episode_number: int, channel_message_id: int, file_id: str = "", file_size: int = 0, quality: str = "720p", allow_cross_collision: bool = False):
+    if not allow_cross_collision and channel_message_id and channel_message_id > 0:
+        collision = await check_channel_message_collision(channel_message_id, dorama_id)
+        if collision:
+            err_msg = (
+                f"KROSS-TO'QNASHUV TAQIQLANDI: storage_message_id={channel_message_id} "
+                f"allaqachon boshqa dorama [{collision['code']}] '{collision['title']}' "
+                f"ning {collision['episode_number']}-qismiga biriktirilgan! "
+                f"Dorama ID={dorama_id} ga noto'g'ri bog'lanish oldi olindi."
+            )
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+
 
     async with aiosqlite.connect(DB_PATH) as db:
 

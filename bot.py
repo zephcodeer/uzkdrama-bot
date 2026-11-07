@@ -804,10 +804,16 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
     ep = await db.get_episode(dorama_id, ep_num)
 
-    if not ep:
-
-        await bot.send_message(user_id, f"{ce('bell')} Ushbu qism hali bazaga joylanmagan.")
-
+    if not ep or not ep.get("channel_message_id") or ep["channel_message_id"] <= 0:
+        back_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"{ce('folder')} Doramaga qaytish", callback_data=f"dorama_{dorama_id}")],
+            [InlineKeyboardButton(text=f"{ce('home')} Bosh menyu", callback_data="main_menu")]
+        ])
+        await bot.send_message(
+            user_id,
+            f"{ce('bell')} Ushbu qism hozircha bazaga yuklanmagan yoki tez orada joylanadi.\nIltimos, keyinroq qayta tekshiring!",
+            reply_markup=back_kb
+        )
         return
 
 
