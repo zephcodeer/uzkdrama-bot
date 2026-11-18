@@ -1,0 +1,141 @@
+{
+  "migrated": {
+    "134817": {
+      "code": 507,
+      "id": 407,
+      "title": "Yovuz qoʻgʻirchoq",
+      "episodes": 3,
+      "msg_range": "5387..5389",
+      "poster": "posters/code_507.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "134745": {
+      "code": 508,
+      "id": 408,
+      "title": "Taqdir tig'lari",
+      "episodes": 2,
+      "msg_range": "5390..5391",
+      "poster": "posters/code_508.jpg",
+      "status": "Ongoing"
+    },
+    "134649": {
+      "code": 509,
+      "id": 409,
+      "title": "Yozgi taʼtil",
+      "episodes": 2,
+      "msg_range": "5392..5393",
+      "poster": "posters/code_509.jpg",
+      "status": "Ongoing"
+    },
+    "133923": {
+      "code": 510,
+      "id": 410,
+      "title": "So'ngi bellashuv",
+      "episodes": 1,
+      "msg_range": "5394..5394",
+      "poster": "posters/code_510.jpg",
+      "status": "Ongoing"
+    },
+    "133226": {
+      "code": 511,
+      "id": 411,
+      "title": "Koloniya Zombi filmi",
+      "episodes": 1,
+      "msg_range": "5395..5395",
+      "poster": "posters/code_511.jpg",
+      "status": "Ongoing"
+    },
+    "131172": {
+      "code": 512,
+      "id": 412,
+      "title": "Yuz xotira",
+      "episodes": 3,
+      "msg_range": "5396..5398",
+      "poster": "posters/code_512.jpg",
+      "status": "Ongoing"
+    },
+    "127587": {
+      "code": 513,
+      "id": 413,
+      "title": "Xalqaro chondam maktabi",
+      "episodes": 10,
+      "msg_range": "5399..5408",
+      "poster": "posters/code_513.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "127376": {
+      "code": 514,
+      "id": 414,
+      "title": "Yolg'onin ham go'zal",
+      "episodes": 8,
+      "msg_range": "5409..5416",
+      "poster": "posters/code_514.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "125994": {
+      "code": 515,
+      "id": 415,
+      "title": "Oila nomidan (davom et )",
+      "episodes": 10,
+      "msg_range": "5417..5426",
+      "poster": "posters/code_515.jpg",
+      "status": "Ongoing"
+    },
+    "125795": {
+      "code": 516,
+      "id": 416,
+      "title": "Qaqnus",
+      "episodes": 26,
+      "msg_range": "5427..5452",
+      "poster": "posters/code_516.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "125657": {
+      "code": 517,
+      "id": 417,
+      "title": "Buyuk fitnachi",
+      "episodes": 2,
+      "msg_range": "5454..5453",
+      "poster": "posters/code_517.jpg",
+      "status": "Ongoing"
+    },
+    "124212": {
+      "code": 518,
+      "id": 418,
+      "title": "Qirol va kanizak",
+      "episodes": 20,
+      "msg_range": "5455..5474",
+      "poster": "posters/code_518.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "119533": {
+      "code": 519,
+      "id": 419,
+      "title": "Salom janob gu",
+      "episodes": 30,
+      "msg_range": "5475..5504",
+      "poster": "posters/code_519.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "119340": {
+      "code": 520,
+      "id": 420,
+      "title": "Baxt sari yool onaning hikoyasi",
+      "episodes": 39,
+      "msg_range": "5505..5543",
+      "poster": "posters/code_520.jpg",
+      "status": "Tugallangan (Completed)"
+    },
+    "119266": {
+      "code": 521,
+      "id": 421,
+      "title": "Shartnoma asosidagi er va yoqimtoy sevgilisi",
+      "episodes": 68,
+      "msg_range": "5544..5611",
+      "poster": "posters/code_521.jpg",
+      "status": "Tugallangan (Completed)"
+    }
+  },
+  "skipped": {},
+  "errors": {}
+}
