@@ -3645,17 +3645,7 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
 
     try:
         if raw_query:
-            if len(raw_query) == 1 and not raw_query.isdigit():
-                import aiosqlite
-                async with aiosqlite.connect(db.DB_PATH) as conn:
-                    conn.row_factory = aiosqlite.Row
-                    async with conn.execute(
-                        "SELECT * FROM doramas WHERE title LIKE ? ORDER BY views DESC LIMIT 30",
-                        (f"{raw_query}%",)
-                    ) as cur:
-                        doramas = [dict(r) for r in await cur.fetchall()]
-            else:
-                doramas = await db.search_doramas(raw_query, limit=30)
+            doramas = await db.search_doramas(raw_query, limit=30)
         else:
             doramas = await db.get_latest_doramas(limit=30)
     except Exception as e:
