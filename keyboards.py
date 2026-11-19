@@ -407,6 +407,13 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
             icon_custom_emoji_id=ICON_ACTION
         ),
         InlineKeyboardButton(
+            text="⚡ Avtopilot (88 ta donor)",
+            callback_data="admin_autopilot_status",
+            icon_custom_emoji_id=ICON_ACTION
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
             text="Dorama Takliflari",
             callback_data="admin_suggestions_list",
             icon_custom_emoji_id=ICON_CLIPBOARD

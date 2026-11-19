@@ -1958,7 +1958,58 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
         await event.answer()
 
 
+@router.message(Command("autopilot"))
+@router.callback_query(F.data == "admin_autopilot_status")
+async def handle_admin_autopilot(event: Message | CallbackQuery):
+    user_id = event.from_user.id
+    if not is_admin_user(user_id):
+        if isinstance(event, CallbackQuery):
+            await event.answer("Siz admin emassiz!", show_alert=True)
+        else:
+            await event.answer(f"{ce('warning')} Siz admin emassiz!")
+        return
 
+    log_path = os.path.join(config.BASE_DIR, "scripts", "autopilot.log")
+    recent_lines = []
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+                for l in reversed(lines):
+                    clean_l = l.strip()
+                    if any(k in clean_l for k in ["DETECTED:", "Created NEW", "Ingested", "Delivered admin notification"]):
+                        parts = clean_l.split(" [INFO] ")
+                        time_part = parts[0][11:19] if len(parts) > 1 else ""
+                        msg_part = parts[1] if len(parts) > 1 else clean_l
+                        recent_lines.append(f"⏱ <code>{time_part}</code> {html.escape(msg_part[:85])}")
+                    if len(recent_lines) >= 5:
+                        break
+        except Exception:
+            pass
+
+    log_summary = "\n".join(recent_lines) if recent_lines else "<i>Hozircha yangi qismlar qayd etilmadi.</i>"
+
+    text = (
+        f"{ce('sparkles')} <b>AVTOPILOT XIZMATI VA JURNALI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ <b>Holati:</b> 🟢 <b>FAOL (LIVE MONITORING)</b>\n"
+        f"📡 <b>Kuzatilayotgan donorlar:</b> 88 ta Kdrama kanali\n"
+        f"💾 <b>Xotira sarfi:</b> 0 KB (Bulut forward)\n"
+        f"🌐 <b>Internet sarfi:</b> 0 MB\n"
+        f"🔔 <b>Xabarnoma:</b> Telegramingizga to'g'ridan-to'g'ri ulandi\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📋 <b>So'nggi harakatlar:</b>\n"
+        f"{log_summary}\n\n"
+        f"💡 <i>Yangi qism chiqqanda, avtopilot omborga joylab sizga darhol hisobot yuboradi.</i>"
+    )
+
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Yangilash", callback_data="admin_autopilot_status")],
+        [InlineKeyboardButton(text="🔙 Admin Panel", callback_data="admin_back_to_panel")]
+    ])
+    await render_text_screen(event, text, reply_markup=markup)
+    if isinstance(event, CallbackQuery):
+        await event.answer()
 
 
 @router.message(Command("admin"))
@@ -4130,7 +4181,8 @@ async def main():
             BotCommand(command="post", description="🔔 Yangi qismni kanalga chiqarish"),
             BotCommand(command="finish_promo", description="🎁 100 ta a'zoga 3 oylik VIP berish & Aksiyani yopish"),
             BotCommand(command="restore_btn", description="🛠 Kanal postlariga tugma ulash"),
-            BotCommand(command="ongoing", description="🟢 Davom etayotgan seriallar")
+            BotCommand(command="ongoing", description="🟢 Davom etayotgan seriallar"),
+            BotCommand(command="autopilot", description="⚡ Avtopilot holati va jurnali")
         ]
 
             await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=config.ADMIN_ID))

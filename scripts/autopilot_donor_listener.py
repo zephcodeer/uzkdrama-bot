@@ -16,6 +16,7 @@ Guarantees:
 
 import asyncio
 from difflib import SequenceMatcher
+import html
 import json
 import logging
 from pathlib import Path
@@ -33,7 +34,11 @@ from telethon.tl.types import (
 )
 
 # Output encoding
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stdout is not None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # Configure Paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,13 +48,14 @@ import config  # noqa: E402
 from database import normalize_search_text, slugify  # noqa: E402
 
 LOG_FILE = BASE_DIR / "scripts" / "autopilot.log"
+handlers = [logging.FileHandler(str(LOG_FILE), encoding="utf-8")]
+if sys.stdout is not None:
+    handlers.append(logging.StreamHandler(sys.stdout))
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(str(LOG_FILE), encoding="utf-8"),
-    ],
+    handlers=handlers,
 )
 logger = logging.getLogger("AutopilotListener")
 
@@ -351,6 +357,52 @@ async def ingest_episodes_to_db(
         )
 
 
+async def send_admin_notification(
+    title: str,
+    code: int,
+    ep_list: List[int],
+    quality: str,
+    file_size: int,
+    chat_title: str,
+    storage_msg_id: int,
+):
+    """Sends instant HTML notification to admin Telegram via Bot API."""
+    import urllib.request
+
+    try:
+        size_mb = round(file_size / (1024 * 1024), 1) if file_size else 0
+        eps_str = (
+            f"{min(ep_list)}–{max(ep_list)}"
+            if len(ep_list) > 1
+            else str(ep_list[0])
+        )
+        msg_text = (
+            f"⚡ <b>YANGI QISM AVTOMATIK QO‘SHILDI!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🎬 <b>Dorama:</b> {html.escape(str(title))} (Kod: <code>{code}</code>)\n"
+            f"🎞 <b>Qism:</b> {eps_str}-qism ({quality}, {size_mb} MB)\n"
+            f"📢 <b>Manba:</b> {html.escape(str(chat_title))}\n"
+            f"💾 <b>Storage ID:</b> <code>{storage_msg_id}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🟢 <i>Botda darhol tomosha qilish mumkin!</i>"
+        )
+        url = f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage"
+        payload = json.dumps(
+            {
+                "chat_id": config.ADMIN_ID,
+                "text": msg_text,
+                "parse_mode": "HTML",
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=payload, headers={"Content-Type": "application/json"}
+        )
+        await asyncio.to_thread(urllib.request.urlopen, req, timeout=10)
+        logger.info(f"Delivered admin notification for {title} ep {eps_str}")
+    except Exception as e:
+        logger.warning(f"Could not send admin notification: {e}")
+
+
 async def run_listener(dry_run: bool = False):
     """Production Telethon event listener for Kdrama channels."""
     logger.info("Connecting Telethon client with active session...")
@@ -453,6 +505,28 @@ async def run_listener(dry_run: bool = False):
 
         # 9. Ingest into DB
         await ingest_episodes_to_db(dorama_id, ep_list, storage_msg_id, quality, size)
+
+        # 10. Instant Admin Notification
+        try:
+            async with aiosqlite.connect(str(DB_PATH)) as db:
+                async with db.execute(
+                    "SELECT title, code FROM doramas WHERE id = ?", (dorama_id,)
+                ) as cur:
+                    row = await cur.fetchone()
+                    d_title = row[0] if row else raw_title
+                    d_code = row[1] if row else dorama_id
+
+            await send_admin_notification(
+                title=d_title,
+                code=d_code,
+                ep_list=ep_list,
+                quality=quality,
+                file_size=size,
+                chat_title=chat_title,
+                storage_msg_id=storage_msg_id,
+            )
+        except Exception as e:
+            logger.warning(f"Admin notification step skipped: {e}")
 
     logger.info("⚡ Autopilot Kdrama Listener is LIVE and actively monitoring...")
     try:
