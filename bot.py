@@ -555,13 +555,32 @@ async def render_text_screen(event: CallbackQuery | Message, text: str, reply_ma
 
 
 
-# ---------------------------------------------------------------------------
+def extract_dorama_nav_context(message) -> tuple[str, bool]:
+    """Detail ekranidagi mavjud markupdan back_cb va is_random holatini ajratib oladi."""
+    back_cb = "menu_home"
+    is_random = False
+    if message and getattr(message, "reply_markup", None):
+        for row in message.reply_markup.inline_keyboard:
+            for btn in row:
+                if btn.text and "Boshqa tavsiya" in btn.text:
+                    is_random = True
+                if btn.text and "Orqaga" in btn.text and btn.callback_data:
+                    back_cb = btn.callback_data
+    return back_cb, is_random
 
+
+# ---------------------------------------------------------------------------
 # Helper: Dorama kartasi va qismlari (Poster bilan)
-
 # ---------------------------------------------------------------------------
-
-async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bot: Bot, user_id: int, page: int = 0):
+async def show_dorama_detail(
+    target: Message | CallbackQuery,
+    dorama_id: int,
+    bot: Bot,
+    user_id: int,
+    page: int = 0,
+    back_cb: str = "menu_home",
+    is_random: bool = False
+):
     if not await is_user_channel_member(bot, user_id):
         await send_sub_required_notice(target, bot, payload=f"d_{dorama_id}")
         return
@@ -661,23 +680,16 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
 
 
     markup = kb.dorama_detail_kb(
-
         dorama_id=dorama_id,
-
         episodes=episodes,
-
         bot_username=bot_info.username or "",
-
         page=page,
-
         last_watched=last_watched,
-
         bookmarked=bookmarked,
-
         subscribed=subscribed,
-
-        related_seasons=related_seasons
-
+        related_seasons=related_seasons,
+        back_cb=back_cb,
+        is_random=is_random
     )
 
 
@@ -809,8 +821,8 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
     if not ep or not ep.get("channel_message_id") or ep["channel_message_id"] <= 0:
         back_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"{ce('folder')} Doramaga qaytish", callback_data=f"dorama_{dorama_id}")],
-            [InlineKeyboardButton(text=f"{ce('home')} Bosh menyu", callback_data="main_menu")]
+            [InlineKeyboardButton(text=f"{ce('folder')} Doramaga qaytish", callback_data=f"view_dorama:{dorama_id}")],
+            [InlineKeyboardButton(text=f"{ce('home')} Bosh menyu", callback_data="menu_home")]
         ])
         await bot.send_message(
             user_id,
@@ -1069,13 +1081,30 @@ async def cb_menu_random(event: Message | CallbackQuery, bot: Bot):
 
     if isinstance(event, CallbackQuery):
         await safe_answer(event, f"🎲 Tavsiya: {d.get('title', '')}")
-    await show_dorama_detail(event, d["id"], bot, user_id=event.from_user.id)
+    await show_dorama_detail(event, d["id"], bot, user_id=event.from_user.id, back_cb="menu_home", is_random=True)
 
 
 @router.callback_query(F.data.startswith("view_dorama:"))
 async def cb_view_dorama(call: CallbackQuery, bot: Bot):
-    d_id = int(call.data.split(":")[1])
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
+    parts = call.data.split(":", 2)
+    d_id = int(parts[1])
+    source = parts[2] if len(parts) > 2 else ""
+
+    is_random = (source == "random")
+    if is_random:
+        back_cb = "menu_home"
+    elif not source:
+        back_cb = "menu_home"
+    elif source in ("bookmarks", "menu_bookmarks", "bookmarks:0"):
+        back_cb = "menu_bookmarks"
+    elif source in ("top", "menu_top", "menu_top:0"):
+        back_cb = "menu_top"
+    elif source in ("latest", "menu_latest"):
+        back_cb = "menu_latest:0"
+    else:
+        back_cb = source
+
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, back_cb=back_cb, is_random=is_random)
     await safe_answer(call)
 
 
@@ -1083,7 +1112,8 @@ async def cb_view_dorama(call: CallbackQuery, bot: Bot):
 async def cb_ep_page(call: CallbackQuery, bot: Bot):
     parts = call.data.split(":")
     d_id, page = int(parts[1]), int(parts[2])
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=page)
+    back_cb, is_random = extract_dorama_nav_context(call.message)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=page, back_cb=back_cb, is_random=is_random)
     await safe_answer(call)
 
 
@@ -1155,7 +1185,8 @@ async def cb_toggle_bm(call: CallbackQuery, bot: Bot):
                     return
             except Exception:
                 pass
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
+    back_cb, is_random = extract_dorama_nav_context(call.message)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, back_cb=back_cb, is_random=is_random)
 
 
 @router.callback_query(F.data.startswith("toggle_sub:"))
@@ -1164,7 +1195,8 @@ async def cb_toggle_sub(call: CallbackQuery, bot: Bot):
     subbed = await db.toggle_subscription(call.from_user.id, d_id)
     alert = "Bildirishnoma yoqildi! Yangi qism chiqishi bilan xabar beramiz." if subbed else "Bildirishnoma o'chirildi."
     await safe_answer(call, alert, show_alert=True)
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
+    back_cb, is_random = extract_dorama_nav_context(call.message)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, back_cb=back_cb, is_random=is_random)
 
 
 @router.callback_query(F.data == "menu_search")
@@ -2083,7 +2115,7 @@ async def handle_admin_autopilot(event: Message | CallbackQuery):
 
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Yangilash", callback_data="admin_autopilot_status")],
-        [InlineKeyboardButton(text="🔙 Admin Panel", callback_data="admin_back_to_panel")]
+        [InlineKeyboardButton(text="🔙 Admin Panel", callback_data="menu_admin")]
     ])
     await render_text_screen(event, text, reply_markup=markup)
     if isinstance(event, CallbackQuery):

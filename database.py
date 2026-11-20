@@ -1782,6 +1782,25 @@ CATEGORY_QUERIES = {
 
     "mini": ("Mini Dramalar (2–12 qismli)", "WHERE total_episodes BETWEEN 2 AND 12"),
     "movies": ("To'liq Metrajli Filmlar", "WHERE total_episodes = 1"),
+    "duanju": (
+        "Vertikal Micro-Dramalar (Duanju / DramaBox)",
+        "WHERE category = 'duanju' "
+        "OR genre LIKE '%Duanju%' "
+        "OR genre LIKE '%Micro%' "
+        "OR genre LIKE '%Vertikal%' "
+        "OR title LIKE '%DramaBox%' "
+        "OR title LIKE '%ReelShort%' "
+        "OR title LIKE '%ShortMax%' "
+        "OR title LIKE '%Duanju%' "
+        "OR title LIKE '%Vertikal%' "
+        "OR description LIKE '%DramaBox%' "
+        "OR description LIKE '%ReelShort%' "
+        "OR description LIKE '%ShortMax%' "
+        "OR description LIKE '%Duanju%' "
+        "OR description LIKE '%Vertikal%' "
+        "OR description LIKE '%qismlar to%' "
+        "OR (title NOT LIKE '%fasl%' AND (title GLOB '*[0-9]-[0-9]*' OR title GLOB '*[0-9]–[0-9]*'))"
+    ),
 
     "korea": ("Janubiy Koreya Doramalari", "WHERE category = 'korea' OR country = 'Janubiy Koreya'"),
     "china": ("Xitoy Serial va Doramalari", "WHERE category = 'china' OR country = 'Xitoy'"),

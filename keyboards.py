@@ -169,8 +169,29 @@ def promo_free_kb() -> InlineKeyboardMarkup:
     )
     return builder.as_markup()
 
-def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_next: bool = False) -> InlineKeyboardMarkup:
+def doramas_list_kb(
+    doramas: list,
+    prefix: str = "doramas",
+    page: int = 0,
+    has_next: bool = False,
+    source: str | None = None
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+
+    if source is None:
+        if prefix.startswith("cat:"):
+            source = f"{prefix}:{page}"
+        elif prefix in ("bookmarks", "menu_bookmarks"):
+            source = f"bookmarks:{page}" if page > 0 else "menu_bookmarks"
+        elif prefix in ("menu_top", "top"):
+            source = f"menu_top:{page}" if page > 0 else "menu_top"
+        elif prefix in ("menu_latest", "latest"):
+            source = f"menu_latest:{page}"
+        elif prefix == "search":
+            source = f"search:{page}"
+        elif prefix != "doramas":
+            source = f"{prefix}:{page}"
+
     for d in doramas:
         code_str = f"[{d.get('code', d.get('id', ''))}] " if d.get('code') else ""
         ep_count = d.get('total_episodes')
@@ -184,10 +205,12 @@ def doramas_list_kb(doramas: list, prefix: str = "doramas", page: int = 0, has_n
             if len(cand) >= 3:
                 btn_title = cand
 
+        cb_data = f"view_dorama:{d['id']}:{source}" if source else f"view_dorama:{d['id']}"
+
         builder.row(
             InlineKeyboardButton(
                 text=f"{code_str}{btn_title}{ep_str}",
-                callback_data=f"view_dorama:{d['id']}",
+                callback_data=cb_data,
                 icon_custom_emoji_id=ICON_ACTION
             )
         )
@@ -281,7 +304,9 @@ def dorama_detail_kb(
     last_watched: int | None = None,
     bookmarked: bool = False,
     subscribed: bool = False,
-    related_seasons: list = None
+    related_seasons: list = None,
+    back_cb: str = "menu_home",
+    is_random: bool = False
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
@@ -293,7 +318,13 @@ def dorama_detail_kb(
             lbl = s.get("label") or f"{s.get('season_num', 1)}-fasl"
             cnt = s.get("total_episodes") or 0
             text = f"🟢 {lbl} ({cnt})" if is_active else f"{lbl} ({cnt})"
-            cb = "ignore" if is_active else f"view_dorama:{s['id']}"
+            if is_random:
+                season_cb = f"view_dorama:{s['id']}:random"
+            elif back_cb and back_cb != "menu_home":
+                season_cb = f"view_dorama:{s['id']}:{back_cb}"
+            else:
+                season_cb = f"view_dorama:{s['id']}"
+            cb = "ignore" if is_active else season_cb
             season_btns.append(InlineKeyboardButton(text=text, callback_data=cb))
         builder.row(*season_btns)
 
@@ -382,6 +413,20 @@ def dorama_detail_kb(
             icon_custom_emoji_id=ICON_LINK
         )
     )
+
+    # Agar tavsiya (random) bo'lsa, '🎲 Boshqa tavsiya' tugmasi
+    if is_random:
+        builder.row(
+            InlineKeyboardButton(
+                text="🎲 Boshqa tavsiya",
+                callback_data="menu_random",
+                icon_custom_emoji_id=ICON_SPARKLE
+            )
+        )
+        effective_back_cb = "menu_home"
+    else:
+        effective_back_cb = back_cb or "menu_home"
+
     builder.row(
         InlineKeyboardButton(
             text="Bosh Menyu",
@@ -390,7 +435,7 @@ def dorama_detail_kb(
         ),
         InlineKeyboardButton(
             text="Orqaga",
-            callback_data="menu_latest:0",
+            callback_data=effective_back_cb,
             icon_custom_emoji_id=ICON_BACK
         )
     )
@@ -663,7 +708,7 @@ def ongoing_doramas_kb(doramas: list) -> InlineKeyboardMarkup:
         builder.row(
             InlineKeyboardButton(
                 text=f"[{code}] {title} ({uploaded}-qism)",
-                callback_data=f"view_dorama:{d['id']}",
+                callback_data=f"view_dorama:{d['id']}:admin_ongoing_list",
                 icon_custom_emoji_id=ICON_ACTION
             )
         )
@@ -715,6 +760,13 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
             text=f"Xorij & Gollivud ({counts.get('foreign', 0)})",
             callback_data="cat:foreign:0",
             icon_custom_emoji_id=ICON_FOREIGN
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"📱 Vertikal Micro-Dramalar (Duanju / DramaBox) ({counts.get('duanju', 0)})",
+            callback_data="cat:duanju:0",
+            icon_custom_emoji_id=ICON_PHONE
         )
     )
     builder.row(
@@ -888,6 +940,13 @@ def admin_stats_kb() -> InlineKeyboardMarkup:
             callback_data="admin_broadcast",
             icon_custom_emoji_id=ICON_BROADCAST
         ),
+        InlineKeyboardButton(
+            text="Admin Panel",
+            callback_data="menu_admin",
+            icon_custom_emoji_id=ICON_SETTINGS
+        )
+    )
+    builder.row(
         InlineKeyboardButton(
             text="Bosh Menyu",
             callback_data="menu_home",
