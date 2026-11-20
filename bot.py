@@ -2763,6 +2763,53 @@ async def cmd_admin_send(message: Message, bot: Bot):
         await bot.send_message(chat_id=message.chat.id, text=f"{ce('cross_red')} Xabar yuborishda xatolik: {e}", parse_mode=ParseMode.HTML)
 
 
+@router.message(Command("clean_promo"))
+async def cmd_admin_clean_promo(message: Message, bot: Bot):
+    if not is_admin_user(message.from_user.id):
+        await message.answer(f"{ce('warning')} Siz admin emassiz!")
+        return
+    status_msg = await message.answer("🧹 <b>Aksiya xabarlarini barcha foydalanuvchilar chatidan o'chirish boshlandi...</b>\n<i>Iltimos, kuting...</i>", parse_mode=ParseMode.HTML)
+    user_ids = await db.get_all_user_ids()
+    deleted_count = 0
+    errors_count = 0
+    total = len(user_ids)
+    
+    for idx, uid in enumerate(user_ids):
+        if uid == message.from_user.id:
+            continue
+        try:
+            # 1. Probe orqali eng so'nggi bot xabari ID sini topish
+            probe = await bot.send_message(uid, ".", disable_notification=True)
+            probe_id = probe.message_id
+            await bot.delete_message(uid, probe_id)
+            
+            # 2. Xato yuborilgan aksiya xabarini o'chirish (probe_id - 1)
+            await bot.delete_message(uid, probe_id - 1)
+            deleted_count += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            errors_count += 1
+            await asyncio.sleep(0.02)
+            
+        if (idx + 1) % 50 == 0:
+            try:
+                await status_msg.edit_text(
+                    f"🧹 <b>O'chirish jarayoni:</b> {idx + 1}/{total}\n"
+                    f"🗑 O'chirildi: <b>{deleted_count} ta</b>\n"
+                    f"⚠️ O'tib ketildi: <b>{errors_count} ta</b>",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                pass
+                
+    await status_msg.edit_text(
+        f"✅ <b>Barcha xato aksiya xabarlari muvaffaqiyatli o'chirildi!</b>\n\n"
+        f"🗑 O'chirilgan xabarlar soni: <b>{deleted_count} ta</b>\n"
+        f"⚠️ Xatolik/bloklaganlar: <b>{errors_count} ta</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+
 @router.message(Command("update"))
 async def cmd_admin_update(message: Message, bot: Bot):
     await handle_admin_git_update(message, bot)
