@@ -167,6 +167,7 @@ async def init_db():
                 PRIMARY KEY(user_id, dorama_id)
             );
         """)
+        await udb.execute("CREATE INDEX IF NOT EXISTS idx_dorama_subscribers_dorama_id ON dorama_subscribers(dorama_id);")
         await udb.execute("""
             CREATE TABLE IF NOT EXISTS vip_orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -421,6 +422,13 @@ async def add_episode(dorama_id: int, episode_number: int, channel_message_id: i
         )
 
         await db.commit()
+
+        invalidate_search_cache()
+        try:
+            from notifications import notify_subscribers_async
+            asyncio.create_task(notify_subscribers_async(dorama_id, [episode_number], quality))
+        except Exception:
+            pass
 
 
 
@@ -961,6 +969,27 @@ async def increment_views(dorama_id: int):
         await db.execute("UPDATE doramas SET views = views + 1 WHERE id = ?", (dorama_id,))
 
         await db.commit()
+
+
+async def get_random_dorama() -> dict | None:
+    """Tavsiya uchun tasodifiy ommabop dorama tanlaydi."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT * FROM doramas 
+            WHERE (total_episodes > 0 OR total_episodes IS NULL) AND poster_url != '' AND poster_url IS NOT NULL
+            ORDER BY RANDOM() LIMIT 1
+        """) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+
+        async with db.execute("""
+            SELECT * FROM doramas 
+            ORDER BY RANDOM() LIMIT 1
+        """) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
 
 
 
@@ -1559,6 +1588,10 @@ async def get_dorama_subscribers(dorama_id: int) -> list[int]:
             return [r[0] for r in rows]
 
 
+toggle_dorama_subscription = toggle_subscription
+is_dorama_subscribed = is_subscribed
+
+
 
 
 
@@ -1747,6 +1780,9 @@ async def get_admin_detailed_stats() -> dict:
 
 CATEGORY_QUERIES = {
 
+    "mini": ("Mini Dramalar (2–12 qismli)", "WHERE total_episodes BETWEEN 2 AND 12"),
+    "movies": ("To'liq Metrajli Filmlar", "WHERE total_episodes = 1"),
+
     "korea": ("Janubiy Koreya Doramalari", "WHERE category = 'korea' OR country = 'Janubiy Koreya'"),
     "china": ("Xitoy Serial va Doramalari", "WHERE category = 'china' OR country = 'Xitoy'"),
 
@@ -1819,6 +1855,19 @@ async def get_doramas_by_category(cat_key: str, limit: int = 8, offset: int = 0)
             rows = await cursor.fetchall()
 
             return title, [dict(r) for r in rows]
+
+
+
+async def get_category_count(cat_key: str) -> int:
+    """Bitta kategoriya yoki janrdagi kinolar sonini qaytaradi."""
+    meta = CATEGORY_QUERIES.get(cat_key)
+    if not meta:
+        return 0
+    _, where_clause = meta
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(f"SELECT COUNT(*) FROM doramas {where_clause}") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
 
 
 

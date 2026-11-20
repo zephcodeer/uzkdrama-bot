@@ -45,7 +45,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 import config  # noqa: E402
-from database import normalize_search_text, slugify  # noqa: E402
+import database  # noqa: E402
+from database import invalidate_search_cache, normalize_search_text, slugify  # noqa: E402
+
+try:
+    from notifications import notify_subscribers_async
+except ImportError:
+    notify_subscribers_async = None
+
+_BACKGROUND_TASKS = set()
+
+def track_background_task(coro):
+    """Schedules an async task and retains a strong reference to prevent garbage collection."""
+    task = asyncio.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+    def _done_callback(t):
+        _BACKGROUND_TASKS.discard(t)
+        try:
+            exc = t.exception()
+            if exc:
+                logger.error(f"Background task failed with exception: {exc}")
+        except asyncio.CancelledError:
+            pass
+        except Exception as ex:
+            logger.error(f"Error checking background task status: {ex}")
+    task.add_done_callback(_done_callback)
+    return task
 
 LOG_FILE = BASE_DIR / "scripts" / "autopilot.log"
 handlers = [logging.FileHandler(str(LOG_FILE), encoding="utf-8")]
@@ -62,9 +87,7 @@ logger = logging.getLogger("AutopilotListener")
 # Constants
 DB_PATH = config.DB_PATH if hasattr(config, "DB_PATH") else (BASE_DIR / "doramas.db")
 STORAGE_CHANNEL_ID = config.STORAGE_CHANNEL_ID
-SESSION_PATH = (
-    r"C:\Users\MuhammadSodiq\.gemini\antigravity\scratch\TG AI PERSON\.tg_agent\user_account.session"
-)
+SESSION_PATH = str(BASE_DIR / "autopilot.session")
 API_ID = getattr(config, "API_ID", 2040)
 API_HASH = getattr(config, "API_HASH", "b18441a1ff607e10a989891a5462e627")
 DONOR_FILTERED_PATH = BASE_DIR / "donor_channels_filtered.json"
@@ -356,6 +379,29 @@ async def ingest_episodes_to_db(
             f"✅ Ingested Dorama ID={dorama_id} Ep(s)={ep_list} -> Storage MSG={storage_msg_id} ({quality})"
         )
 
+        # 1. Qidiruv keshini yangilash (In-Memory Search Engine Invalidation)
+        try:
+            database.invalidate_search_cache()
+            logger.info(f"🔄 Search cache invalidated successfully for Dorama ID={dorama_id}")
+        except Exception as e:
+            logger.warning(f"Could not invalidate search cache: {e}")
+
+        # 2. Obunachilarga Push Bildirishnoma yuborish (Async Notification Dispatch)
+        try:
+            if notify_subscribers_async is not None:
+                track_background_task(notify_subscribers_async(dorama_id, ep_list, quality))
+                logger.info(
+                    f"📢 Dispatched notify_subscribers_async for Dorama ID={dorama_id}, Ep={ep_list}, Quality={quality}"
+                )
+            else:
+                from notifications import notify_subscribers_async as _notify
+                track_background_task(_notify(dorama_id, ep_list, quality))
+                logger.info(
+                    f"📢 Dispatched notify_subscribers_async for Dorama ID={dorama_id}, Ep={ep_list}, Quality={quality}"
+                )
+        except Exception as e:
+            logger.warning(f"Could not trigger subscriber notification: {e}")
+
 
 async def send_admin_notification(
     title: str,
@@ -529,10 +575,22 @@ async def run_listener(dry_run: bool = False):
             logger.warning(f"Admin notification step skipped: {e}")
 
     logger.info("⚡ Autopilot Kdrama Listener is LIVE and actively monitoring...")
-    try:
-        await client.run_until_disconnected()
-    finally:
-        await client.disconnect()
+    while True:
+        try:
+            if not client.is_connected():
+                await client.connect()
+            await client.run_until_disconnected()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"Connection interrupted ({e}), auto-reconnecting in 5 seconds...")
+            await asyncio.sleep(5)
+
+    if _BACKGROUND_TASKS:
+        logger.info(f"Waiting for {len(_BACKGROUND_TASKS)} active background notification tasks to finish...")
+        await asyncio.gather(*_BACKGROUND_TASKS, return_exceptions=True)
+
+    await client.disconnect()
 
 
 if __name__ == "__main__":

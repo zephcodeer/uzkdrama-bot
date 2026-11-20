@@ -779,7 +779,10 @@ async def show_dorama_detail(target: Message | CallbackQuery, dorama_id: int, bo
             else:
                 await target.answer(caption, reply_markup=markup, parse_mode=ParseMode.HTML)
         except TelegramBadRequest as e:
-            if "can't parse entities" in str(e).lower():
+            err_str = str(e).lower()
+            if "message is not modified" in err_str:
+                pass
+            elif "can't parse entities" in err_str:
                 await bot.send_message(chat_id=user_id, text=clean_text, reply_markup=markup, parse_mode=None)
             else:
                 await bot.send_message(chat_id=user_id, text=clean_text, reply_markup=markup, parse_mode=None)
@@ -1052,6 +1055,23 @@ async def cb_menu_bookmarks(call: CallbackQuery):
     await safe_answer(call)
 
 
+@router.callback_query(F.data == "menu_random")
+@router.message(Command("random"))
+@router.message(F.text.in_(["🎲 Tavsiya", "🎲 Tasodifiy", "Tavsiya (Random)", "🎲 Tavsiya (Random)"]))
+async def cb_menu_random(event: Message | CallbackQuery, bot: Bot):
+    d = await db.get_random_dorama()
+    if not d:
+        if isinstance(event, CallbackQuery):
+            await safe_answer(event, "Hozircha dorama topilmadi.", show_alert=True)
+        else:
+            await event.answer("Hozircha dorama topilmadi.")
+        return
+
+    if isinstance(event, CallbackQuery):
+        await safe_answer(event, f"🎲 Tavsiya: {d.get('title', '')}")
+    await show_dorama_detail(event, d["id"], bot, user_id=event.from_user.id)
+
+
 @router.callback_query(F.data.startswith("view_dorama:"))
 async def cb_view_dorama(call: CallbackQuery, bot: Bot):
     d_id = int(call.data.split(":")[1])
@@ -1111,6 +1131,30 @@ async def cb_toggle_bm(call: CallbackQuery, bot: Bot):
     added = await db.toggle_bookmark(call.from_user.id, d_id)
     alert = "Sevimlilarga qo'shildi!" if added else "Sevimlilardan olib tashlandi."
     await safe_answer(call, alert, show_alert=True)
+    if call.message and (call.message.video or call.message.document):
+        if call.message.reply_markup:
+            new_rows = []
+            for row in call.message.reply_markup.inline_keyboard:
+                new_row = []
+                for btn in row:
+                    if btn.callback_data == f"toggle_bm:{d_id}":
+                        btn_copy = InlineKeyboardButton(
+                            text="Saqlangan" if added else "Saqlab qo'yish",
+                            callback_data=btn.callback_data,
+                            icon_custom_emoji_id=getattr(btn, "icon_custom_emoji_id", None)
+                        )
+                        new_row.append(btn_copy)
+                    else:
+                        new_row.append(btn)
+                new_rows.append(new_row)
+            try:
+                await call.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=new_rows))
+                return
+            except TelegramBadRequest as e:
+                if "message is not modified" in str(e).lower():
+                    return
+            except Exception:
+                pass
     await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id)
 
 
@@ -1268,6 +1312,40 @@ async def cb_category_view(call: CallbackQuery):
     await render_text_screen(call, text, reply_markup=markup)
 
     await safe_answer(call)
+
+
+@router.message(Command("mini"))
+async def cmd_category_mini(message: Message):
+    cat_title, doramas = await db.get_doramas_by_category("mini", limit=9, offset=0)
+    if not doramas:
+        text = (
+            f"{ce('bell')} <b>{cat_title}</b> bo'limida hozircha kinolar mavjud emas.\n\n"
+            f"<i>Ushbu bo'limga tez orada yangi premyeralar yuklanadi!</i>"
+        )
+        await render_text_screen(message, text, reply_markup=kb.categories_hub_kb(await db.get_category_counts()))
+        return
+    has_next = len(doramas) > 8
+    curr_doramas = doramas[:8]
+    text = f"{ce('film')} <b>{cat_title.upper()} (1-sahifa):</b>"
+    markup = kb.doramas_list_kb(curr_doramas, prefix="cat:mini", page=0, has_next=has_next)
+    await render_text_screen(message, text, reply_markup=markup)
+
+
+@router.message(Command("movies", "filmlar"))
+async def cmd_category_movies(message: Message):
+    cat_title, doramas = await db.get_doramas_by_category("movies", limit=9, offset=0)
+    if not doramas:
+        text = (
+            f"{ce('bell')} <b>{cat_title}</b> bo'limida hozircha kinolar mavjud emas.\n\n"
+            f"<i>Ushbu bo'limga tez orada yangi premyeralar yuklanadi!</i>"
+        )
+        await render_text_screen(message, text, reply_markup=kb.categories_hub_kb(await db.get_category_counts()))
+        return
+    has_next = len(doramas) > 8
+    curr_doramas = doramas[:8]
+    text = f"{ce('film')} <b>{cat_title.upper()} (1-sahifa):</b>"
+    markup = kb.doramas_list_kb(curr_doramas, prefix="cat:movies", page=0, has_next=has_next)
+    await render_text_screen(message, text, reply_markup=markup)
 
 
 

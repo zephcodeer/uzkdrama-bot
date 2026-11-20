@@ -121,6 +121,11 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
     )
     builder.row(
         InlineKeyboardButton(
+            text="Tavsiya (Random)",
+            callback_data="menu_random",
+            icon_custom_emoji_id=ICON_SPARKLE
+        ),
+        InlineKeyboardButton(
             text="Dorama Taklif Qilish",
             callback_data="menu_suggest",
             icon_custom_emoji_id=ICON_BULB
@@ -710,6 +715,18 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
             text=f"Xorij & Gollivud ({counts.get('foreign', 0)})",
             callback_data="cat:foreign:0",
             icon_custom_emoji_id=ICON_FOREIGN
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=f"Mini Dramalar ({counts.get('mini', 0)})",
+            callback_data="cat:mini:0",
+            icon_custom_emoji_id=ICON_TV
+        ),
+        InlineKeyboardButton(
+            text=f"To'liq Filmlar ({counts.get('movies', 0)})",
+            callback_data="cat:movies:0",
+            icon_custom_emoji_id=ICON_ACTION
         )
     )
 
