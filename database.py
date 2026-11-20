@@ -1801,9 +1801,7 @@ CATEGORY_QUERIES = {
         "OR description LIKE '%ReelShort%' "
         "OR description LIKE '%ShortMax%' "
         "OR description LIKE '%Duanju%' "
-        "OR description LIKE '%Vertikal%' "
-        "OR description LIKE '%qismlar to%' "
-        "OR (title NOT LIKE '%fasl%' AND (title GLOB '*[0-9]-[0-9]*' OR title GLOB '*[0-9]–[0-9]*'))"
+        "OR description LIKE '%Vertikal%'"
     ),
 
     "korea": ("Janubiy Koreya Doramalari", "WHERE category = 'korea' OR country = 'Janubiy Koreya'"),
