@@ -2474,29 +2474,9 @@ async def cb_admin_broadcast_promo(call: CallbackQuery, bot: Bot):
     if not is_admin_user(call.from_user.id):
         await safe_answer(call, "Siz admin emassiz!", show_alert=True)
         return
-    await safe_answer(call, "Aksiya xabari barcha foydalanuvchilarga yuborilmoqda...", show_alert=True)
-
-    user_ids = await db.get_all_user_ids()
-    text = (
-        f"{ce('party')} <b>MAXSUS AKSIYA: BARCHA QISMLAR 100% BEPUL!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ce('gift')} Hurmatli foydalanuvchi! Botingizda barcha serial va kinolarning <b>barcha qismlari mutlaqo bepul</b> ochildi!\n\n"
-        f"{ce('check_green')} Do'st taklif qilish shart emas\n"
-        f"{ce('check_green')} Hech qanday VIP to'lovi talab qilinmaydi\n"
-        f"{ce('check_green')} 1-qismdan oxirgi qismgacha barchasi cheklovsiz ochiq!\n\n"
-        f"<i>Botimizdan maroqli foydalaning va sevimli kinolaringizdan zavqlaning! {ce('popcorn')}</i>"
-    )
-    sent_cnt = 0
-    for uid in user_ids:
-        if uid == call.from_user.id:
-            continue
-        try:
-            await bot.send_message(uid, text, reply_markup=kb.promo_free_kb(), parse_mode=ParseMode.HTML)
-            sent_cnt += 1
-            await asyncio.sleep(0.04)
-        except Exception:
-            pass
-    await call.message.answer(f"{ce('check_green')} <b>Aksiya xabari {sent_cnt} ta foydalanuvchiga muvaffaqiyatli yetkazildi!</b>")
+    await safe_answer(call, "Aksiya tarqatish xavfsizlik maqsadida to'xtatildi!", show_alert=True)
+    await call.message.answer(f"{ce('warning')} <b>Aksiya tarqatish bekor qilindi.</b>")
+    return
 
 
 @router.message(Command("reward_promo", "promo_reward", "finish_promo"))
