@@ -4200,6 +4200,82 @@ async def on_channel_post_edited(message: Message, bot: Bot):
                     pass
 
 
+async def auto_git_update_loop(bot: Bot):
+    """Har 5 daqiqada GitHub omborini tekshiradi (Silent Background Daemon).
+    Yangi commit aniqlansa, avtomatik 'git pull' qilib botni qayta yuklaydi."""
+    await asyncio.sleep(60)  # Bot ishga tushishi bilan darhol boshlamaslik
+    while True:
+        try:
+            await asyncio.sleep(300)  # Har 5 daqiqada (300 soniya)
+            success, result_text = await asyncio.to_thread(execute_git_update)
+            if success and result_text != "ALREADY_UP_TO_DATE":
+                logger.info(f"🚀 [AUTO-UPDATE] Yangilanish muvaffaqiyatli yuklandi: {result_text}")
+                admin_id = getattr(config, "ADMIN_ID", None)
+                if admin_id:
+                    try:
+                        summary_lines = [l.strip() for l in result_text.splitlines() if l.strip()][:5]
+                        await bot.send_message(
+                            chat_id=admin_id,
+                            text=(
+                                f"{ce('party')} <b>AVTOMATIK YANGILANISH (5-minutlik sikl):</b>\n\n"
+                                f"<code>{html.escape(chr(10).join(summary_lines))}</code>\n\n"
+                                f"{ce('restart')} Bot yangi kod va baza bilan avtomatik qayta ishga tushmoqda..."
+                            ),
+                            parse_mode=ParseMode.HTML
+                        )
+                    except Exception:
+                        pass
+                await asyncio.sleep(2)
+                sys.stdout.flush()
+                sys.stderr.flush()
+                executable = sys.executable
+                args = [executable] + sys.argv
+                try:
+                    os.execvp(executable, args)
+                except Exception:
+                    try:
+                        os.execv(executable, args)
+                    except Exception:
+                        os._exit(0)
+        except Exception as e:
+            logger.warning(f"Avtomatik yangilanish fon siklida ogohlantirish: {e}")
+
+
+async def auto_backup_loop(bot: Bot):
+    """Har 12 soatda userdata.db va doramas.db zaxira nusxasini Telegramga jo'natadi."""
+    await asyncio.sleep(120)  # Ilk tekshiruv 2 daqiqadan so'ng
+    while True:
+        try:
+            target_chat = getattr(config, "STORAGE_CHANNEL_ID", None) or getattr(config, "ADMIN_ID", None)
+            if target_chat:
+                for db_file in ["userdata.db", "doramas.db"]:
+                    db_path = os.path.join(config.BASE_DIR, db_file)
+                    if os.path.exists(db_path):
+                        size_kb = round(os.path.getsize(db_path) / 1024, 1)
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        caption = (
+                            f"💾 <b>AVTOMATIK ZAXIRA NUSXASI (BACKUP)</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━\n"
+                            f"📁 Fayl: <code>{db_file}</code>\n"
+                            f"📦 Hajm: <code>{size_kb} KB</code>\n"
+                            f"⏰ Vaqt: <code>{now_str}</code>\n"
+                            f"━━━━━━━━━━━━━━━━━━\n"
+                            f"🛡️ Ma'lumotlar xavfsizligi ta'minlandi."
+                        )
+                        doc = FSInputFile(db_path)
+                        await bot.send_document(
+                            chat_id=target_chat,
+                            document=doc,
+                            caption=caption,
+                            parse_mode=ParseMode.HTML
+                        )
+                        await asyncio.sleep(2)
+            await asyncio.sleep(43200)  # Har 12 soatda
+        except Exception as e:
+            logger.warning(f"Avtomatik backup siklida xatolik: {e}")
+            await asyncio.sleep(3600)
+
+
 async def main():
 
     errors = config.validate_bot_config()
@@ -4339,6 +4415,8 @@ async def main():
         await bot.delete_webhook(drop_pending_updates=False)
 
         asyncio.create_task(memory_cleanup_loop())
+        asyncio.create_task(auto_git_update_loop(bot))
+        asyncio.create_task(auto_backup_loop(bot))
         await dp.start_polling(bot)
 
     finally:
