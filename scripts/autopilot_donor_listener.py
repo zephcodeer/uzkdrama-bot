@@ -413,21 +413,23 @@ async def ingest_episodes_to_db(
                 return
 
         new_qual_rank = QUALITY_RANKS.get(quality.lower(), 1)
+        actual_ingested = []
 
         for ep_num in ep_list:
-            # Check existing quality to prevent downgrading 1080p -> 720p
+            # Check existing quality to prevent downgrading or duplicate overwriting
             async with db.execute(
                 "SELECT channel_message_id, quality FROM episodes WHERE dorama_id = ? AND episode_number = ?",
                 (dorama_id, ep_num),
             ) as cur:
                 existing_ep = await cur.fetchone()
 
-            if existing_ep:
+            if existing_ep and existing_ep[0] and existing_ep[0] > 0:
                 old_qual = existing_ep[1] or "720p"
                 old_qual_rank = QUALITY_RANKS.get(old_qual.lower(), 1)
-                if old_qual_rank > new_qual_rank:
+                # Strict upgrade only: if old is equal or better (e.g. 1080p >= 1080p), SKIP!
+                if old_qual_rank >= new_qual_rank:
                     logger.info(
-                        f"Skipped overwrite for Dorama {dorama_id} Ep {ep_num}: existing {old_qual} > incoming {quality}"
+                        f"Skipped overwrite for Dorama {dorama_id} Ep {ep_num}: existing {old_qual} >= incoming {quality}"
                     )
                     continue
 
@@ -442,8 +444,13 @@ async def ingest_episodes_to_db(
             """,
                 (dorama_id, ep_num, storage_msg_id, quality, file_size),
             )
+            actual_ingested.append(ep_num)
 
-        max_ep = max(ep_list)
+        if not actual_ingested:
+            logger.info(f"No new episodes were ingested for Dorama ID={dorama_id} (all already exist with equal/better quality).")
+            return []
+
+        max_ep = max(actual_ingested)
         await db.execute(
             """
             UPDATE doramas
@@ -456,7 +463,7 @@ async def ingest_episodes_to_db(
 
         await db.commit()
         logger.info(
-            f"✅ Ingested Dorama ID={dorama_id} Ep(s)={ep_list} -> Storage MSG={storage_msg_id} ({quality})"
+            f"✅ Ingested Dorama ID={dorama_id} Ep(s)={actual_ingested} -> Storage MSG={storage_msg_id} ({quality})"
         )
 
         # 1. Qidiruv keshini yangilash (In-Memory Search Engine Invalidation)
@@ -469,18 +476,20 @@ async def ingest_episodes_to_db(
         # 2. Obunachilarga Push Bildirishnoma yuborish (Async Notification Dispatch)
         try:
             if notify_subscribers_async is not None:
-                track_background_task(notify_subscribers_async(dorama_id, ep_list, quality))
+                track_background_task(notify_subscribers_async(dorama_id, actual_ingested, quality))
                 logger.info(
-                    f"📢 Dispatched notify_subscribers_async for Dorama ID={dorama_id}, Ep={ep_list}, Quality={quality}"
+                    f"📢 Dispatched notify_subscribers_async for Dorama ID={dorama_id}, Ep={actual_ingested}, Quality={quality}"
                 )
             else:
                 from notifications import notify_subscribers_async as _notify
-                track_background_task(_notify(dorama_id, ep_list, quality))
+                track_background_task(_notify(dorama_id, actual_ingested, quality))
                 logger.info(
-                    f"📢 Dispatched notify_subscribers_async for Dorama ID={dorama_id}, Ep={ep_list}, Quality={quality}"
+                    f"📢 Dispatched notify_subscribers_async for Dorama ID={dorama_id}, Ep={actual_ingested}, Quality={quality}"
                 )
         except Exception as e:
             logger.warning(f"Could not trigger subscriber notification: {e}")
+
+        return actual_ingested
 
 
 async def send_admin_notification(
@@ -622,19 +631,42 @@ async def run_listener(dry_run: bool = False):
             logger.info(f"[DRY-RUN] Forward to storage & ingest verified. Skipped DB write.")
             return
 
-        # 7. DB Pre-resolution (Prevents orphan files in storage)
+        # 7. DB Pre-resolution & Pre-Forward Duplicate Guard (Prevents redundant files in storage)
+        new_qual_rank = QUALITY_RANKS.get(quality.lower(), 1)
+        needed_eps = []
         async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
             dorama_id = await find_or_create_dorama(db, raw_title, is_micro_drama=is_micro)
             if not dorama_id:
                 logger.warning(f"Could not resolve or create dorama for '{raw_title}'")
                 return
 
-        # 8. Cloud-to-Cloud Forwarding
+            for ep_num in ep_list:
+                async with db.execute(
+                    "SELECT channel_message_id, quality FROM episodes WHERE dorama_id = ? AND episode_number = ?",
+                    (dorama_id, ep_num),
+                ) as cur:
+                    row = await cur.fetchone()
+                    if not row or not row[0] or row[0] <= 0:
+                        needed_eps.append(ep_num)
+                    else:
+                        existing_qual = row[1] or "720p"
+                        existing_qual_rank = QUALITY_RANKS.get(existing_qual.lower(), 1)
+                        # Strict upgrade only: accept if incoming quality is STRICTLY HIGHER (e.g. 720p -> 1080p)
+                        if new_qual_rank > existing_qual_rank:
+                            needed_eps.append(ep_num)
+
+        if not needed_eps:
+            logger.info(
+                f"⏭ [DUPLICATE BLOCKED] '{raw_title}' Ep {ep_list} already exists in DB with equal/better quality ({quality}) from channel '{chat_title}'. Skipped forward & notifications."
+            )
+            return
+
+        # 8. Cloud-to-Cloud Forwarding (Only runs if at least 1 episode is actually needed!)
         try:
             fwd = await client.forward_messages(STORAGE_CHANNEL_ID, msg)
             storage_msg = fwd if isinstance(fwd, Message) else fwd[0]
             storage_msg_id = storage_msg.id
-            logger.info(f"Cloud Forwarded to Storage -> msg_id={storage_msg_id}")
+            logger.info(f"Cloud Forwarded to Storage -> msg_id={storage_msg_id} (Needed eps: {needed_eps})")
         except ChatForwardsRestrictedError:
             logger.warning(
                 f"Skipped restricted channel '{chat_title}': Forwarding disabled (protected SSD/traffic)."
@@ -648,10 +680,12 @@ async def run_listener(dry_run: bool = False):
             logger.error(f"Forwarding exception: {e}")
             return
 
-        # 9. Ingest into DB
-        await ingest_episodes_to_db(dorama_id, ep_list, storage_msg_id, quality, size)
+        # 9. Ingest into DB (Only ingest the episodes that were actually needed)
+        ingested = await ingest_episodes_to_db(dorama_id, needed_eps, storage_msg_id, quality, size)
+        if not ingested:
+            return
 
-        # 10. Instant Admin Notification
+        # 10. Instant Admin Notification (Only notifies for the episodes that were newly added)
         try:
             async with aiosqlite.connect(str(DB_PATH)) as db:
                 async with db.execute(
@@ -664,7 +698,7 @@ async def run_listener(dry_run: bool = False):
             await send_admin_notification(
                 title=d_title,
                 code=d_code,
-                ep_list=ep_list,
+                ep_list=ingested,
                 quality=quality,
                 file_size=size,
                 chat_title=chat_title,
