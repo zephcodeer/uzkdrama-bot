@@ -3784,20 +3784,27 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
     """
     Telegram Inline Mode Handler:
     Foydalanuvchi ixtiyoriy chatda @uzkdrama_app <nom yoki kod> deb yozganda
-    barcha 380+ ta doramani posteri, qismlar soni va kodi bilan interaktiv chiqaradi.
+    barcha 430+ ta doramani posteri, qismlar soni va kodi bilan interaktiv va cheksiz (infinite scroll) chiqaradi.
     """
     raw_query = (inline_query.query or "").strip()
 
+    # Telegram Inline cheksiz varaqlash (Infinite Scroll Pagination)
+    offset = 0
+    if inline_query.offset and inline_query.offset.isdigit():
+        offset = max(0, int(inline_query.offset))
+
+    limit = 50  # Telegram Inline API maksimum 50 tagacha bitta sahifada qabul qiladi
+
     try:
         if raw_query:
-            doramas = await db.search_doramas(raw_query, limit=30)
+            doramas = await db.search_doramas(raw_query, limit=limit, offset=offset)
         else:
-            doramas = await db.get_latest_doramas(limit=30)
+            doramas = await db.get_latest_doramas(limit=limit, offset=offset)
     except Exception as e:
         logger.error(f"Inline qidiruvda xatolik: {e}")
         doramas = []
 
-    if not doramas:
+    if not doramas and offset == 0:
         await inline_query.answer(
             results=[],
             cache_time=5,
@@ -3829,9 +3836,6 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
         raw_desc = (d.get("description") or "").strip()
         short_desc = (raw_desc[:110] + "...") if len(raw_desc) > 113 else raw_desc
 
-        # Skrinshotdagi estetik format:
-        # ╭────────────
-        # ╰► Qismlar soni: 8ta...
         desc_line = f"╭────────────\n╰► Qismlar soni: {total_ep} ta ({status_text})"
 
         msg_text = (
@@ -3864,7 +3868,7 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
 
         articles.append(
             InlineQueryResultArticle(
-                id=f"dorama_{code}",
+                id=f"dorama_{code}_{offset}",
                 title=title,
                 description=desc_line,
                 thumbnail_url=thumb,
@@ -3878,11 +3882,15 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
             )
         )
 
+    # Keyingi sahifa mavjud bo'lsa next_offset ga uzatamiz (cheksiz skroll)
+    next_offset = str(offset + limit) if len(doramas) == limit else ""
+
     await inline_query.answer(
         results=articles,
         cache_time=10,
         is_personal=True,
-        switch_pm_text="🎬 Bot menyusiga o'tish",
+        next_offset=next_offset,
+        switch_pm_text="🎬 Bot menyusiga o'tish" if not raw_query else f"🔍 '{raw_query}' bo'yicha to'liq natijalar",
         switch_pm_parameter="from_inline"
     )
 
