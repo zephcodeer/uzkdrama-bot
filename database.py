@@ -2002,11 +2002,32 @@ async def get_admin_detailed_stats() -> dict:
 
 CATEGORY_QUERIES = {
 
-    "mini": ("Mini Dramalar (2–12 qismli)", "WHERE total_episodes BETWEEN 2 AND 12"),
+    "mini": (
+        "Mini Dramalar",
+        "WHERE category IN ('mini_drama', 'duanju') "
+        "OR category = 'mini_drama' "
+        "OR genre LIKE '%Mini%' "
+        "OR genre LIKE '%Micro%' "
+        "OR genre LIKE '%Duanju%' "
+        "OR genre LIKE '%Vertikal%' "
+        "OR (total_episodes BETWEEN 2 AND 12)"
+    ),
+    "mini_drama": (
+        "Mini Dramalar",
+        "WHERE category IN ('mini_drama', 'duanju') "
+        "OR category = 'mini_drama' "
+        "OR genre LIKE '%Mini%' "
+        "OR genre LIKE '%Micro%' "
+        "OR genre LIKE '%Duanju%' "
+        "OR genre LIKE '%Vertikal%' "
+        "OR (total_episodes BETWEEN 2 AND 12)"
+    ),
     "movies": ("To'liq Metrajli Filmlar", "WHERE total_episodes = 1"),
     "duanju": (
         "Vertikal Micro-Dramalar (Duanju / DramaBox)",
         "WHERE category = 'duanju' "
+        "OR category = 'mini_drama' "
+        "OR category IN ('duanju', 'mini_drama') "
         "OR genre LIKE '%Duanju%' "
         "OR genre LIKE '%Micro%' "
         "OR genre LIKE '%Vertikal%' "

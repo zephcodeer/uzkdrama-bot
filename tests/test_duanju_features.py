@@ -90,3 +90,64 @@ async def test_find_or_create_duanju_in_db(tmp_path):
             assert row[0].lower() == "o'gay ona siri"
             assert row[1] == "duanju"
             assert "Micro-Drama" in row[2]
+
+
+@pytest.mark.asyncio
+async def test_mini_drama_overhaul_queries_and_counts():
+    assert "mini_drama" in db.CATEGORY_QUERIES
+    assert "mini" in db.CATEGORY_QUERIES
+
+    # 1. Counts
+    counts = await db.get_category_counts()
+    assert "mini" in counts
+    assert "mini_drama" in counts
+    assert counts["mini"] >= 3
+    assert counts["mini_drama"] >= 3
+
+    # 2. Get mini doramas
+    title, doramas = await db.get_doramas_by_category("mini", limit=500, offset=0)
+    assert "Mini" in title
+    codes = {d["code"] for d in doramas}
+    assert 520 in codes, "Code 520 (Baxt sari) must be in Mini Dramalar"
+    assert 521 in codes, "Code 521 (Shartnoma asosidagi er) must be in Mini Dramalar"
+    assert 522 in codes, "Code 522 (Sevgi dunyoni oʻzgartiradi) must be in Mini Dramalar"
+
+    # 3. Get mini_drama alias
+    title_alias, doramas_alias = await db.get_doramas_by_category("mini_drama", limit=500, offset=0)
+    codes_alias = {d["code"] for d in doramas_alias}
+    assert 520 in codes_alias
+    assert 521 in codes_alias
+    assert 522 in codes_alias
+
+
+def test_large_episode_pagination_indicator_and_labels():
+    # Simulate 69 episodes (like Code 521)
+    fake_episodes = [{"episode_number": i, "channel_message_id": 5000 + i} for i in range(1, 70)]
+
+    # Page 0
+    kb_p0 = kb.dorama_detail_kb(dorama_id=421, episodes=fake_episodes, page=0, per_page=15)
+    p0_btns = [btn for row in kb_p0.inline_keyboard for btn in row]
+    indicator_p0 = [btn for btn in p0_btns if btn.text and "📄 1/5" in btn.text]
+    assert len(indicator_p0) == 1, "Page 0 should show 📄 1/5 indicator"
+    assert indicator_p0[0].callback_data == "ignore"
+
+    # Page 4 (episodes 61..69)
+    kb_p4 = kb.dorama_detail_kb(dorama_id=421, episodes=fake_episodes, page=4, per_page=15)
+    p4_btns = [btn for row in kb_p4.inline_keyboard for btn in row]
+    indicator_p4 = [btn for btn in p4_btns if btn.text and "📄 5/5" in btn.text]
+    assert len(indicator_p4) == 1, "Page 4 should show 📄 5/5 indicator"
+
+    # Anti-truncation: single episode button label should be short "68" instead of "68-qism"
+    ep68_btn = [btn for btn in p4_btns if btn.callback_data == "get_ep:421:68"]
+    assert len(ep68_btn) == 1
+    assert ep68_btn[0].text == "68"
+
+
+def test_player_barcha_qismlar_page_retention():
+    # Episode 68 -> page = (68 - 1) // 15 = 4
+    markup = kb.episode_player_kb(dorama_id=421, current_ep=68, has_next=True)
+    all_btns = [btn for row in markup.inline_keyboard for btn in row]
+    barcha_btn = [btn for btn in all_btns if "Barcha qismlar" in btn.text]
+    assert len(barcha_btn) == 1
+    assert barcha_btn[0].callback_data == "view_dorama:421:page_4"
+

@@ -352,9 +352,12 @@ def dorama_detail_kb(
     row = []
     for item in curr_items:
         watched_mark = " ✓" if last_watched and item['end_ep'] <= last_watched else ""
+        label = item['label']
+        if total_items > 30 and item['start_ep'] == item['end_ep']:
+            label = f"{item['start_ep']}"
         row.append(
             InlineKeyboardButton(
-                text=f"{item['label']}{watched_mark}",
+                text=f"{label}{watched_mark}",
                 callback_data=f"get_ep:{dorama_id}:{item['start_ep']}"
             )
         )
@@ -365,6 +368,7 @@ def dorama_detail_kb(
         builder.row(*row)
 
     # Sahifalash
+    total_pages = (total_items + per_page - 1) // per_page
     nav_buttons = []
     if page > 0:
         nav_buttons.append(
@@ -372,6 +376,13 @@ def dorama_detail_kb(
                 text="Oldingi",
                 callback_data=f"ep_page:{dorama_id}:{page - 1}",
                 icon_custom_emoji_id=ICON_ARROW_LEFT
+            )
+        )
+    if total_pages > 1:
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text=f"📄 {page + 1}/{total_pages}",
+                callback_data="ignore"
             )
         )
     if end_idx < total_items:
@@ -566,10 +577,14 @@ def episode_player_kb(
     bm_text = "Saqlangan" if bookmarked else "Saqlab qo'yish"
     info_btn_text = "Film haqida" if is_movie else "Barcha qismlar"
     info_icon = ICON_INFO if is_movie else ICON_SERIES
+    dorama_cb = f"view_dorama:{dorama_id}"
+    if not is_movie and current_ep > 15:
+        target_page = (current_ep - 1) // 15
+        dorama_cb = f"view_dorama:{dorama_id}:page_{target_page}"
     builder.row(
         InlineKeyboardButton(
             text=info_btn_text,
-            callback_data=f"view_dorama:{dorama_id}",
+            callback_data=dorama_cb,
             icon_custom_emoji_id=info_icon
         ),
         InlineKeyboardButton(

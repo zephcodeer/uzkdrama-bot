@@ -569,6 +569,27 @@ def extract_dorama_nav_context(message) -> tuple[str, bool]:
     return back_cb, is_random
 
 
+def extract_dorama_current_page(message) -> int:
+    """Detail ekrandagi joriy sahifani (0..N) ajratib oladi."""
+    if message and getattr(message, "reply_markup", None):
+        for row in message.reply_markup.inline_keyboard:
+            for btn in row:
+                if btn.callback_data and btn.callback_data.startswith("ep_page:"):
+                    parts = btn.callback_data.split(":")
+                    if len(parts) >= 3 and "Oldingi" in (btn.text or ""):
+                        try:
+                            return int(parts[2]) + 1
+                        except Exception:
+                            pass
+                if btn.text and btn.text.startswith("📄 ") and "/" in btn.text:
+                    try:
+                        cur_str = btn.text.split()[1].split("/")[0]
+                        return max(0, int(cur_str) - 1)
+                    except Exception:
+                        pass
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Helper: Dorama kartasi va qismlari (Poster bilan)
 # ---------------------------------------------------------------------------
@@ -945,7 +966,8 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
         is_movie=is_movie
     )
 
-    quality_badge = f"{ce('lightning')} 1080p Full HD" if ep.get("quality") == "1080p" else "720p HD"
+    raw_q = str(ep.get("quality") or "720p")
+    quality_badge = f"{ce('lightning')} 1080p Full HD" if "1080" in raw_q else (f"{ce('popcorn')} {raw_q}" if raw_q and raw_q != "720p" else "720p HD")
     disclaimer_media_type = "Film" if is_movie else "Serial"
 
     try:
@@ -1133,8 +1155,15 @@ async def cb_view_dorama(call: CallbackQuery, bot: Bot):
     d_id = int(parts[1])
     source = parts[2] if len(parts) > 2 else ""
 
+    page = 0
     is_random = (source == "random")
-    if is_random:
+    if source.startswith("page_"):
+        try:
+            page = int(source.split("_")[1])
+        except Exception:
+            page = 0
+        back_cb = "menu_home"
+    elif is_random:
         back_cb = "menu_home"
     elif not source:
         back_cb = "menu_home"
@@ -1147,14 +1176,17 @@ async def cb_view_dorama(call: CallbackQuery, bot: Bot):
     else:
         back_cb = source
 
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, back_cb=back_cb, is_random=is_random)
+    kwargs = {"user_id": call.from_user.id, "back_cb": back_cb, "is_random": is_random}
+    if page > 0:
+        kwargs["page"] = page
+    await show_dorama_detail(call, d_id, bot, **kwargs)
     await safe_answer(call)
 
 
 @router.callback_query(F.data.startswith("ep_page:"))
 async def cb_ep_page(call: CallbackQuery, bot: Bot):
     parts = call.data.split(":")
-    d_id, page = int(parts[1]), int(parts[2])
+    d_id, page = int(parts[1]), max(0, int(parts[2]))
     back_cb, is_random = extract_dorama_nav_context(call.message)
     await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=page, back_cb=back_cb, is_random=is_random)
     await safe_answer(call)
@@ -1229,7 +1261,8 @@ async def cb_toggle_bm(call: CallbackQuery, bot: Bot):
             except Exception:
                 pass
     back_cb, is_random = extract_dorama_nav_context(call.message)
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, back_cb=back_cb, is_random=is_random)
+    cur_page = extract_dorama_current_page(call.message)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=cur_page, back_cb=back_cb, is_random=is_random)
 
 
 @router.callback_query(F.data.startswith("toggle_sub:"))
@@ -1239,7 +1272,8 @@ async def cb_toggle_sub(call: CallbackQuery, bot: Bot):
     alert = "Bildirishnoma yoqildi! Yangi qism chiqishi bilan xabar beramiz." if subbed else "Bildirishnoma o'chirildi."
     await safe_answer(call, alert, show_alert=True)
     back_cb, is_random = extract_dorama_nav_context(call.message)
-    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, back_cb=back_cb, is_random=is_random)
+    cur_page = extract_dorama_current_page(call.message)
+    await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=cur_page, back_cb=back_cb, is_random=is_random)
 
 
 @router.callback_query(F.data == "menu_search")
