@@ -585,6 +585,10 @@ async def show_dorama_detail(
         await send_sub_required_notice(target, bot, payload=f"d_{dorama_id}")
         return
 
+    # Intellektual debounced dorama ko'rishini hisoblash (faqat 1-sahifa ochilganda, fonga uzatiladi - UI qotmaydi)
+    if page == 0 and user_id:
+        asyncio.create_task(db.increment_views(dorama_id, user_id=user_id))
+
 
     d = await db.get_dorama_by_id(dorama_id)
 
@@ -981,11 +985,15 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
         )
     else:
+        # Ko'rishlar va tomosha tarixi bir-birini bloklamasligi uchun alohida try-except
         try:
-            await db.increment_views(dorama_id)
+            await db.increment_views(dorama_id, user_id=user_id)
+        except Exception:
+            logger.exception("Ko'rishlar sonini oshirishda xatolik")
+        try:
             await db.save_last_watched(user_id, dorama_id, watched_episode)
         except Exception:
-            logger.exception("Video yuborildi, lekin ko'rish tarixi saqlanmadi")
+            logger.exception("Oxirgi ko'rilgan qismni saqlashda xatolik")
 
 
 
@@ -2577,20 +2585,26 @@ def execute_git_update() -> tuple[bool, str]:
         if fetch.returncode:
             return False, f"Git fetch bajarilmadi: {fetch.stderr.strip() or 'Ulanish xatosi'}"
 
-        # 2. Check if already up to date
+        # 2. Check if already up to date with origin/main
         diff = run("diff", "--name-only", "HEAD", "origin/main")
         if diff.returncode:
             return False, "Git o'zgarishlarini tekshirib bo'lmadi."
 
-        status = run("status", "--porcelain", "--untracked-files=no")
-        if not diff.stdout.strip() and not status.stdout.strip():
+        # If origin/main has no incoming commits, do not execute hard reset
+        if not diff.stdout.strip():
             return True, "ALREADY_UP_TO_DATE"
 
-        # 3. Cleanly reset tracked catalog/files (e.g. doramas.db views counter or scripts)
-        # Note: userdata.db is gitignored/untracked, so it is 100% untouched and safe!
+        # 3. Cleanly reset tracked catalog/files to incoming origin/main
         reset = run("reset", "--hard", "origin/main")
         if reset.returncode:
             return False, f"Git reset bajarilmadi: {reset.stderr.strip()}"
+
+        # 4. CRITICAL FIX: Restore live view counts from indestructible userdata.db back into doramas.db
+        try:
+            from database import sync_views_to_doramas_db_sync
+            sync_views_to_doramas_db_sync()
+        except Exception as sync_err:
+            logger.warning(f"Git yangilanishidan so'ng views tiklashda ogohlantirish: {sync_err}")
 
         diff_summary = diff.stdout.strip()
         lines = [l.strip() for l in diff_summary.splitlines() if l.strip()]
@@ -2806,6 +2820,100 @@ async def cmd_admin_clean_promo(message: Message, bot: Bot):
         f"✅ <b>Barcha xato aksiya xabarlari muvaffaqiyatli o'chirildi!</b>\n\n"
         f"🗑 O'chirilgan xabarlar soni: <b>{deleted_count} ta</b>\n"
         f"⚠️ Xatolik/bloklaganlar: <b>{errors_count} ta</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+
+@router.message(Command("broadcast_premiere", "premiere_499"))
+async def cmd_admin_broadcast_premiere(message: Message, bot: Bot):
+    if not is_admin_user(message.from_user.id):
+        await message.answer(f"{ce('warning')} Siz admin emassiz!")
+        return
+    status_msg = await message.answer("🚀 <b>G'alati hisoblagich 2 premyera kartasi tarqatilmoqda...</b>", parse_mode=ParseMode.HTML)
+    
+    bot_info = await bot.get_me()
+    bot_user = bot_info.username or "uzkdrama_app"
+    
+    poster_path = os.path.join(config.BASE_DIR, "posters", "code_499.jpg")
+    photo = FSInputFile(poster_path) if os.path.exists(poster_path) else None
+    
+    caption = (
+        f"⚡️ <b>YANGI PREMYERA: GʻALATI HISOBLAGICH 2 (17–28 QISMLAR)</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🎬 <b>Dorama:</b> Gʻalati hisoblagich 2-fasl (The Uncanny Counter 2)\n"
+        f"🔑 <b>Kino kodi:</b> <code>499</code>\n"
+        f"🎞 <b>Qismlar:</b> 2-mavsum barcha 12 ta qismi toʻliq yuklandi! (720p HD, Oʻzbek tilida)\n"
+        f"🎭 <b>Janri:</b> Fantastika, Jangari, Triller\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🔥 Gʻayritabiiy qobiliyatga ega hisoblagichlar yangi yovuz ruhlarga qarshi navbatdagi shiddatli jangga kirishadi!\n\n"
+        f"👇 <b>Sevimli serialingizni darhol tomosha qiling:</b>"
+    )
+    
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🎬 2-Faslni Tomosha Qilish (499)",
+                icon_custom_emoji_id="5348125953090403204",
+                url=f"https://t.me/{bot_user}?start=499"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="👑 Imperatritsaning ikkinchi nikohi",
+                url=f"https://t.me/{bot_user}?start=486"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🎭 Niqobdagi haqiqat (498)",
+                url=f"https://t.me/{bot_user}?start=498"
+            ),
+            InlineKeyboardButton(
+                text="🌸 Erta bahor (484)",
+                url=f"https://t.me/{bot_user}?start=484"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🍿 Barcha Yangi Doramalar",
+                url=f"https://t.me/{bot_user}?start=menu"
+            )
+        ]
+    ])
+    
+    user_ids = await db.get_all_user_ids()
+    sent_cnt = 0
+    fail_cnt = 0
+    
+    for idx, uid in enumerate(user_ids):
+        if uid == message.from_user.id:
+            continue
+        try:
+            if photo:
+                await bot.send_photo(uid, photo, caption=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
+            else:
+                await bot.send_message(uid, caption, reply_markup=markup, parse_mode=ParseMode.HTML)
+            sent_cnt += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            fail_cnt += 1
+            await asyncio.sleep(0.02)
+            
+        if (idx + 1) % 50 == 0:
+            try:
+                await status_msg.edit_text(
+                    f"🚀 <b>Tarqatilmoqda:</b> {idx + 1}/{len(user_ids)}\n"
+                    f"✅ Yuborildi: <b>{sent_cnt} ta</b>\n"
+                    f"⚠️ O'tib ketildi: <b>{fail_cnt} ta</b>",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                pass
+                
+    await status_msg.edit_text(
+        f"🎉 <b>PREMYERA POSTI MUVAFFAQIYATLI YUBORILDI!</b>\n\n"
+        f"✅ Yetkazildi: <b>{sent_cnt} ta foydalanuvchiga</b>\n"
+        f"⚠️ Yetkazilmadi (bloklaganlar): <b>{fail_cnt} ta</b>",
         parse_mode=ParseMode.HTML
     )
 

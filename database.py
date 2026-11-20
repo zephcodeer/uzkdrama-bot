@@ -229,6 +229,24 @@ async def init_db():
                 await udb.execute(col_sql)
             except Exception:
                 pass
+
+        # Doimiy ko'rishlar (views) va debounce jadvallari (userdata.db - Git Reset'dan 100% himoyalangan)
+        await udb.execute("""
+            CREATE TABLE IF NOT EXISTS dorama_views (
+                dorama_id INTEGER PRIMARY KEY,
+                views INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        await udb.execute("""
+            CREATE TABLE IF NOT EXISTS dorama_view_debounce (
+                user_id INTEGER NOT NULL,
+                dorama_id INTEGER NOT NULL,
+                last_viewed_at INTEGER NOT NULL,
+                PRIMARY KEY(user_id, dorama_id)
+            );
+        """)
+        await udb.execute("CREATE INDEX IF NOT EXISTS idx_view_debounce_user_dorama ON dorama_view_debounce(user_id, dorama_id);")
         await udb.commit()
 
     # 3. Avtomatik Zaxira ko'chirish: doramas.db dagi foydalanuvchilarni userdata.db ga xavfsiz ko'chirish
@@ -248,6 +266,26 @@ async def init_db():
                     await udb.commit()
     except Exception:
         pass
+
+    # 4. Doimiy ko'rishlar (views) zaxirasi va sinxronizatsiyasi: doramas.db <-> userdata.db
+    try:
+        async with aiosqlite.connect(DB_PATH) as db, aiosqlite.connect(USER_DB_PATH) as udb:
+            await apply_sqlite_pragmas(db)
+            await apply_sqlite_pragmas(udb)
+            # Initial seed: doramas.db dagi mavjud ko'rishlarni userdata.db ga ko'chirish
+            async with db.execute("SELECT id, views FROM doramas WHERE views > 0") as cur:
+                d_rows = await cur.fetchall()
+            if d_rows:
+                await udb.executemany("""
+                    INSERT INTO dorama_views (dorama_id, views) VALUES (?, ?)
+                    ON CONFLICT(dorama_id) DO UPDATE SET views = MAX(views, excluded.views)
+                """, d_rows)
+                await udb.commit()
+    except Exception as e:
+        logger.warning("Views migration to userdata.db warning: %s", e)
+
+    # Restore/sync persistent views from userdata.db to doramas.db
+    await sync_views_to_doramas_db()
 
 
 # --- Tizim Sozlamalari va Bepul Aksiya Rejimi (System Settings & Promo Mode) ---
@@ -962,13 +1000,175 @@ async def get_top_doramas(limit: int = 10, offset: int = 0):
 
 
 
-async def increment_views(dorama_id: int):
+VIEW_DEBOUNCE_SECONDS = 3600  # 1 hour debounce window per user per dorama
+_view_debounce_cache: dict[tuple[int, int], float] = {}
 
-    async with aiosqlite.connect(DB_PATH) as db:
+def reset_views_debounce():
+    """Keshdagi debounce ma'lumotlarini tozalaydi (testlar uchun)."""
+    global _view_debounce_cache
+    _view_debounce_cache.clear()
 
-        await db.execute("UPDATE doramas SET views = views + 1 WHERE id = ?", (dorama_id,))
 
-        await db.commit()
+async def sync_views_to_doramas_db():
+    """
+    Jonli ko'rishlar (views) sonini userdata.db dan doramas.db ga sinxronlashtiradi.
+    Bot ishga tushganda, git pull/reset dan keyin va davriy ravishda chaqiriladi.
+    Shu orqali Git reset jonli ko'rishlarni aslo yo'qqa chiqara olmaydi.
+    """
+    try:
+        views_map = {}
+        async with aiosqlite.connect(USER_DB_PATH) as udb:
+            await apply_sqlite_pragmas(udb)
+            async with udb.execute("SELECT dorama_id, views FROM dorama_views WHERE views > 0") as cur:
+                rows = await cur.fetchall()
+                views_map = {r[0]: r[1] for r in rows}
+
+        if views_map:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await apply_sqlite_pragmas(db)
+                await db.executemany(
+                    "UPDATE doramas SET views = MAX(COALESCE(views, 0), ?) WHERE id = ?",
+                    [(v, d_id) for d_id, v in views_map.items()]
+                )
+                await db.commit()
+            logger.info("Successfully synced %d dorama views from userdata.db to doramas.db", len(views_map))
+    except Exception as e:
+        logger.warning("Error syncing views to doramas.db: %s", e)
+
+
+def sync_views_to_doramas_db_sync():
+    """
+    Sinxron versiya: execute_git_update() ichida 'git reset --hard' dan keyin darhol chaqiriladi.
+    """
+    import sqlite3
+    try:
+        views_map = {}
+        udb = sqlite3.connect(USER_DB_PATH, timeout=30.0)
+        try:
+            cur = udb.execute("SELECT dorama_id, views FROM dorama_views WHERE views > 0")
+            views_map = {r[0]: r[1] for r in cur.fetchall()}
+        finally:
+            udb.close()
+
+        if views_map:
+            db = sqlite3.connect(DB_PATH, timeout=30.0)
+            try:
+                db.executemany(
+                    "UPDATE doramas SET views = MAX(COALESCE(views, 0), ?) WHERE id = ?",
+                    [(v, d_id) for d_id, v in views_map.items()]
+                )
+                db.commit()
+            finally:
+                db.close()
+            logger.info("[GIT-UPDATE] Restored %d dorama views into doramas.db from userdata.db", len(views_map))
+    except Exception as e:
+        logger.warning("[GIT-UPDATE] Failed to sync views to doramas.db synchronously: %s", e)
+
+
+async def get_dorama_views(dorama_id: int) -> int:
+    """Doramaga tegishli haqiqiy ko'rishlar sonini beradi (userdata.db yoki doramas.db)."""
+    try:
+        async with aiosqlite.connect(USER_DB_PATH) as udb:
+            await apply_sqlite_pragmas(udb)
+            async with udb.execute("SELECT views FROM dorama_views WHERE dorama_id = ?", (dorama_id,)) as cur:
+                row = await cur.fetchone()
+                if row and row[0] is not None:
+                    return int(row[0])
+    except Exception:
+        pass
+
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await apply_sqlite_pragmas(db)
+            async with db.execute("SELECT views FROM doramas WHERE id = ?", (dorama_id,)) as cur:
+                row = await cur.fetchone()
+                if row and row[0] is not None:
+                    return int(row[0])
+    except Exception:
+        pass
+    return 0
+
+
+async def increment_views(dorama_id: int, user_id: int | None = None) -> bool:
+    """
+    Dorama ko'rishlar sonini xavfsiz va aqlli oshirish:
+    1. Debouncing: Agar user_id berilgan bo'lsa, xotira va userdata.db orqali tekshiriladi.
+       Bitta foydalanuvchi 1 soat ichida bir doramani qayta-qayta bossa, ko'rishlar sun'iy oshirilmaydi.
+    2. Zaxira va Bardoshlilik: Ko'rishlar GIT tegmaydigan 'userdata.db' ga yoziladi va 'doramas.db' bilan sinxronlashadi.
+    3. SQLite Locks himoyasi: Pragmas va timeout qo'llaniladi, bot qotib qolmaydi.
+    Qaytaradi: True (ko'rish hisoblandi), False (debounced / e'tiborsiz qoldirildi).
+    """
+    global _view_debounce_cache
+    now = time.time()
+
+    # 1. Tezkor in-memory debounce tekshiruvi (<0.01ms)
+    if user_id:
+        last_seen = _view_debounce_cache.get((user_id, dorama_id))
+        if last_seen and (now - last_seen) < VIEW_DEBOUNCE_SECONDS:
+            return False
+
+        # Xotirani tozalab turish (20 000 tadan oshganda)
+        if len(_view_debounce_cache) > 20000:
+            cutoff = now - VIEW_DEBOUNCE_SECONDS
+            _view_debounce_cache = {k: v for k, v in _view_debounce_cache.items() if v >= cutoff}
+
+    try:
+        # 2. Doimiy userdata.db orqali debounce va ko'rishni saqlash
+        async with aiosqlite.connect(USER_DB_PATH) as udb:
+            await apply_sqlite_pragmas(udb)
+            if user_id:
+                async with udb.execute(
+                    "SELECT last_viewed_at FROM dorama_view_debounce WHERE user_id = ? AND dorama_id = ?",
+                    (user_id, dorama_id)
+                ) as cur:
+                    row = await cur.fetchone()
+                    if row and (now - row[0]) < VIEW_DEBOUNCE_SECONDS:
+                        _view_debounce_cache[(user_id, dorama_id)] = row[0]
+                        return False
+
+                # Foydalanuvchi debounce vaqtini yangilash
+                await udb.execute("""
+                    INSERT INTO dorama_view_debounce (user_id, dorama_id, last_viewed_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(user_id, dorama_id) DO UPDATE SET last_viewed_at = excluded.last_viewed_at
+                """, (user_id, dorama_id, int(now)))
+
+            # Asosiy doimiy 'dorama_views' jadvalini yangilash
+            await udb.execute("""
+                INSERT INTO dorama_views (dorama_id, views, updated_at)
+                VALUES (?, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(dorama_id) DO UPDATE SET views = views + 1, updated_at = CURRENT_TIMESTAMP
+            """, (dorama_id,))
+            await udb.commit()
+
+        if user_id:
+            _view_debounce_cache[(user_id, dorama_id)] = now
+
+        # 3. 'doramas.db' ga sinxronlashtirish (katalog qidiruvi va top list uchun)
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await apply_sqlite_pragmas(db)
+                await db.execute("UPDATE doramas SET views = views + 1 WHERE id = ?", (dorama_id,))
+                await db.commit()
+        except Exception as e:
+            logger.warning("doramas.db view increment lock/error (will be synced later): %s", e)
+
+        # 4. _SEARCH_ENGINE keshidagi ko'rish sonini ham yangilab qo'yish
+        try:
+            if _SEARCH_ENGINE and hasattr(_SEARCH_ENGINE, "items"):
+                for it in _SEARCH_ENGINE.items:
+                    if it.get("d", {}).get("id") == dorama_id:
+                        it["views"] = it.get("views", 0) + 1
+                        it["d"]["views"] = it["views"]
+                        break
+        except Exception:
+            pass
+
+        return True
+
+    except Exception as e:
+        logger.exception("increment_views failed: %s", e)
+        return False
 
 
 async def get_random_dorama(exclude_id: int | None = None) -> dict | None:
@@ -1615,21 +1815,30 @@ async def get_all_user_ids() -> list[int]:
 
 async def get_stats():
     """Bot umumiy statistikasi."""
+    uv_views = 0
     async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
         async with udb.execute("SELECT COUNT(*) FROM users") as c1:
             total_users = (await c1.fetchone())[0]
         async with udb.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1") as c2:
             premium_users = (await c2.fetchone())[0]
         async with udb.execute("SELECT COUNT(*) FROM users WHERE DATE(joined_at) = DATE('now')") as c6:
             today_users = (await c6.fetchone())[0]
+        try:
+            async with udb.execute("SELECT SUM(views) FROM dorama_views") as uv_cur:
+                uv_views = (await uv_cur.fetchone())[0] or 0
+        except Exception:
+            uv_views = 0
 
     async with aiosqlite.connect(DB_PATH) as db:
+        await apply_sqlite_pragmas(db)
         async with db.execute("SELECT COUNT(*) FROM doramas") as c3:
             total_doramas = (await c3.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM episodes") as c4:
             total_episodes = (await c4.fetchone())[0]
         async with db.execute("SELECT SUM(views) FROM doramas") as c5:
-            total_views = (await c5.fetchone())[0] or 0
+            db_views = (await c5.fetchone())[0] or 0
+        total_views = max(uv_views, db_views)
 
     return {
         "total_users": total_users,
@@ -1705,8 +1914,16 @@ async def get_admin_detailed_stats() -> dict:
         async with udb.execute("SELECT COUNT(*) FROM dorama_subscribers") as cur:
             total_subscribers = (await cur.fetchone())[0]
 
+        uv_views = 0
+        try:
+            async with udb.execute("SELECT SUM(views) FROM dorama_views") as cur:
+                uv_views = (await cur.fetchone())[0] or 0
+        except Exception:
+            uv_views = 0
+
     # 8. Kontent bazasi (doramas.db)
     async with aiosqlite.connect(DB_PATH) as db:
+        await apply_sqlite_pragmas(db)
         async with db.execute("SELECT COUNT(*) FROM doramas") as cur:
             total_doramas = (await cur.fetchone())[0]
 
@@ -1714,7 +1931,8 @@ async def get_admin_detailed_stats() -> dict:
             total_episodes = (await cur.fetchone())[0]
 
         async with db.execute("SELECT SUM(views) FROM doramas") as cur:
-            total_views = (await cur.fetchone())[0] or 0
+            db_views = (await cur.fetchone())[0] or 0
+        total_views = max(uv_views, db_views)
 
         # TOP 5 eng ko'p ko'rilgan dorama
         top_doramas = []
