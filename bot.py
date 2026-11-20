@@ -4201,12 +4201,12 @@ async def on_channel_post_edited(message: Message, bot: Bot):
 
 
 async def auto_git_update_loop(bot: Bot):
-    """Har 5 daqiqada GitHub omborini tekshiradi (Silent Background Daemon).
+    """Har 15 daqiqada GitHub omborini tekshiradi (Silent Background Daemon).
     Yangi commit aniqlansa, avtomatik 'git pull' qilib botni qayta yuklaydi."""
-    await asyncio.sleep(60)  # Bot ishga tushishi bilan darhol boshlamaslik
+    await asyncio.sleep(180)  # Bot ishga tushishi bilan darhol boshlamaslik (3 daqiqa kutish)
     while True:
         try:
-            await asyncio.sleep(300)  # Har 5 daqiqada (300 soniya)
+            await asyncio.sleep(900)  # Har 15 daqiqada (stabil va xavfsiz)
             success, result_text = await asyncio.to_thread(execute_git_update)
             if success and result_text != "ALREADY_UP_TO_DATE":
                 logger.info(f"🚀 [AUTO-UPDATE] Yangilanish muvaffaqiyatli yuklandi: {result_text}")
@@ -4217,7 +4217,7 @@ async def auto_git_update_loop(bot: Bot):
                         await bot.send_message(
                             chat_id=admin_id,
                             text=(
-                                f"{ce('party')} <b>AVTOMATIK YANGILANISH (5-minutlik sikl):</b>\n\n"
+                                f"{ce('party')} <b>AVTOMATIK YANGILANISH (15-minutlik foniy sikl):</b>\n\n"
                                 f"<code>{html.escape(chr(10).join(summary_lines))}</code>\n\n"
                                 f"{ce('restart')} Bot yangi kod va baza bilan avtomatik qayta ishga tushmoqda..."
                             ),
@@ -4242,37 +4242,48 @@ async def auto_git_update_loop(bot: Bot):
 
 
 async def auto_backup_loop(bot: Bot):
-    """Har 12 soatda userdata.db va doramas.db zaxira nusxasini Telegramga jo'natadi."""
-    await asyncio.sleep(120)  # Ilk tekshiruv 2 daqiqadan so'ng
+    """Har 24 soatda faqat ADMIN shaxsiy chatiga userdata.db zaxirasini yuboradi.
+    Yangi zaxira yuborilgach, oldingi eski zaxira xabarini avtomatik o'chirib tashlaydi."""
+    await asyncio.sleep(300)  # Bot ishga tushgach 5 daqiqadan so'ng ilk zaxira
+    last_backup_msg_ids = []
+
     while True:
         try:
-            target_chat = getattr(config, "STORAGE_CHANNEL_ID", None) or getattr(config, "ADMIN_ID", None)
-            if target_chat:
-                for db_file in ["userdata.db", "doramas.db"]:
-                    db_path = os.path.join(config.BASE_DIR, db_file)
-                    if os.path.exists(db_path):
-                        size_kb = round(os.path.getsize(db_path) / 1024, 1)
-                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        caption = (
-                            f"💾 <b>AVTOMATIK ZAXIRA NUSXASI (BACKUP)</b>\n"
-                            f"━━━━━━━━━━━━━━━━━━\n"
-                            f"📁 Fayl: <code>{db_file}</code>\n"
-                            f"📦 Hajm: <code>{size_kb} KB</code>\n"
-                            f"⏰ Vaqt: <code>{now_str}</code>\n"
-                            f"━━━━━━━━━━━━━━━━━━\n"
-                            f"🛡️ Ma'lumotlar xavfsizligi ta'minlandi."
-                        )
-                        doc = FSInputFile(db_path)
-                        await bot.send_document(
-                            chat_id=target_chat,
-                            document=doc,
-                            caption=caption,
-                            parse_mode=ParseMode.HTML
-                        )
-                        await asyncio.sleep(2)
-            await asyncio.sleep(43200)  # Har 12 soatda
+            admin_id = getattr(config, "ADMIN_ID", None)
+            if admin_id:
+                userdata_path = os.path.join(config.BASE_DIR, "userdata.db")
+                if os.path.exists(userdata_path):
+                    size_kb = round(os.path.getsize(userdata_path) / 1024, 1)
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    caption = (
+                        f"💾 <b>FOYDALANUVCHILAR BAZASI ZAXIRASI (USERDATA.DB)</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 Qabul qiluvchi: Admin shaxsiy pochtasi\n"
+                        f"📦 Hajmi: <code>{size_kb} KB</code>\n"
+                        f"⏰ Vaqti: <code>{now_str}</code>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"🛡️ VIP a'zolar, buyurtmalar va foydalanuvchilar to'liq saqlandi.\n"
+                        f"<i>(Eski zaxira fayli chatni to'ldirmaslik uchun avtomatik o'chirildi)</i>"
+                    )
+                    doc = FSInputFile(userdata_path)
+                    new_msg = await bot.send_document(
+                        chat_id=admin_id,
+                        document=doc,
+                        caption=caption,
+                        parse_mode=ParseMode.HTML
+                    )
+
+                    # Eski zaxira xabar(lar)ini o'chirib tashlash (Chat toza turishi uchun)
+                    for old_msg_id in last_backup_msg_ids:
+                        try:
+                            await bot.delete_message(chat_id=admin_id, message_id=old_msg_id)
+                        except Exception:
+                            pass
+                    last_backup_msg_ids = [new_msg.message_id]
+
+            await asyncio.sleep(86400)  # Har 24 soatda bir marta
         except Exception as e:
-            logger.warning(f"Avtomatik backup siklida xatolik: {e}")
+            logger.warning(f"Avtomatik backup siklida ogohlantirish: {e}")
             await asyncio.sleep(3600)
 
 
