@@ -25,8 +25,7 @@ def test_duanju_keyboards_rendering():
     duanju_btns = [btn for btn in buttons if btn.callback_data == "cat:duanju:0"]
     assert len(duanju_btns) == 1
     btn = duanju_btns[0]
-    assert "Vertikal Micro-Dramalar" in btn.text
-    assert "(15)" in btn.text
+    assert btn.text == "Vertikal Micro-Dramalar (Duanju / DramaBox) (15)"
     assert btn.icon_custom_emoji_id == kb.ICON_PHONE
 
 def test_autopilot_range_and_caption_parsing():

@@ -10,6 +10,7 @@ ICON_STATS = "6154657967317717391"     # Statistika (Green Chart)
 ICON_ACTION = "5368653135101310687"    # Kino / Dorama (Action)
 ICON_SERIES = "5431721976769027887"    # 📂 Seriallar / Kategoriyalar
 ICON_SPARKLE = "5451636889717062286"   # Ulashish (Sparkles)
+ICON_DICE = "5280816565657300091"      # 🎲 Premium 3D Dice (Tavsiya / Random)
 ICON_CROWN = "5431505596316665041"     # Admin / Premium (Crown)
 ICON_VIP = "5229011542011299168"       # VIP Yangi Ajoyib Crown
 ICON_BELL = "5258342814273513092"      # Bildirishnoma (Golden Bell)
@@ -123,7 +124,7 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
         InlineKeyboardButton(
             text="Tavsiya (Random)",
             callback_data="menu_random",
-            icon_custom_emoji_id=ICON_SPARKLE
+            icon_custom_emoji_id=ICON_DICE
         ),
         InlineKeyboardButton(
             text="Dorama Taklif Qilish",
@@ -414,13 +415,13 @@ def dorama_detail_kb(
         )
     )
 
-    # Agar tavsiya (random) bo'lsa, '🎲 Boshqa tavsiya' tugmasi
+    # Agar tavsiya (random) bo'lsa, 'Boshqa tavsiya' (🎲 Premium Dice) tugmasi
     if is_random:
         builder.row(
             InlineKeyboardButton(
-                text="🎲 Boshqa tavsiya",
+                text="Boshqa tavsiya",
                 callback_data="menu_random",
-                icon_custom_emoji_id=ICON_SPARKLE
+                icon_custom_emoji_id=ICON_DICE
             )
         )
         effective_back_cb = "menu_home"
@@ -764,7 +765,7 @@ def categories_hub_kb(counts: dict = None) -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
-            text=f"📱 Vertikal Micro-Dramalar (Duanju / DramaBox) ({counts.get('duanju', 0)})",
+            text=f"Vertikal Micro-Dramalar (Duanju / DramaBox) ({counts.get('duanju', 0)})",
             callback_data="cat:duanju:0",
             icon_custom_emoji_id=ICON_PHONE
         )

@@ -42,8 +42,10 @@ class TestRandomNavigationFlow(unittest.IsolatedAsyncioTestCase):
         )
 
         reroll_btn = extract_button_by_text(markup, "Boshqa tavsiya")
-        self.assertIsNotNone(reroll_btn, "Random detail view must include '🎲 Boshqa tavsiya' button")
+        self.assertIsNotNone(reroll_btn, "Random detail view must include 'Boshqa tavsiya' button")
         self.assertEqual(reroll_btn.callback_data, "menu_random", "Re-roll button must have callback_data='menu_random'")
+        self.assertEqual(reroll_btn.text, "Boshqa tavsiya", "Button text must not duplicate the unicode emoji")
+        self.assertEqual(reroll_btn.icon_custom_emoji_id, "5280816565657300091", "Re-roll must use premium 3D dice emoji")
 
         back_btn = extract_button_by_text(markup, "Orqaga")
         self.assertIsNotNone(back_btn, "Random detail view must include 'Orqaga' button")

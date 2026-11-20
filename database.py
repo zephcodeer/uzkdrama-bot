@@ -971,21 +971,25 @@ async def increment_views(dorama_id: int):
         await db.commit()
 
 
-async def get_random_dorama() -> dict | None:
-    """Tavsiya uchun tasodifiy ommabop dorama tanlaydi."""
+async def get_random_dorama(exclude_id: int | None = None) -> dict | None:
+    """Tavsiya uchun tasodifiy ommabop dorama tanlaydi (zarur bo'lsa joriysini istisno qiladi)."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("""
+        exclude_sql = f" AND id != {int(exclude_id)}" if exclude_id else ""
+
+        async with db.execute(f"""
             SELECT * FROM doramas 
             WHERE (total_episodes > 0 OR total_episodes IS NULL) AND poster_url != '' AND poster_url IS NOT NULL
+            {exclude_sql}
             ORDER BY RANDOM() LIMIT 1
         """) as cursor:
             row = await cursor.fetchone()
             if row:
                 return dict(row)
 
-        async with db.execute("""
+        async with db.execute(f"""
             SELECT * FROM doramas 
+            {f'WHERE id != {int(exclude_id)}' if exclude_id else ''}
             ORDER BY RANDOM() LIMIT 1
         """) as cursor:
             row = await cursor.fetchone()

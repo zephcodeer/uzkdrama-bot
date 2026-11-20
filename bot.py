@@ -67,7 +67,7 @@ from aiogram.types import (
     TelegramObject, CallbackQuery, Message, FSInputFile, ErrorEvent, BotCommand,
     BotCommandScopeChat, MenuButtonCommands, ReplyKeyboardRemove,
     InlineQuery, InlineQueryResultArticle, InputTextMessageContent,
-    InlineKeyboardMarkup, InlineKeyboardButton
+    InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 )
 
 
@@ -727,27 +727,43 @@ async def show_dorama_detail(
         try:
 
             if isinstance(target, CallbackQuery):
-
                 msg = target.message
-
                 if msg.photo:
-
-                    await msg.edit_caption(caption=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
-
-                    photo_sent = True
-
+                    is_same_dorama = bool(msg.caption and f"<code>{code}</code>" in msg.caption)
+                    if is_same_dorama:
+                        try:
+                            await msg.edit_caption(caption=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
+                            photo_sent = True
+                        except TelegramBadRequest as e:
+                            if "message is not modified" in str(e).lower():
+                                photo_sent = True
+                            else:
+                                raise
+                    else:
+                        # Boshqa dorama (🎲 Boshqa tavsiya yoki yangi dorama): posterni edit_media orqali yangilaymiz!
+                        try:
+                            await msg.edit_media(
+                                media=InputMediaPhoto(media=photo_input, caption=caption, parse_mode=ParseMode.HTML),
+                                reply_markup=markup
+                            )
+                            photo_sent = True
+                        except TelegramBadRequest as e:
+                            err_str = str(e).lower()
+                            if "message is not modified" in err_str:
+                                photo_sent = True
+                            else:
+                                try:
+                                    await msg.delete()
+                                except Exception:
+                                    pass
+                                await bot.send_photo(chat_id=user_id, photo=photo_input, caption=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
+                                photo_sent = True
                 else:
-
                     try:
-
                         await msg.delete()
-
                     except Exception:
-
                         pass
-
                     await bot.send_photo(chat_id=user_id, photo=photo_input, caption=caption, reply_markup=markup, parse_mode=ParseMode.HTML)
-
                     photo_sent = True
 
             else:
@@ -1071,7 +1087,26 @@ async def cb_menu_bookmarks(call: CallbackQuery):
 @router.message(Command("random"))
 @router.message(F.text.in_(["🎲 Tavsiya", "🎲 Tasodifiy", "Tavsiya (Random)", "🎲 Tavsiya (Random)"]))
 async def cb_menu_random(event: Message | CallbackQuery, bot: Bot):
-    d = await db.get_random_dorama()
+    curr_id = None
+    if isinstance(event, CallbackQuery) and event.message and event.message.reply_markup:
+        for row in event.message.reply_markup.inline_keyboard:
+            for btn in row:
+                if btn.callback_data and btn.callback_data.startswith("ep_page:"):
+                    try:
+                        curr_id = int(btn.callback_data.split(":")[1])
+                        break
+                    except Exception:
+                        pass
+                elif btn.callback_data and btn.callback_data.startswith("toggle_bookmark:"):
+                    try:
+                        curr_id = int(btn.callback_data.split(":")[1])
+                        break
+                    except Exception:
+                        pass
+            if curr_id:
+                break
+
+    d = await db.get_random_dorama(exclude_id=curr_id)
     if not d:
         if isinstance(event, CallbackQuery):
             await safe_answer(event, "Hozircha dorama topilmadi.", show_alert=True)
