@@ -538,8 +538,257 @@ async def send_admin_notification(
         logger.warning(f"Could not send admin notification: {e}")
 
 
+STATE_FILE = BASE_DIR / "scripts" / "autopilot_state.json"
+RESTRICTED_CHANNELS_FILE = BASE_DIR / "scripts" / "autopilot_restricted_channels.json"
+
+
+def load_sync_state() -> dict:
+    if STATE_FILE.exists():
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Error loading {STATE_FILE}: {e}")
+    return {}
+
+
+def save_sync_state(state: dict):
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"Error saving {STATE_FILE}: {e}")
+
+
+def update_channel_state(chat_id: int, msg_id: int):
+    state = load_sync_state()
+    cid_str = str(chat_id)
+    if msg_id > state.get(cid_str, 0):
+        state[cid_str] = msg_id
+        save_sync_state(state)
+
+
+async def warm_up_channel_entities(client: TelegramClient, target_ids: List[int]):
+    """Pre-warms Telethon entity cache so events.NewMessage never drops updates from unknown peers."""
+    logger.info(f"Warming up entity cache for {len(target_ids)} donor channels...")
+    warmed = 0
+    for idx, cid in enumerate(target_ids):
+        try:
+            await client.get_input_entity(cid)
+            warmed += 1
+        except Exception:
+            try:
+                await client.get_entity(cid)
+                warmed += 1
+            except Exception as e:
+                logger.debug(f"Could not warm entity for {cid}: {e}")
+        if (idx + 1) % 15 == 0:
+            await asyncio.sleep(1.0)
+    logger.info(f"Warm-up complete: {warmed}/{len(target_ids)} channels verified in entity cache.")
+
+
+async def process_donor_message(client: TelegramClient, msg: Message, dry_run: bool = False) -> bool:
+    """Core pipeline processing for a donor channel video message."""
+    text = msg.text or msg.message or ""
+    chat_id = msg.chat_id
+
+    # 1. Video Check
+    is_video, duration, w, h, size = get_video_attributes(msg)
+    if not is_video:
+        update_channel_state(chat_id, msg.id)
+        return False
+
+    chat = await msg.get_chat()
+    chat_title = getattr(chat, "title", "Channel") or ""
+    chat_username = (getattr(chat, "username", "") or "").lower()
+
+    # Micro-drama detection
+    is_micro = bool(
+        chat_username in ("drammaworld", "dramabox", "reelshort", "shortmax")
+        or getattr(chat, "id", 0) == -1002313267574
+        or "drama box" in chat_title.lower()
+        or RE_MICRO_DRAMA.search(text)
+        or (h > 0 and w > 0 and h > w)
+    )
+
+    # 2. Duration Guard
+    if duration > 0:
+        if is_micro:
+            if duration < 30:
+                logger.debug(f"Skipped ultra-short clip (<30s): {text[:40]}")
+                update_channel_state(chat_id, msg.id)
+                return False
+        elif duration < 90:
+            logger.debug(f"Skipped short/edit (<90s): {text[:40]}")
+            update_channel_state(chat_id, msg.id)
+            return False
+
+    # 3. Subtitle Check
+    if RE_SUBTITLE.search(text):
+        logger.debug(f"Skipped subtitle post: {text[:40]}")
+        update_channel_state(chat_id, msg.id)
+        return False
+
+    # 4. Mandatory Uzbek Dubbed indicator
+    if not (is_micro or RE_UZB_DUB.search(text)):
+        logger.debug(f"Skipped post lacking Uzbek dubbed indicator: {text[:40]}")
+        update_channel_state(chat_id, msg.id)
+        return False
+
+    # 5. Episode Parsing
+    ep_list = parse_episodes(text)
+    if not ep_list:
+        logger.debug(f"Could not parse episode number from: {text[:40]}")
+        update_channel_state(chat_id, msg.id)
+        return False
+
+    if len(ep_list) > 1:
+        is_micro = True
+
+    # 6. Title Extraction
+    raw_title = clean_dorama_title(text)
+    if not raw_title or len(raw_title) < 2:
+        update_channel_state(chat_id, msg.id)
+        return False
+
+    quality = f"{h}p" if h in (480, 720, 1080) else ("1080p" if h > 720 else "720p")
+
+    logger.info(
+        f"🎬 DETECTED: '{raw_title}' Ep {ep_list} ({quality}, {duration}s, {size}b, micro={is_micro}) from '{chat_title}'"
+    )
+
+    if dry_run:
+        logger.info(f"[DRY-RUN] Forward to storage & ingest verified. Skipped DB write.")
+        update_channel_state(chat_id, msg.id)
+        return True
+
+    # 7. DB Pre-resolution & Duplicate Guard
+    new_qual_rank = QUALITY_RANKS.get(quality.lower(), 1)
+    needed_eps = []
+    async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
+        dorama_id = await find_or_create_dorama(db, raw_title, is_micro_drama=is_micro)
+        if not dorama_id:
+            logger.warning(f"Could not resolve or create dorama for '{raw_title}'")
+            update_channel_state(chat_id, msg.id)
+            return False
+
+        for ep_num in ep_list:
+            async with db.execute(
+                "SELECT channel_message_id, quality FROM episodes WHERE dorama_id = ? AND episode_number = ?",
+                (dorama_id, ep_num),
+            ) as cur:
+                row = await cur.fetchone()
+                if not row or not row[0] or row[0] <= 0:
+                    needed_eps.append(ep_num)
+                else:
+                    existing_qual = row[1] or "720p"
+                    existing_qual_rank = QUALITY_RANKS.get(existing_qual.lower(), 1)
+                    if new_qual_rank > existing_qual_rank:
+                        needed_eps.append(ep_num)
+
+    if not needed_eps:
+        logger.info(
+            f"⏭ [DUPLICATE BLOCKED] '{raw_title}' Ep {ep_list} already exists in DB with equal/better quality ({quality}) from channel '{chat_title}'."
+        )
+        update_channel_state(chat_id, msg.id)
+        return False
+
+    # 8. Cloud-to-Cloud Forwarding
+    try:
+        fwd = await client.forward_messages(STORAGE_CHANNEL_ID, msg)
+        storage_msg = fwd if isinstance(fwd, Message) else fwd[0]
+        storage_msg_id = storage_msg.id
+        logger.info(f"Cloud Forwarded to Storage -> msg_id={storage_msg_id} (Needed eps: {needed_eps})")
+    except ChatForwardsRestrictedError:
+        logger.warning(f"Skipped restricted channel '{chat_title}': Forwarding disabled.")
+        try:
+            restricted = {}
+            if RESTRICTED_CHANNELS_FILE.exists():
+                with open(RESTRICTED_CHANNELS_FILE, "r", encoding="utf-8") as rf:
+                    restricted = json.load(rf)
+            restricted[str(chat_id)] = {"title": chat_title, "username": chat_username}
+            with open(RESTRICTED_CHANNELS_FILE, "w", encoding="utf-8") as rf:
+                json.dump(restricted, rf, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        update_channel_state(chat_id, msg.id)
+        return False
+    except FloodWaitError as e:
+        logger.warning(f"Telegram FloodWait: waiting {e.seconds} seconds...")
+        await asyncio.sleep(e.seconds)
+        return False
+    except Exception as e:
+        logger.error(f"Forwarding exception: {e}")
+        return False
+
+    # 9. Ingest into DB
+    ingested = await ingest_episodes_to_db(dorama_id, needed_eps, storage_msg_id, quality, size)
+    update_channel_state(chat_id, msg.id)
+    if not ingested:
+        return False
+
+    # 10. Instant Admin Notification
+    try:
+        async with aiosqlite.connect(str(DB_PATH)) as db:
+            async with db.execute(
+                "SELECT title, code FROM doramas WHERE id = ?", (dorama_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                d_title = row[0] if row else raw_title
+                d_code = row[1] if row else dorama_id
+
+        await send_admin_notification(
+            title=d_title,
+            code=d_code,
+            ep_list=ingested,
+            quality=quality,
+            file_size=size,
+            chat_title=chat_title,
+            storage_msg_id=storage_msg_id,
+        )
+    except Exception as e:
+        logger.warning(f"Admin notification step skipped: {e}")
+
+    return True
+
+
+async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int]):
+    """Background incremental sentinel: checks channels for any missed episodes during downtime with anti-flood throttling."""
+    logger.info("Initializing Staggered Catchup Sentinel...")
+    while True:
+        try:
+            state = load_sync_state()
+            for cid in target_ids:
+                cid_str = str(cid)
+                last_msg_id = state.get(cid_str, 0)
+                try:
+                    if last_msg_id > 0:
+                        # Fetch messages newer than last_msg_id
+                        async for msg in client.iter_messages(cid, min_id=last_msg_id, limit=5, reverse=True):
+                            await process_donor_message(client, msg)
+                    else:
+                        # Cold start: capture latest msg id to anchor future queries
+                        async for msg in client.iter_messages(cid, limit=1):
+                            update_channel_state(cid, msg.id)
+                except FloodWaitError as fe:
+                    logger.warning(f"Catchup FloodWait: sleeping {fe.seconds + 2}s")
+                    await asyncio.sleep(fe.seconds + 2)
+                except Exception as ex:
+                    logger.debug(f"Catchup check error for channel {cid}: {ex}")
+                
+                # Polite throttle: 2.0s pause between channel history queries to stay 100% flood-free
+                await asyncio.sleep(2.0)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"Staggered catchup loop error: {e}")
+        
+        # Periodic sync every 20 minutes
+        await asyncio.sleep(1200)
+
+
 async def run_listener(dry_run: bool = False):
-    """Production Telethon event listener for Kdrama channels."""
+    """Production Telethon event listener for Kdrama channels with Staggered Catchup Sentinel."""
     logger.info("Connecting Telethon client with active session...")
     client = TelegramClient(SESSION_PATH, API_ID, API_HASH)
     await client.connect()
@@ -562,152 +811,18 @@ async def run_listener(dry_run: bool = False):
                 target_ids.append(cid)
     logger.info(f"Loaded {len(target_ids)} filtered Kdrama donor channels.")
 
+    # 1. Warm up entity cache for reliable event dispatch
+    await warm_up_channel_entities(client, target_ids)
+
+    # 2. Register real-time push event listener
     @client.on(events.NewMessage(chats=target_ids))
     async def handle_new_media(event: events.NewMessage.Event):
-        msg = event.message
-        text = msg.text or msg.message or ""
+        await process_donor_message(client, event.message, dry_run=dry_run)
 
-        # 1. Video Check
-        is_video, duration, w, h, size = get_video_attributes(msg)
-        if not is_video:
-            return
+    # 3. Start background staggered catchup sentinel
+    track_background_task(staggered_catchup_sync(client, target_ids))
 
-        chat = await event.get_chat()
-        chat_title = getattr(chat, "title", "Channel") or ""
-        chat_username = (getattr(chat, "username", "") or "").lower()
-
-        # Micro-drama detection (DramaBox, ReelShort, ShortMax, 9:16 vertical, @drammaworld)
-        is_micro = bool(
-            chat_username in ("drammaworld", "dramabox", "reelshort", "shortmax")
-            or getattr(chat, "id", 0) == -1002313267574
-            or "drama box" in chat_title.lower()
-            or RE_MICRO_DRAMA.search(text)
-            or (h > 0 and w > 0 and h > w)  # 9:16 vertical format
-        )
-
-        # 2. Duration Guard: Skip shorts/edits (<30s for micro-dramas, <90s for others)
-        if duration > 0:
-            if is_micro:
-                if duration < 30:
-                    logger.debug(f"Skipped ultra-short clip (<30s): {text[:40]}")
-                    return
-            elif duration < 90:
-                logger.debug(f"Skipped short/edit (<90s): {text[:40]}")
-                return
-
-        # 3. Subtitle Check (Zero Subtitle Policy)
-        if RE_SUBTITLE.search(text):
-            logger.debug(f"Skipped subtitle post: {text[:40]}")
-            return
-
-        # 4. Mandatory Uzbek Dubbed indicator (bypassed for verified micro-drama sources)
-        if not (is_micro or RE_UZB_DUB.search(text)):
-            logger.debug(f"Skipped post lacking Uzbek dubbed indicator: {text[:40]}")
-            return
-
-        # 5. Episode Parsing (handles ranges like '1-11', '1-15', '12-25 qismlar')
-        ep_list = parse_episodes(text)
-        if not ep_list:
-            logger.debug(f"Could not parse episode number from: {text[:40]}")
-            return
-
-        if len(ep_list) > 1:
-            is_micro = True
-
-        # 6. Title Extraction
-        raw_title = clean_dorama_title(text)
-        if not raw_title or len(raw_title) < 2:
-            return
-
-        quality = (
-            f"{h}p" if h in (480, 720, 1080) else ("1080p" if h > 720 else "720p")
-        )
-
-        logger.info(
-            f"🎬 DETECTED: '{raw_title}' Ep {ep_list} ({quality}, {duration}s, {size}b, micro={is_micro}) from '{chat_title}'"
-        )
-
-        if dry_run:
-            logger.info(f"[DRY-RUN] Forward to storage & ingest verified. Skipped DB write.")
-            return
-
-        # 7. DB Pre-resolution & Pre-Forward Duplicate Guard (Prevents redundant files in storage)
-        new_qual_rank = QUALITY_RANKS.get(quality.lower(), 1)
-        needed_eps = []
-        async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
-            dorama_id = await find_or_create_dorama(db, raw_title, is_micro_drama=is_micro)
-            if not dorama_id:
-                logger.warning(f"Could not resolve or create dorama for '{raw_title}'")
-                return
-
-            for ep_num in ep_list:
-                async with db.execute(
-                    "SELECT channel_message_id, quality FROM episodes WHERE dorama_id = ? AND episode_number = ?",
-                    (dorama_id, ep_num),
-                ) as cur:
-                    row = await cur.fetchone()
-                    if not row or not row[0] or row[0] <= 0:
-                        needed_eps.append(ep_num)
-                    else:
-                        existing_qual = row[1] or "720p"
-                        existing_qual_rank = QUALITY_RANKS.get(existing_qual.lower(), 1)
-                        # Strict upgrade only: accept if incoming quality is STRICTLY HIGHER (e.g. 720p -> 1080p)
-                        if new_qual_rank > existing_qual_rank:
-                            needed_eps.append(ep_num)
-
-        if not needed_eps:
-            logger.info(
-                f"⏭ [DUPLICATE BLOCKED] '{raw_title}' Ep {ep_list} already exists in DB with equal/better quality ({quality}) from channel '{chat_title}'. Skipped forward & notifications."
-            )
-            return
-
-        # 8. Cloud-to-Cloud Forwarding (Only runs if at least 1 episode is actually needed!)
-        try:
-            fwd = await client.forward_messages(STORAGE_CHANNEL_ID, msg)
-            storage_msg = fwd if isinstance(fwd, Message) else fwd[0]
-            storage_msg_id = storage_msg.id
-            logger.info(f"Cloud Forwarded to Storage -> msg_id={storage_msg_id} (Needed eps: {needed_eps})")
-        except ChatForwardsRestrictedError:
-            logger.warning(
-                f"Skipped restricted channel '{chat_title}': Forwarding disabled (protected SSD/traffic)."
-            )
-            return
-        except FloodWaitError as e:
-            logger.warning(f"Telegram FloodWait: waiting {e.seconds} seconds...")
-            await asyncio.sleep(e.seconds)
-            return
-        except Exception as e:
-            logger.error(f"Forwarding exception: {e}")
-            return
-
-        # 9. Ingest into DB (Only ingest the episodes that were actually needed)
-        ingested = await ingest_episodes_to_db(dorama_id, needed_eps, storage_msg_id, quality, size)
-        if not ingested:
-            return
-
-        # 10. Instant Admin Notification (Only notifies for the episodes that were newly added)
-        try:
-            async with aiosqlite.connect(str(DB_PATH)) as db:
-                async with db.execute(
-                    "SELECT title, code FROM doramas WHERE id = ?", (dorama_id,)
-                ) as cur:
-                    row = await cur.fetchone()
-                    d_title = row[0] if row else raw_title
-                    d_code = row[1] if row else dorama_id
-
-            await send_admin_notification(
-                title=d_title,
-                code=d_code,
-                ep_list=ingested,
-                quality=quality,
-                file_size=size,
-                chat_title=chat_title,
-                storage_msg_id=storage_msg_id,
-            )
-        except Exception as e:
-            logger.warning(f"Admin notification step skipped: {e}")
-
-    logger.info("⚡ Autopilot Kdrama Listener is LIVE and actively monitoring...")
+    logger.info("⚡ Autopilot Kdrama Listener is LIVE and actively monitoring with Hybrid Sentinel...")
     while True:
         try:
             if not client.is_connected():

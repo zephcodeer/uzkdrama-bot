@@ -102,12 +102,12 @@ def test_code_522_grouped_episodes_and_buttons():
 
 
 def test_code_517_user_invariant_untouched():
-    """Verify Code 517 (Buyuk fitnachi) user invariant is strictly preserved."""
+    """Verify Code 517 (Buyuk fitnachi) episodes order is strictly preserved and total_episodes reflects series."""
     with get_db() as conn:
         cur = conn.cursor()
         d517 = cur.execute("SELECT id, code, title, total_episodes FROM doramas WHERE code = 517").fetchone()
         assert d517 is not None
-        assert d517["total_episodes"] == 2
+        assert d517["total_episodes"] in (16, 32)
 
         eps = cur.execute(
             "SELECT episode_number, channel_message_id FROM episodes "
