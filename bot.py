@@ -1016,6 +1016,10 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
             await db.save_last_watched(user_id, dorama_id, watched_episode)
         except Exception:
             logger.exception("Oxirgi ko'rilgan qismni saqlashda xatolik")
+        try:
+            asyncio.create_task(db.check_and_reward_qualified_referral(user_id, bot))
+        except Exception:
+            logger.exception("Referralni tekshirish va taqdirlashda xatolik")
 
 
 
@@ -1580,6 +1584,81 @@ async def handle_vip_trigger(message: Message, state: FSMContext):
         f"{ce('user')} Sizning holatingiz: <b>{vip_status_text}</b>"
     )
     await message.answer(text, reply_markup=kb.vip_plans_kb(), parse_mode=ParseMode.HTML)
+
+
+def format_flash_promo_content(user_id: int, first_name: str, current_refs: int, remaining_slots: int = 50, winners_count: int = 0) -> str:
+    user_ref_link = f"https://t.me/uzkdrama_app?start=ref_{user_id}"
+
+    e_fire = '<tg-emoji emoji-id="5380026930055653272">🔥</tg-emoji>'
+    e_vip = '<tg-emoji emoji-id="5379793580187495461">👑</tg-emoji>'
+    e_lightning = '<tg-emoji emoji-id="6105092060446986556">⚡️</tg-emoji>'
+    e_pin = '<tg-emoji emoji-id="5397782960512444700">📌</tg-emoji>'
+    e_chart = '<tg-emoji emoji-id="6032808241891644148">📊</tg-emoji>'
+    e_link = '<tg-emoji emoji-id="6105016735310547954">🔗</tg-emoji>'
+
+    if current_refs < 5:
+        needed = 5 - current_refs
+        status_line = f"Yana {needed} ta qoʻshing va 1 oylik VIP sizniki!"
+    elif current_refs < 8:
+        needed = 8 - current_refs
+        status_line = f"Yana {needed} ta qoʻshing va 2 oylik VIP sizniki!"
+    elif current_refs < 10:
+        needed = 10 - current_refs
+        status_line = f"Yana {needed} ta qoʻshing va 3 oylik VIP sizniki!"
+    else:
+        status_line = "Siz maksimal VIP darajasiga yetdingiz!"
+
+    winners_text = f"\n🏆 <b>Aksiya orqali VIP olganlar:</b> {winners_count} ta inson!" if winners_count > 0 else ""
+
+    text = (
+        f'{e_fire} <b>Faqat 1 kunlik Super Aksiya: Bepul VIP oling!</b>\n\n'
+        'Doʻstlaringizni taklif qiling va VIP ga ega boʻling:\n'
+        f'<blockquote>{e_vip} <b>5 ta doʻst</b> ➔ 1 oylik VIP\n'
+        f'{e_vip} <b>8 ta doʻst</b> ➔ 2 oylik VIP\n'
+        f'{e_vip} <b>10 ta doʻst</b> ➔ 3 oylik VIP</blockquote>\n\n'
+        f'{e_lightning} <b>Faqat 50 kishiga!</b> (Hozircha 50 tadan {remaining_slots} ta qoldi){winners_text}\n\n'
+        f'{e_pin} <b>Shart:</b> Doʻstingiz botga kiradi, kanalga aʼzo boʻladi va xohlagan 1 ta qismni koʻradi.\n\n'
+        f'{e_chart} <b>Sizda:</b> {current_refs} ta doʻst | <i>{status_line}</i>\n\n'
+        f'{e_link} <b>Sizning shaxsiy havolangiz:</b>\n'
+        f'<code>{user_ref_link}</code>'
+    )
+    return text
+
+
+@router.callback_query(F.data == "menu_flash_promo")
+async def cb_menu_flash_promo(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    user_id = call.from_user.id
+    user = await db.get_user(user_id)
+    current_refs = user.get("referrals_count", 0) if user else 0
+
+    slots_str = await db.get_system_setting("promo_remaining_slots")
+    remaining_slots = int(slots_str) if slots_str and slots_str.isdigit() else 50
+    winners_str = await db.get_system_setting("promo_winners_count")
+    winners_count = int(winners_str) if winners_str and winners_str.isdigit() else 0
+
+    text = format_flash_promo_content(user_id, call.from_user.first_name or "Foydalanuvchi", current_refs, remaining_slots, winners_count)
+    await render_text_screen(call, text, reply_markup=kb.flash_promo_kb(user_id))
+    await safe_answer(call)
+
+
+@router.callback_query(F.data == "promo_check_my_refs")
+async def cb_promo_check_my_refs(call: CallbackQuery):
+    user_id = call.from_user.id
+    user = await db.get_user(user_id)
+    current_refs = user.get("referrals_count", 0) if user else 0
+
+    slots_str = await db.get_system_setting("promo_remaining_slots")
+    remaining_slots = int(slots_str) if slots_str and slots_str.isdigit() else 50
+    winners_str = await db.get_system_setting("promo_winners_count")
+    winners_count = int(winners_str) if winners_str and winners_str.isdigit() else 0
+
+    text = format_flash_promo_content(user_id, call.from_user.first_name or "Foydalanuvchi", current_refs, remaining_slots, winners_count)
+    try:
+        await call.message.edit_text(text, reply_markup=kb.flash_promo_kb(user_id), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+        await safe_answer(call, f"✅ Hisobingiz yangilandi: {current_refs} ta do'st!", show_alert=False)
+    except Exception:
+        await safe_answer(call, f"Hisobingiz: {current_refs} ta do'st!", show_alert=True)
 
 
 @router.callback_query(F.data == "menu_vip")
@@ -2948,6 +3027,61 @@ async def cmd_admin_broadcast_premiere(message: Message, bot: Bot):
         f"🎉 <b>PREMYERA POSTI MUVAFFAQIYATLI YUBORILDI!</b>\n\n"
         f"✅ Yetkazildi: <b>{sent_cnt} ta foydalanuvchiga</b>\n"
         f"⚠️ Yetkazilmadi (bloklaganlar): <b>{fail_cnt} ta</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+
+@router.message(Command("broadcast_vip_promo", "send_vip_promo"))
+async def cmd_admin_broadcast_vip_promo(message: Message, bot: Bot):
+    if not is_admin_user(message.from_user.id):
+        await message.answer(f"{ce('warning')} Siz admin emassiz!")
+        return
+    status_msg = await message.answer("🚀 <b>VIP Aksiya barcha foydalanuvchilarga tarqatilmoqda...</b>", parse_mode=ParseMode.HTML)
+
+    user_ids = await db.get_all_user_ids()
+    sent_cnt = 0
+    fail_cnt = 0
+
+    slots_str = await db.get_system_setting("promo_remaining_slots")
+    remaining_slots = int(slots_str) if slots_str and slots_str.isdigit() else 50
+    winners_str = await db.get_system_setting("promo_winners_count")
+    winners_count = int(winners_str) if winners_str and winners_str.isdigit() else 0
+
+    for idx, uid in enumerate(user_ids):
+        try:
+            user = await db.get_user(uid)
+            current_refs = user.get("referrals_count", 0) if user else 0
+            text = format_flash_promo_content(
+                user_id=uid,
+                first_name=user.get("first_name", "Foydalanuvchi") if user else "Foydalanuvchi",
+                current_refs=current_refs,
+                remaining_slots=remaining_slots,
+                winners_count=winners_count
+            )
+            markup = kb.flash_promo_kb(uid)
+            await bot.send_message(uid, text, reply_markup=markup, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+            sent_cnt += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            fail_cnt += 1
+            await asyncio.sleep(0.02)
+
+        if (idx + 1) % 25 == 0 or (idx + 1) == len(user_ids):
+            try:
+                await status_msg.edit_text(
+                    f"🚀 <b>VIP Aksiya tarqatilmoqda:</b> {idx + 1}/{len(user_ids)}\n"
+                    f"✅ Yuborildi: <b>{sent_cnt} ta</b>\n"
+                    f"⚠️ Bloklagan/Xato: <b>{fail_cnt} ta</b>",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                pass
+
+    await status_msg.edit_text(
+        f"🎉 <b>VIP AKSIYA BARCHA FOYDALANUVCHILARGA TARQATILDI!</b>\n\n"
+        f"✅ Yetkazildi: <b>{sent_cnt} ta foydalanuvchiga</b>\n"
+        f"⚠️ Yetkazilmadi (bloklaganlar): <b>{fail_cnt} ta</b>\n"
+        f"👥 Jami qamrov: <b>{len(user_ids)} ta</b>",
         parse_mode=ParseMode.HTML
     )
 

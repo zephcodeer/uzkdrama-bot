@@ -288,6 +288,79 @@ async def init_db():
     await sync_views_to_doramas_db()
 
 
+async def check_and_reward_qualified_referral(referee_id: int, bot=None):
+    """
+    Do'sti dorama ko'rganida referalni aktiv/tasdiqlangan deb hisoblaydi
+    va agar taklif qiluvchi 5, 8, 10 ta referralga yetsa, avtomatik VIP beradi!
+    """
+    try:
+        async with aiosqlite.connect(USER_DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS promo_qualified_referrals (
+                    referee_id INTEGER PRIMARY KEY,
+                    inviter_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            await db.commit()
+
+            async with db.execute("SELECT referee_id FROM promo_qualified_referrals WHERE referee_id = ?", (referee_id,)) as cur:
+                already_qualified = await cur.fetchone()
+            if already_qualified:
+                return
+
+            async with db.execute("SELECT invited_by FROM users WHERE tg_id = ?", (referee_id,)) as cur:
+                row = await cur.fetchone()
+            if not row or not row[0]:
+                return
+
+            inviter_id = row[0]
+            await db.execute("INSERT INTO promo_qualified_referrals (referee_id, inviter_id) VALUES (?, ?)", (referee_id, inviter_id))
+            await db.commit()
+
+            async with db.execute("SELECT COUNT(*) FROM promo_qualified_referrals WHERE inviter_id = ?", (inviter_id,)) as cur:
+                count_row = await cur.fetchone()
+                qualified_count = count_row[0] if count_row else 0
+
+        # Reward tiers check
+        reward_days = 0
+        tier_label = ""
+        if qualified_count == 5:
+            reward_days = 30
+            tier_label = "1 oylik"
+        elif qualified_count == 8:
+            reward_days = 60
+            tier_label = "2 oylik"
+        elif qualified_count == 10:
+            reward_days = 90
+            tier_label = "3 oylik"
+
+        if reward_days > 0:
+            await grant_vip(inviter_id, days=reward_days)
+            slots_str = await get_system_setting("promo_remaining_slots", "50")
+            rem_slots = max(0, int(slots_str) - 1)
+            await set_system_setting("promo_remaining_slots", str(rem_slots))
+            win_str = await get_system_setting("promo_winners_count", "0")
+            await set_system_setting("promo_winners_count", str(int(win_str) + 1))
+
+            if bot:
+                try:
+                    await bot.send_message(
+                        chat_id=inviter_id,
+                        text=(
+                            f"🎉 <b>TABRIKLAYMIZ! SIZ VIP OBUNA YUTIB OLDINGIZ!</b>\n\n"
+                            f"👑 Siz taklif qilgan <b>{qualified_count} ta doʻstingiz</b> botda dorama tomosha qildi va faol aʼzoga aylandi!\n\n"
+                            f"🎁 Sizga <b>{tier_label} VIP obuna</b> muvaffaqiyatli sovgʻa qilindi!\n"
+                            f"Endi barcha doramalarni reklamasiz, qulflarsiz va 1080p Full HD sifatda tomosha qilishingiz mumkin."
+                        ),
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning("check_and_reward_qualified_referral xatosi: %s", e)
+
+
 # --- Tizim Sozlamalari va Bepul Aksiya Rejimi (System Settings & Promo Mode) ---
 
 async def get_system_setting(key: str, default: str = "") -> str:

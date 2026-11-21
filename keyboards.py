@@ -142,6 +142,15 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
             )
         )
 
+    # 1 Kunlik VIP Aksiya (50 ta joy)
+    builder.row(
+        InlineKeyboardButton(
+            text="🔥 1 Kunlik VIP Aksiya (50 ta joy)",
+            callback_data="menu_flash_promo",
+            icon_custom_emoji_id="5380026930055653272"
+        )
+    )
+
     vip_label = "Aksiya: Barcha Qismlar Bepul!" if is_promo else "VIP A'zolik (Qulflarsiz)"
     vip_icon = ICON_GIFT if is_promo else ICON_VIP
     builder.row(
@@ -152,6 +161,34 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
         )
     )
 
+    return builder.as_markup()
+
+def flash_promo_kb(user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    user_ref_link = f"https://t.me/uzkdrama_app?start=ref_{user_id}"
+    share_text = f"Koreys seriallarini reklamasiz va qulay tomosha qilish uchun ajoyib bot: {user_ref_link}"
+    share_url = f"https://t.me/share/url?url={quote(user_ref_link)}&text={quote(share_text)}"
+    builder.row(
+        InlineKeyboardButton(
+            text="🚀 Do'stlarga yuborish",
+            url=share_url,
+            icon_custom_emoji_id="6105016735310547954"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="📊 Mening hisobim",
+            callback_data="promo_check_my_refs",
+            icon_custom_emoji_id="6032808241891644148"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Bosh Menyu",
+            callback_data="menu_home",
+            icon_custom_emoji_id=ICON_ARROW_LEFT
+        )
+    )
     return builder.as_markup()
 
 def promo_free_kb() -> InlineKeyboardMarkup:
