@@ -92,24 +92,31 @@ API_ID = getattr(config, "API_ID", 2040)
 API_HASH = getattr(config, "API_HASH", "b18441a1ff607e10a989891a5462e627")
 DONOR_FILTERED_PATH = BASE_DIR / "donor_channels_filtered.json"
 
-# Strict Subtitle Regex (Latin & Cyrillic, with prefixes/suffixes)
+# Strict Subtitle Regex (Latin & Cyrillic, with prefixes/suffixes & known sub channels)
 RE_SUBTITLE = re.compile(
-    r"(?:^|[^\w])(?:hard|soft)?(?:sub|subtitr[a-z]*|subtitles?|sublar|саб[ыа-я]*|субтитр[а-я]*)(?:[^\w]|$)",
+    r"(?:^|[^a-zA-Z0-9а-яА-ЯёЁ])(?:hard|soft)?(?:sub(?:lar)?|subtitr[a-z]*|subtitles?|саб[ыа-я]*|субтитр[а-я]*|uzbsub[0-9]*|uzsub[0-9]*|seoulland|redsky)(?:[^a-zA-Z0-9а-яА-ЯёЁ]|$)",
     re.IGNORECASE,
 )
 
 # Strict Uzbek Dubbed Indicators (Latin, Cyrillic, All Apostrophe variants, Known Studio tags)
 RE_UZB_DUB = re.compile(
-    r"(?:o['ʻ`’ʼ]?zbek\s*tilida|uzbek\s*tilida|uzb\s*tilida|o['ʻ`’ʼ]?zbekcha|uzbekcha|dublyaj|tarjima|"
+    r"(?:o['ʻ`’ʼ]?zbek\s*tilida|uzbek\s*tilida|uzb\s*tilida|o['ʻ`’ʼ]?zbekcha|uzbekcha|dublyaj|tarjima\s*(?:kino|serial|dorama)?|"
     r"ўзбек\s*тилида|узбек\s*тилида|ўзбекча|узбекча|дубляж|таржима|"
+    r"ovoz\s*berild[i-z]*|tomonidan\s*ovoz|"
     r"#choson_tv|#minxo_tv|#souls_studio|#idub|#iduptv|#salomtv|#af_tv|#sevar_studio|#uzdub|#dramma_uzbdub|"
-    r"dramabox|reelshort|shortmax|duanju|vertikal|#dramabox|#reelshort|#shortmax|#duanju|#vertikal|@drammaworld)",
+    r"#tarjima_serial|#tarjima_kino)",
     re.IGNORECASE,
 )
 
 # Micro-Drama / Duanju Platform & Keyword Identifier
 RE_MICRO_DRAMA = re.compile(
     r"\b(?:dramabox|reelshort|shortmax|duanju|vertikal|micro[- ]?drama)\b",
+    re.IGNORECASE,
+)
+
+# Title prefix stripper (e.g. 'Drama nomi: Qonli gul', 'Drama Box: X', 'Dorama: Y', 'Nomi: Z')
+RE_TITLE_PREFIX = re.compile(
+    r"^(?:dorama|drama\s*box|drama|reelshort|shortmax|duanju|serial|kino|film|nomi|дорама|драма)\s*(?:nomi|номи)?\s*[:|-]?\s*",
     re.IGNORECASE,
 )
 
@@ -213,7 +220,10 @@ def parse_episodes(text: str) -> Optional[List[int]]:
 
 
 def clean_dorama_title(text: str) -> str:
-    """Extracts authentic dorama title, skipping boilerplate headers, platform tags and emojies."""
+    """Extracts authentic dorama title, stripping markdown formatting, label prefixes, boilerplate headers, and emojies."""
+    if not text:
+        return ""
+
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return ""
@@ -222,26 +232,30 @@ def clean_dorama_title(text: str) -> str:
     for line in lines[:3]:
         # Strip hashtags, channel mentions, and square brackets
         cleaned = re.sub(r"#\w+|@\w+|\[.*?\]", "", line).strip()
-        # Strip emojies and decorative symbols, keeping apostrophes and hyphens
+        # Strip markdown syntax: __text__, **text**, ~~text~~, `text`
+        cleaned = re.sub(r"[_*~`]+", " ", cleaned).strip()
+        # Strip emojies, variation selectors, and decorative symbols
         cleaned = re.sub(
-            r"[\U00010000-\U0010ffff\u2000-\u3300•*►«»|]+",
+            r"[\U00010000-\U0010ffff\u2000-\u3300\ufe00-\ufe0f•*►«»|“”]+",
             " ",
             cleaned,
         ).strip()
+        # Strip label prefixes (e.g. 'Drama nomi:', 'Dorama nomi:', 'Nomi:')
+        cleaned = RE_TITLE_PREFIX.sub("", cleaned).strip()
+
         if cleaned and not RE_BOILERPLATE.search(cleaned):
             candidate = cleaned
             break
 
     if not candidate:
         candidate = lines[0]
+        candidate = re.sub(r"#\w+|@\w+|\[.*?\]", "", candidate).strip()
+        candidate = re.sub(r"[_*~`]+", " ", candidate).strip()
+        candidate = re.sub(r"[\U00010000-\U0010ffff\u2000-\u3300\ufe00-\ufe0f•*►«»|“”]+", " ", candidate).strip()
+        candidate = RE_TITLE_PREFIX.sub("", candidate).strip()
 
-    # Strip micro-drama platform prefixes (e.g. 'Drama Box: Title', 'DramaBox - Title')
-    candidate = re.sub(
-        r"^(?:drama\s*box|reelshort|shortmax|duanju)\s*[:|-]?\s*",
-        "",
-        candidate,
-        flags=re.I,
-    ).strip()
+    # Re-apply prefix stripping in case of nested labels
+    candidate = RE_TITLE_PREFIX.sub("", candidate).strip()
 
     # Remove bracketed ranges (e.g. '(1-20)')
     candidate = re.sub(
@@ -270,16 +284,16 @@ def clean_dorama_title(text: str) -> str:
         candidate,
         flags=re.I,
     )
-    candidate = re.sub(r"\s+", " ", candidate).strip(" -–—:/|\"'«»")
+    candidate = re.sub(r"\s+", " ", candidate).strip(" _*~`-–—:/|\"'«»“”")
     return candidate
 
 
-async def find_or_create_dorama(
+async def find_dorama_id(
     db: aiosqlite.Connection,
     raw_title: str,
     is_micro_drama: bool = False,
 ) -> Optional[int]:
-    """High-accuracy anti-collision dorama lookup or safe creation with unique slug."""
+    """High-accuracy anti-collision dorama lookup."""
     clean_target = clean_dorama_title(raw_title)
     if not clean_target or len(clean_target) < 2:
         return None
@@ -346,11 +360,25 @@ async def find_or_create_dorama(
             await db.commit()
         return best_match_id
 
-    # Create NEW dorama with safe unique slug and next available code
-    async with db.execute("SELECT MAX(code) FROM doramas") as cur:
-        row = await cur.fetchone()
-        max_code = (row[0] or 500) if row else 500
-        new_code = max_code + 1
+    return None
+
+
+async def create_new_dorama(
+    db: aiosqlite.Connection,
+    raw_title: str,
+    is_micro_drama: bool = False,
+) -> Optional[int]:
+    """Safely creates a new dorama with collision-proof unique code and unique slug."""
+    clean_target = clean_dorama_title(raw_title)
+    if not clean_target or len(clean_target) < 2:
+        return None
+
+    # Safe code allocation
+    async with db.execute("SELECT code FROM doramas WHERE code IS NOT NULL") as cur:
+        existing_codes = set(r[0] for r in await cur.fetchall())
+    new_code = max(existing_codes, default=500) + 1
+    while new_code in existing_codes:
+        new_code += 1
 
     clean_name = clean_target.title()
     base_slug = slugify(clean_name) or f"dorama-{new_code}"
@@ -386,6 +414,18 @@ async def find_or_create_dorama(
             f"✨ Created NEW Dorama [Code {new_code}] '{clean_name}' (ID={new_id}, slug='{slug}', cat='{category}')"
         )
         return new_id
+
+
+async def find_or_create_dorama(
+    db: aiosqlite.Connection,
+    raw_title: str,
+    is_micro_drama: bool = False,
+) -> Optional[int]:
+    """Backward compatibility wrapper."""
+    d_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro_drama)
+    if d_id:
+        return d_id
+    return await create_new_dorama(db, raw_title, is_micro_drama=is_micro_drama)
 
 
 async def ingest_episodes_to_db(
@@ -602,20 +642,24 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
     chat_title = getattr(chat, "title", "Channel") or ""
     chat_username = (getattr(chat, "username", "") or "").lower()
 
-    # Micro-drama detection
-    is_micro = bool(
-        chat_username in ("drammaworld", "dramabox", "reelshort", "shortmax")
-        or getattr(chat, "id", 0) == -1002313267574
-        or "drama box" in chat_title.lower()
-        or RE_MICRO_DRAMA.search(text)
-        or (h > 0 and w > 0 and h > w)
-    )
+    # Strict Micro-drama detection: MUST be vertical and short (<15m) OR explicit duanju keyword
+    is_vertical = bool(h > 0 and w > 0 and h > w)
+    has_micro_kw = bool(RE_MICRO_DRAMA.search(text))
+
+    if duration > 900:  # Any video > 15 minutes is a standard TV drama or movie, NEVER a micro-drama!
+        is_micro = False
+    elif is_vertical and duration <= 600:
+        is_micro = True
+    elif has_micro_kw and duration <= 900:
+        is_micro = True
+    else:
+        is_micro = False
 
     # 2. Duration Guard
     if duration > 0:
         if is_micro:
-            if duration < 30:
-                logger.debug(f"Skipped ultra-short clip (<30s): {text[:40]}")
+            if duration < 20:
+                logger.debug(f"Skipped ultra-short clip (<20s): {text[:40]}")
                 update_channel_state(chat_id, msg.id)
                 return False
         elif duration < 90:
@@ -623,17 +667,18 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
             update_channel_state(chat_id, msg.id)
             return False
 
-    # 3. Subtitle Check
+    # 3. Strict Subtitle Check (Block any post with subtitr / sub / seoulland / uzbsub markers)
     if RE_SUBTITLE.search(text):
-        logger.debug(f"Skipped subtitle post: {text[:40]}")
+        logger.info(f"⏭ [SUBTITLE BLOCKED] Post has subtitle indicator from '{chat_title}': {text[:45]}")
         update_channel_state(chat_id, msg.id)
         return False
 
-    # 4. Mandatory Uzbek Dubbed indicator
-    if not (is_micro or RE_UZB_DUB.search(text)):
-        logger.debug(f"Skipped post lacking Uzbek dubbed indicator: {text[:40]}")
-        update_channel_state(chat_id, msg.id)
-        return False
+    # 4. Mandatory Uzbek Dubbed indicator for TV doramas and movies
+    if not is_micro:
+        if not RE_UZB_DUB.search(text):
+            logger.info(f"⏭ [NON-DUBBED BLOCKED] Post lacks explicit Uzbek dubbed indicator from '{chat_title}': {text[:45]}")
+            update_channel_state(chat_id, msg.id)
+            return False
 
     # 5. Episode Parsing
     ep_list = parse_episodes(text)
@@ -641,9 +686,6 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         logger.debug(f"Could not parse episode number from: {text[:40]}")
         update_channel_state(chat_id, msg.id)
         return False
-
-    if len(ep_list) > 1:
-        is_micro = True
 
     # 6. Title Extraction
     raw_title = clean_dorama_title(text)
@@ -662,12 +704,24 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         update_channel_state(chat_id, msg.id)
         return True
 
-    # 7. DB Pre-resolution & Duplicate Guard
+    # 7. DB Pre-resolution & Orphan Guard
     new_qual_rank = QUALITY_RANKS.get(quality.lower(), 1)
     needed_eps = []
     async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
-        dorama_id = await find_or_create_dorama(db, raw_title, is_micro_drama=is_micro)
+        dorama_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro)
         if not dorama_id:
+            # If incoming episode is NOT starting from 1 (e.g. Ep 3 or 8), prevent creating a broken orphan dorama!
+            if min(ep_list) > 1:
+                logger.warning(
+                    f"⏭ [ORPHAN PREVENTED] '{raw_title}' is a new dorama but incoming episode is {ep_list} (missing Ep 1). Skipping."
+                )
+                update_channel_state(chat_id, msg.id)
+                return False
+            dorama_id = await create_new_dorama(db, raw_title, is_micro_drama=is_micro)
+            if not dorama_id:
+                logger.warning(f"Could not create dorama for '{raw_title}'")
+                update_channel_state(chat_id, msg.id)
+                return False
             logger.warning(f"Could not resolve or create dorama for '{raw_title}'")
             update_channel_state(chat_id, msg.id)
             return False
