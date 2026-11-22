@@ -3031,6 +3031,11 @@ async def cmd_admin_broadcast_premiere(message: Message, bot: Bot):
     )
 
 
+@router.message(Command("ping", "health"))
+async def cmd_ping(message: Message):
+    await message.answer("PONG_HEALTH_OK")
+
+
 @router.message(Command("broadcast_vip_promo", "send_vip_promo"))
 async def cmd_admin_broadcast_vip_promo(message: Message, bot: Bot):
     if not is_admin_user(message.from_user.id):
