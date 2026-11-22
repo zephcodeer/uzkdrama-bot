@@ -33,8 +33,8 @@ if (Test-Path $PidFilePath) {
     if ($existingPidStr -match '^\d+$') {
         $existingPid = [int]$existingPidStr
         if ($existingPid -ne $currentPid) {
-            $existingProc = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
-            if ($existingProc -and ($existingProc.ProcessName -like "*powershell*" -or $existingProc.ProcessName -like "*pwsh*")) {
+            $existingProc = Get-CimInstance Win32_Process -Filter "ProcessId = $existingPid" -ErrorAction SilentlyContinue
+            if ($existingProc -and $existingProc.CommandLine -like "*autopilot_supervisor.ps1*") {
                 Write-SupervisorLog "Another supervisor instance is already active (PID: $existingPid). Exiting duplicate." "WARNING"
                 exit 0
             }
@@ -60,13 +60,17 @@ $PythonCandidates = @(
 $PythonExe = $null
 foreach ($cand in $PythonCandidates) {
     if ($cand -and (Test-Path $cand)) {
-        $PythonExe = $cand
-        break
+        & $cand -c "import telethon, aiosqlite, aiogram, dotenv" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $PythonExe = $cand
+            break
+        }
+        Write-SupervisorLog "Skipping Python without required modules: $cand" "WARNING"
     }
 }
 
 if (-not $PythonExe) {
-    Write-SupervisorLog "CRITICAL: No valid Python executable found! Aborting supervisor." "ERROR"
+    Write-SupervisorLog "CRITICAL: No Python with required modules found! Aborting supervisor." "ERROR"
     exit 1
 }
 

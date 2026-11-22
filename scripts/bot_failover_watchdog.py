@@ -13,7 +13,6 @@ Guarantees:
 
 import os
 import sys
-import time
 import asyncio
 import logging
 import subprocess
@@ -88,21 +87,36 @@ def stop_local_bot():
         logger.info("Local bot process stopped.")
 
 async def ping_bot(client, bot_entity):
-    """Sends a health check ping to @uzkdrama_app and waits up to 10 seconds."""
+    """Check for the exact health reply and remove only this probe's messages."""
+    sent = None
+    pong_id = None
     try:
         sent = await client.send_message(bot_entity, "/ping")
-        sent_time = time.time()
         for _ in range(10):
             await asyncio.sleep(1)
-            msgs = await client.get_messages(bot_entity, limit=3)
+            msgs = await client.get_messages(bot_entity, limit=5, min_id=sent.id)
             for m in msgs:
-                if m.out is False and m.date.timestamp() >= (sent_time - 2):
-                    if "PONG" in (m.text or "") or "DORAMA" in (m.text or "") or m.text:
-                        return True
+                if (
+                    not m.out
+                    and m.id > sent.id
+                    and m.sender_id == bot_entity.id
+                    and (m.text or "").strip() == "PONG_HEALTH_OK"
+                ):
+                    pong_id = m.id
+                    return True
         return False
     except Exception as e:
         logger.warning(f"Ping exception: {e}")
         return False
+    finally:
+        if sent is not None:
+            message_ids = [sent.id]
+            if pong_id is not None:
+                message_ids.append(pong_id)
+            try:
+                await client.delete_messages(bot_entity, message_ids, revoke=True)
+            except Exception as e:
+                logger.warning(f"Could not remove health-check messages: {e}")
 
 async def main():
     logger.info("🛡️ Starting High-Availability Bot Watchdog & Auto-Failover...")

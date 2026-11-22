@@ -13,8 +13,8 @@ if (Test-Path $PidFilePath) {
     $existingPidStr = (Get-Content -Path $PidFilePath -Raw -ErrorAction SilentlyContinue).Trim()
     if ($existingPidStr -match '^\d+$') {
         $existingPid = [int]$existingPidStr
-        $existingProc = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
-        if ($existingProc) {
+        $existingProc = Get-CimInstance Win32_Process -Filter "ProcessId = $existingPid" -ErrorAction SilentlyContinue
+        if ($existingProc -and $existingProc.CommandLine -like "*autopilot_supervisor.ps1*") {
             Write-Host "[!] Autopilot xizmati allaqachon fonda ishlamoqda!" -ForegroundColor Yellow
             Write-Host "    Supervisor PID: $existingPid" -ForegroundColor Yellow
             Write-Host "Xizmatni to'xtatish uchun: stop_autopilot.bat dan foydalaning." -ForegroundColor Cyan

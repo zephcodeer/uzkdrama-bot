@@ -20,9 +20,10 @@ if (Test-Path $PidFilePath) {
     $existingPidStr = (Get-Content -Path $PidFilePath -Raw -ErrorAction SilentlyContinue).Trim()
     if ($existingPidStr -match '^\d+$') {
         $existingPid = [int]$existingPidStr
-        if ($existingPid -ne $currentPid) {
+        $existingProc = Get-CimInstance Win32_Process -Filter "ProcessId = $existingPid" -ErrorAction SilentlyContinue
+        if ($existingPid -ne $currentPid -and $existingProc -and $existingProc.CommandLine -like "*autopilot_supervisor.ps1*") {
             try {
-                Stop-Process -Id $existingPid -Force -ErrorAction SilentlyContinue
+                Stop-Process -Id $existingPid -Force -ErrorAction Stop
                 Write-Host "[OK] Supervisor to'xtatildi (PID: $existingPid)" -ForegroundColor Green
                 $stopped++
             } catch {}

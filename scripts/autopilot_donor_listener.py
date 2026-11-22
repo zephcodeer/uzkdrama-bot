@@ -47,6 +47,7 @@ sys.path.insert(0, str(BASE_DIR))
 import config  # noqa: E402
 import database  # noqa: E402
 from database import invalidate_search_cache, normalize_search_text, slugify  # noqa: E402
+from scripts.catalog_sync import publish_catalog_snapshot  # noqa: E402
 
 try:
     from notifications import notify_subscribers_async
@@ -54,6 +55,9 @@ except ImportError:
     notify_subscribers_async = None
 
 _BACKGROUND_TASKS = set()
+_CREATE_LOCK = asyncio.Lock()
+_SYNC_TASK = None
+_SYNC_REVISION = 0
 
 def track_background_task(coro):
     """Schedules an async task and retains a strong reference to prevent garbage collection."""
@@ -71,6 +75,33 @@ def track_background_task(coro):
             logger.error(f"Error checking background task status: {ex}")
     task.add_done_callback(_done_callback)
     return task
+
+
+def schedule_catalog_sync(client: TelegramClient):
+    """Debounce nearby episode writes into one hosted catalog update."""
+    global _SYNC_TASK, _SYNC_REVISION
+    _SYNC_REVISION += 1
+    if _SYNC_TASK is None or _SYNC_TASK.done():
+        _SYNC_TASK = track_background_task(sync_catalog_worker(client))
+
+
+async def sync_catalog_worker(client: TelegramClient):
+    pending_bot_update = False
+    while True:
+        revision = _SYNC_REVISION
+        await asyncio.sleep(5)
+        try:
+            changed = await asyncio.to_thread(publish_catalog_snapshot, DB_PATH)
+            pending_bot_update |= changed
+            if pending_bot_update:
+                await client.send_message("uzkdrama_app", "/update")
+                logger.info("Hosted bot /update requested after catalog publish")
+                pending_bot_update = False
+            if revision == _SYNC_REVISION:
+                return
+        except Exception as exc:
+            logger.error(f"Catalog sync failed; retrying in 60 seconds: {exc}")
+            await asyncio.sleep(60)
 
 LOG_FILE = BASE_DIR / "scripts" / "autopilot.log"
 handlers = [logging.FileHandler(str(LOG_FILE), encoding="utf-8")]
@@ -559,7 +590,7 @@ async def send_admin_notification(
             f"📢 <b>Manba:</b> {html.escape(str(chat_title))}\n"
             f"💾 <b>Storage ID:</b> <code>{storage_msg_id}</code>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🟢 <i>Botda darhol tomosha qilish mumkin!</i>"
+            f"🟡 <i>Bot katalogi yangilanmoqda.</i>"
         )
         url = f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage"
         payload = json.dumps(
@@ -627,15 +658,19 @@ async def warm_up_channel_entities(client: TelegramClient, target_ids: List[int]
     logger.info(f"Warm-up complete: {warmed}/{len(target_ids)} channels verified in entity cache.")
 
 
-async def process_donor_message(client: TelegramClient, msg: Message, dry_run: bool = False) -> bool:
+async def process_donor_message(client: TelegramClient, msg: Message, dry_run: bool = False, advance_state: bool = True) -> bool:
     """Core pipeline processing for a donor channel video message."""
     text = msg.text or msg.message or ""
     chat_id = msg.chat_id
 
+    def mark_done():
+        if advance_state:
+            update_channel_state(chat_id, msg.id)
+
     # 1. Video Check
     is_video, duration, w, h, size = get_video_attributes(msg)
     if not is_video:
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return False
 
     chat = await msg.get_chat()
@@ -660,37 +695,37 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         if is_micro:
             if duration < 20:
                 logger.debug(f"Skipped ultra-short clip (<20s): {text[:40]}")
-                update_channel_state(chat_id, msg.id)
+                mark_done()
                 return False
         elif duration < 90:
             logger.debug(f"Skipped short/edit (<90s): {text[:40]}")
-            update_channel_state(chat_id, msg.id)
+            mark_done()
             return False
 
     # 3. Strict Subtitle Check (Block any post with subtitr / sub / seoulland / uzbsub markers)
     if RE_SUBTITLE.search(text):
         logger.info(f"⏭ [SUBTITLE BLOCKED] Post has subtitle indicator from '{chat_title}': {text[:45]}")
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return False
 
     # 4. Mandatory Uzbek Dubbed indicator for TV doramas and movies
     if not is_micro:
         if not RE_UZB_DUB.search(text):
             logger.info(f"⏭ [NON-DUBBED BLOCKED] Post lacks explicit Uzbek dubbed indicator from '{chat_title}': {text[:45]}")
-            update_channel_state(chat_id, msg.id)
+            mark_done()
             return False
 
     # 5. Episode Parsing
     ep_list = parse_episodes(text)
     if not ep_list:
         logger.debug(f"Could not parse episode number from: {text[:40]}")
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return False
 
     # 6. Title Extraction
     raw_title = clean_dorama_title(text)
     if not raw_title or len(raw_title) < 2:
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return False
 
     quality = f"{h}p" if h in (480, 720, 1080) else ("1080p" if h > 720 else "720p")
@@ -701,7 +736,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
 
     if dry_run:
         logger.info(f"[DRY-RUN] Forward to storage & ingest verified. Skipped DB write.")
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return True
 
     # 7. DB Pre-resolution & Orphan Guard
@@ -715,36 +750,29 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
                 logger.warning(
                     f"⏭ [ORPHAN PREVENTED] '{raw_title}' is a new dorama but incoming episode is {ep_list} (missing Ep 1). Skipping."
                 )
-                update_channel_state(chat_id, msg.id)
+                mark_done()
                 return False
-            dorama_id = await create_new_dorama(db, raw_title, is_micro_drama=is_micro)
-            if not dorama_id:
-                logger.warning(f"Could not create dorama for '{raw_title}'")
-                update_channel_state(chat_id, msg.id)
-                return False
-            logger.warning(f"Could not resolve or create dorama for '{raw_title}'")
-            update_channel_state(chat_id, msg.id)
-            return False
-
-        for ep_num in ep_list:
-            async with db.execute(
-                "SELECT channel_message_id, quality FROM episodes WHERE dorama_id = ? AND episode_number = ?",
-                (dorama_id, ep_num),
-            ) as cur:
-                row = await cur.fetchone()
-                if not row or not row[0] or row[0] <= 0:
-                    needed_eps.append(ep_num)
-                else:
-                    existing_qual = row[1] or "720p"
-                    existing_qual_rank = QUALITY_RANKS.get(existing_qual.lower(), 1)
-                    if new_qual_rank > existing_qual_rank:
+            needed_eps = list(ep_list)
+        else:
+            for ep_num in ep_list:
+                async with db.execute(
+                    "SELECT channel_message_id, quality FROM episodes WHERE dorama_id = ? AND episode_number = ?",
+                    (dorama_id, ep_num),
+                ) as cur:
+                    row = await cur.fetchone()
+                    if not row or not row[0] or row[0] <= 0:
                         needed_eps.append(ep_num)
+                    else:
+                        existing_qual = row[1] or "720p"
+                        existing_qual_rank = QUALITY_RANKS.get(existing_qual.lower(), 1)
+                        if new_qual_rank > existing_qual_rank:
+                            needed_eps.append(ep_num)
 
     if not needed_eps:
         logger.info(
             f"⏭ [DUPLICATE BLOCKED] '{raw_title}' Ep {ep_list} already exists in DB with equal/better quality ({quality}) from channel '{chat_title}'."
         )
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return False
 
     # 8. Cloud-to-Cloud Forwarding
@@ -765,7 +793,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
                 json.dump(restricted, rf, indent=2, ensure_ascii=False)
         except Exception:
             pass
-        update_channel_state(chat_id, msg.id)
+        mark_done()
         return False
     except FloodWaitError as e:
         logger.warning(f"Telegram FloodWait: waiting {e.seconds} seconds...")
@@ -776,10 +804,23 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         return False
 
     # 9. Ingest into DB
+    if not dorama_id:
+        # Do not leave an empty catalog entry when Telegram rejects the forward.
+        async with _CREATE_LOCK:
+            async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
+                dorama_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro)
+                if not dorama_id:
+                    dorama_id = await create_new_dorama(db, raw_title, is_micro_drama=is_micro)
+        if not dorama_id:
+            logger.error(f"Could not create dorama for '{raw_title}' after forwarding")
+            return False
+
     ingested = await ingest_episodes_to_db(dorama_id, needed_eps, storage_msg_id, quality, size)
-    update_channel_state(chat_id, msg.id)
+    mark_done()
     if not ingested:
         return False
+
+    schedule_catalog_sync(client)
 
     # 10. Instant Admin Notification
     try:
@@ -806,7 +847,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
     return True
 
 
-async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int]):
+async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int], channel_locks: dict, dry_run: bool = False):
     """Background incremental sentinel: checks channels for any missed episodes during downtime with anti-flood throttling."""
     logger.info("Initializing Staggered Catchup Sentinel...")
     while True:
@@ -818,12 +859,18 @@ async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int]):
                 try:
                     if last_msg_id > 0:
                         # Fetch messages newer than last_msg_id
-                        async for msg in client.iter_messages(cid, min_id=last_msg_id, limit=5, reverse=True):
-                            await process_donor_message(client, msg)
+                        async for msg in client.iter_messages(cid, min_id=last_msg_id, limit=100, reverse=True):
+                            async with channel_locks[cid]:
+                                await process_donor_message(client, msg, dry_run=dry_run, advance_state=not dry_run)
+                            # A retryable forwarding or database failure leaves the cursor
+                            # unchanged. Do not skip past it to later messages.
+                            if not dry_run and load_sync_state().get(cid_str, 0) < msg.id:
+                                break
                     else:
                         # Cold start: capture latest msg id to anchor future queries
                         async for msg in client.iter_messages(cid, limit=1):
-                            update_channel_state(cid, msg.id)
+                            if not dry_run:
+                                update_channel_state(cid, msg.id)
                 except FloodWaitError as fe:
                     logger.warning(f"Catchup FloodWait: sleeping {fe.seconds + 2}s")
                     await asyncio.sleep(fe.seconds + 2)
@@ -867,14 +914,16 @@ async def run_listener(dry_run: bool = False):
 
     # 1. Warm up entity cache for reliable event dispatch
     await warm_up_channel_entities(client, target_ids)
+    channel_locks = {cid: asyncio.Lock() for cid in target_ids}
 
     # 2. Register real-time push event listener
     @client.on(events.NewMessage(chats=target_ids))
     async def handle_new_media(event: events.NewMessage.Event):
-        await process_donor_message(client, event.message, dry_run=dry_run)
+        async with channel_locks[event.chat_id]:
+            await process_donor_message(client, event.message, dry_run=dry_run, advance_state=False)
 
     # 3. Start background staggered catchup sentinel
-    track_background_task(staggered_catchup_sync(client, target_ids))
+    track_background_task(staggered_catchup_sync(client, target_ids, channel_locks, dry_run=dry_run))
 
     logger.info("⚡ Autopilot Kdrama Listener is LIVE and actively monitoring with Hybrid Sentinel...")
     while True:
@@ -895,6 +944,30 @@ async def run_listener(dry_run: bool = False):
     await client.disconnect()
 
 
+def acquire_listener_lock():
+    """Keep direct launches from opening the same Telethon session twice on Windows."""
+    if sys.platform != "win32":
+        return None
+    import msvcrt
+
+    lock_file = open(BASE_DIR / "scripts" / ".autopilot_instance.lock", "a+b")
+    lock_file.seek(0, 2)
+    if lock_file.tell() == 0:
+        lock_file.write(b"0")
+        lock_file.flush()
+    lock_file.seek(0)
+    try:
+        msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        lock_file.close()
+        return False
+    return lock_file
+
+
 if __name__ == "__main__":
+    instance_lock = acquire_listener_lock()
+    if instance_lock is False:
+        logger.error("Another Autopilot listener is already using this session. Exiting duplicate.")
+        sys.exit(2)
     is_dry = "--dry-run" in sys.argv
     asyncio.run(run_listener(dry_run=is_dry))
