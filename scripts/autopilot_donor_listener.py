@@ -125,16 +125,17 @@ DONOR_FILTERED_PATH = BASE_DIR / "donor_channels_filtered.json"
 
 # Strict Subtitle Regex (Latin & Cyrillic, with prefixes/suffixes & known sub channels)
 RE_SUBTITLE = re.compile(
-    r"(?:^|[^a-zA-Z0-9а-яА-ЯёЁ])(?:hard|soft)?(?:sub(?:lar)?|subtitr[a-z]*|subtitles?|саб[ыа-я]*|субтитр[а-я]*|uzbsub[0-9]*|uzsub[0-9]*|seoulland|redsky)(?:[^a-zA-Z0-9а-яА-ЯёЁ]|$)",
+    r"(?:^|[^a-zA-Z0-9а-яА-ЯёЁ])(?:hard|soft)?(?:sub(?:lar)?|subtitr[a-z]*|subtitles?|саб[ыа-я]*|субтитр[а-я]*|uzbsub[0-9]*|uzsub[0-9]*|redsky)(?:[^a-zA-Z0-9а-яА-ЯёЁ]|$)",
     re.IGNORECASE,
 )
 
 # Strict Uzbek Dubbed Indicators (Latin, Cyrillic, All Apostrophe variants, Known Studio tags)
 RE_UZB_DUB = re.compile(
-    r"(?:o['ʻ`’ʼ]?zbek\s*tilida|uzbek\s*tilida|uzb\s*tilida|o['ʻ`’ʼ]?zbekcha|uzbekcha|dublyaj|tarjima\s*(?:kino|serial|dorama)?|"
+    r"(?:o['ʻ`’ʼ]?zbek\s*tilida(?:\s*dublyaj[a-z]*)?|uzbek\s*tilida|uzb\s*tilida|o['ʻ`’ʼ]?zbekcha|uzbekcha|"
+    r"dublyaj[a-z]*|prof(?:f)?\s*dub[a-z]*|tarjima\s*(?:kino|serial|dorama)?|"
     r"ўзбек\s*тилида|узбек\s*тилида|ўзбекча|узбекча|дубляж|таржима|"
     r"ovoz\s*berild[i-z]*|tomonidan\s*ovoz|"
-    r"#choson_tv|#minxo_tv|#souls_studio|#idub|#iduptv|#salomtv|#af_tv|#sevar_studio|#uzdub|#dramma_uzbdub|"
+    r"#?choson\s*tv|#?minxo\s*tv|#?souls\s*studio|#?idub|#?iduptv|#?salomtv|#?af\s*tv|#?sevar\s*studio|#?uzdub|#?dramma_uzbdub|"
     r"#tarjima_serial|#tarjima_kino)",
     re.IGNORECASE,
 )
@@ -702,15 +703,20 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
             mark_done()
             return False
 
-    # 3. Strict Subtitle Check (Block any post with subtitr / sub / seoulland / uzbsub markers)
-    if RE_SUBTITLE.search(text):
+    # 3. Uzbek Dubbed & Subtitle Evaluation
+    # Strip URLs and usernames before checking subtitle markers to avoid false positives on channel handles (e.g. uzb_dub_sub)
+    cleaned_for_sub = re.sub(r"https?://\S+|@\w+", " ", text)
+    has_explicit_sub = bool(RE_SUBTITLE.search(cleaned_for_sub))
+    has_dub = bool(RE_UZB_DUB.search(text))
+
+    if has_explicit_sub and not has_dub:
         logger.info(f"⏭ [SUBTITLE BLOCKED] Post has subtitle indicator from '{chat_title}': {text[:45]}")
         mark_done()
         return False
 
     # 4. Mandatory Uzbek Dubbed indicator for TV doramas and movies
     if not is_micro:
-        if not RE_UZB_DUB.search(text):
+        if not has_dub:
             logger.info(f"⏭ [NON-DUBBED BLOCKED] Post lacks explicit Uzbek dubbed indicator from '{chat_title}': {text[:45]}")
             mark_done()
             return False
