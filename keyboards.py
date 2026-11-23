@@ -501,6 +501,13 @@ def admin_panel_kb(promo_info: dict = None) -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(
+            text="👥 Foydalanuvchilar Monitoringi (/view)",
+            callback_data="aview_f:active:0",
+            icon_custom_emoji_id=ICON_FRIENDS
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
             text="Ongoing (Davom etayotganlar)",
             callback_data="admin_ongoing_list",
             icon_custom_emoji_id=ICON_ACTION
@@ -1023,4 +1030,103 @@ def stats_kb() -> InlineKeyboardMarkup:
             icon_custom_emoji_id=ICON_HOME
         )
     )
+    return builder.as_markup()
+
+
+def build_admin_users_view_kb(users: list, filter_type: str, page: int, total_users: int, per_page: int = 8) -> InlineKeyboardMarkup:
+    """Admin /view paneli klaviaturasi: toifalar, userlar tugmalari va sahifalash."""
+    builder = InlineKeyboardBuilder()
+
+    # 1. Toifalar filtri
+    tab_active = "🔥 Faollar" if filter_type != "active" else "• 🔥 Faollar •"
+    tab_recent = "👥 Yangilar" if filter_type != "recent" else "• 👥 Yangilar •"
+    tab_refs = "🚀 Top Ref" if filter_type != "refs" else "• 🚀 Top Ref •"
+    tab_vip = "👑 VIP" if filter_type != "vip" else "• 👑 VIP •"
+
+    builder.row(
+        InlineKeyboardButton(text=tab_active, callback_data="aview_f:active:0"),
+        InlineKeyboardButton(text=tab_recent, callback_data="aview_f:recent:0"),
+        InlineKeyboardButton(text=tab_refs, callback_data="aview_f:refs:0"),
+        InlineKeyboardButton(text=tab_vip, callback_data="aview_f:vip:0"),
+    )
+
+    # 2. Foydalanuvchilar tugmalari (har bir qatorda bittadan)
+    for u in users:
+        uid = u["tg_id"]
+        fname = (u.get("first_name") or "Foydalanuvchi")[:14].strip()
+        uname = f"@{u['username']}" if u.get("username") else f"ID:{uid}"
+        vip_mark = "👑 " if u.get("is_vip") else ""
+
+        if filter_type == "refs":
+            meta = f"👥 {u.get('referrals_count', 0)} ref"
+        elif filter_type == "vip":
+            meta = "👑 VIP"
+        else:
+            meta = f"🎬 {u.get('watch_count', 0)} dorama"
+
+        btn_text = f"{vip_mark}{fname} ({uname}) • {meta}"
+        builder.row(
+            InlineKeyboardButton(
+                text=btn_text,
+                callback_data=f"aview_u:{uid}:{filter_type}:{page}"
+            )
+        )
+
+    # 3. Sahifalash
+    total_pages = max(1, (total_users + per_page - 1) // per_page)
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"aview_p:{filter_type}:{page - 1}"))
+    else:
+        nav_buttons.append(InlineKeyboardButton(text="⏹", callback_data="aview_noop"))
+
+    nav_buttons.append(InlineKeyboardButton(text=f"[{page + 1}/{total_pages}]", callback_data="aview_noop"))
+
+    if page + 1 < total_pages:
+        nav_buttons.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"aview_p:{filter_type}:{page + 1}"))
+    else:
+        nav_buttons.append(InlineKeyboardButton(text="⏹", callback_data="aview_noop"))
+
+    builder.row(*nav_buttons)
+
+    # 4. Qidiruv va boshqaruv
+    builder.row(
+        InlineKeyboardButton(text="🔍 Foydalanuvchi qidirish", callback_data="aview_search"),
+        InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"aview_f:{filter_type}:{page}")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔙 Boshqaruv paneli", callback_data="admin_panel")
+    )
+
+    return builder.as_markup()
+
+
+def build_admin_user_card_kb(user: dict, filter_type: str = "active", page: int = 0) -> InlineKeyboardMarkup:
+    """Admin /view da bitta foydalanuvchi kartochkasi klaviaturasi."""
+    builder = InlineKeyboardBuilder()
+    uid = user["tg_id"]
+    is_vip = bool(user.get("is_vip"))
+
+    # VIP tugmalari
+    if not is_vip:
+        builder.row(
+            InlineKeyboardButton(text="👑 1 oylik VIP berish", callback_data=f"aview_vip:{uid}:30:{filter_type}:{page}"),
+            InlineKeyboardButton(text="👑 3 oylik VIP berish", callback_data=f"aview_vip:{uid}:90:{filter_type}:{page}")
+        )
+    else:
+        builder.row(
+            InlineKeyboardButton(text="👑 +30 kun qo'shish", callback_data=f"aview_vip:{uid}:30:{filter_type}:{page}"),
+            InlineKeyboardButton(text="🚫 VIP bekor qilish", callback_data=f"aview_unvip:{uid}:{filter_type}:{page}")
+        )
+
+    # Xabar yuborish
+    builder.row(
+        InlineKeyboardButton(text="✉️ Shaxsiy xabar yuborish", callback_data=f"aview_msg:{uid}")
+    )
+
+    # Orqaga qaytish
+    builder.row(
+        InlineKeyboardButton(text="🔙 Ro'yxatga qaytish", callback_data=f"aview_f:{filter_type}:{page}")
+    )
+
     return builder.as_markup()

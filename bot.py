@@ -150,6 +150,8 @@ class BotStates(StatesGroup):
 
     waiting_for_dorama_feedback = State()
     waiting_for_feedback_reply = State()
+    waiting_for_user_search = State()
+    waiting_for_direct_user_msg = State()
 
 
 
@@ -357,27 +359,49 @@ async def cmd_start(message: Message, command: CommandObject, bot: Bot, state: F
         try:
 
             inv_user = await db.get_user(inviter_rewarded)
-
             ref_total = inv_user.get("referrals_count") if inv_user else 1
 
+            # VIP Aksiya avtomatik tekshiruvi va mukofotlash (5 ta = 1 oy, 8 ta = 2 oy, 10 ta = 3 oy)
+            vip_awarded_days = 0
+            is_already_vip = bool(inv_user and inv_user.get("is_vip"))
+            if not is_already_vip:
+                if ref_total >= 10:
+                    vip_awarded_days = 90
+                elif ref_total >= 8:
+                    vip_awarded_days = 60
+                elif ref_total >= 5:
+                    vip_awarded_days = 30
+            else:
+                if ref_total == 8:
+                    vip_awarded_days = 30
+                elif ref_total == 10:
+                    vip_awarded_days = 30
+
+            if vip_awarded_days > 0:
+                await db.grant_vip(inviter_rewarded, days=vip_awarded_days)
+                try:
+                    await bot.send_message(
+                        chat_id=inviter_rewarded,
+                        text=(
+                            f"🎉 <b>TABRIKLAYMIZ! SIZNING VIP OBUNANGIZ FAOLLASHTIRILDI!</b> 👑\n\n"
+                            f"Siz <b>{ref_total} ta do'st</b> taklif qilib, aksiya marrasiga yetdingiz!\n"
+                            f"🎁 Sizga <b>{vip_awarded_days} kunlik VIP obuna</b> avtomatik sovg'a qilindi!\n\n"
+                            f"⚡️ Endi barcha serial va kinolarni hech qanday cheklovlarsiz tomosha qilishingiz mumkin!"
+                        ),
+                        parse_mode=ParseMode.HTML
+                    )
+                except Exception as ve:
+                    logger.warning(f"VIP tabrik xabarini yuborishda xatolik: {ve}")
+
             await bot.send_message(
-
                 chat_id=inviter_rewarded,
-
                 text=(
-
                     f"{ce('party')} <b>Yangi do'stingiz botga qo'shildi!</b>\n\n"
-
                     f"{ce('user')} <b>{html.escape(user.first_name or 'Foydalanuvchi')}</b> sizning havolangiz orqali kirdi.\n"
-
                     f"{ce('sparkles')} Jami takliflaringiz: <b>{ref_total} ta</b>.\n\n"
-
                     f"{ce('unlock')} <b>Sizga yangi {3 + ref_total}-qism bepul ochildi!</b> Har bir do'stingiz navbatdagi qismni ochib beradi! {ce('popcorn')}"
-
                 ),
-
                 parse_mode=ParseMode.HTML
-
             )
 
         except Exception as e:
@@ -2389,6 +2413,317 @@ async def handle_set_vip_command(message: Message):
 
         f"{ce('check_green')} <b>Foydalanuvchi <code>{target_id}</code> uchun {days} kunlik VIP berildi!</b>"
 
+    )
+
+
+# ==============================================================================
+# Admin /view Foydalanuvchilar Monitoringi & Boshqaruvi
+# ==============================================================================
+
+async def render_admin_users_view(event: TelegramObject, filter_type: str = "active", page: int = 0):
+    """Admin /view ro'yxat ekranini chizish."""
+    per_page = 8
+    users, total_users = await db.get_admin_users_view(filter_type=filter_type, page=page, per_page=per_page)
+
+    cat_titles = {
+        "active": "🔥 Eng ko'p dorama ko'rganlar (Faollar)",
+        "recent": "👥 Eng so'nggi qo'shilgan a'zolar",
+        "refs": "🚀 Eng ko'p do'st taklif qilganlar (Top Ref)",
+        "vip": "👑 Barcha VIP a'zolar"
+    }
+    cat_name = cat_titles.get(filter_type, "Foydalanuvchilar")
+    total_pages = max(1, (total_users + per_page - 1) // per_page)
+
+    text = (
+        f"👥 <b>FOYDALANUVCHILAR MONITORINGI (/view)</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Jami a'zolar: <b>{total_users} ta</b>\n"
+        f"📌 Toifa: <b>{cat_name}</b>\n"
+        f"📄 Sahifa: <b>{page + 1} / {total_pages}</b>\n\n"
+        f"👇 <i>Foydalanuvchi tugmasini bosing — u haqidagi to'liq profil, botni qancha ishlatgani va ko'rgan seriallari chiqadi:</i>"
+    )
+
+    keyboard = kb.build_admin_users_view_kb(users, filter_type, page, total_users, per_page=per_page)
+    await render_text_screen(event, text, reply_markup=keyboard)
+
+
+async def render_admin_user_card(event: TelegramObject, target_id: int, filter_type: str = "active", page: int = 0):
+    """Bitta foydalanuvchining to'liq profil kartochkasini chizish."""
+    profile = await db.get_admin_user_profile(target_id)
+    if not profile:
+        if isinstance(event, CallbackQuery):
+            await event.answer("Foydalanuvchi bazadan topilmadi!", show_alert=True)
+        elif isinstance(event, Message):
+            await event.answer("Foydalanuvchi topilmadi.")
+        return
+
+    fname = html.escape(profile.get("first_name") or "Nomaʼlum")
+    uname = f"@{profile['username']}" if profile.get("username") else "<i>Mavjud emas</i>"
+    premium = "Ha ⭐" if profile.get("is_premium") else "Yo'q"
+    joined = profile.get("joined_at") or "Nomaʼlum"
+    last_act = profile.get("last_active_at") or "Nomaʼlum"
+
+    # VIP Status
+    is_vip = bool(profile.get("is_vip"))
+    if is_vip:
+        until_val = profile.get("vip_until")
+        if until_val:
+            days_left = 0
+            try:
+                exp_dt = datetime.fromisoformat(str(until_val))
+                days_left = max(0, (exp_dt - datetime.now()).days)
+            except Exception:
+                pass
+            vip_text = f"🟢 <b>Faol</b> (Muddati: <code>{until_val}</code> — <b>{days_left} kun qoldi</b>)"
+        else:
+            vip_text = "🟢 <b>Cheksiz VIP (Lifetime)</b>"
+    else:
+        vip_text = "🔴 <b>Faol emas</b> (Oddiy a'zo)"
+
+    # Inviter
+    inviter = profile.get("inviter")
+    if inviter:
+        inv_name = html.escape(inviter.get("first_name") or "Foydalanuvchi")
+        inv_un = f"@{inviter['username']}" if inviter.get("username") else f"ID: {inviter['tg_id']}"
+        inviter_text = f"<b>{inv_name}</b> (<code>{inv_un}</code>)"
+    else:
+        inviter_text = "— <i>O'zi kirgan (Organik)</i>"
+
+    # History lines
+    history_list = profile.get("history") or []
+    if history_list:
+        h_lines = []
+        for h in history_list:
+            d_title = html.escape(str(h.get("dorama_title") or "Dorama"))
+            ep = h.get("last_episode") or 1
+            h_lines.append(f"• 🎬 <b>{d_title}</b> ➔ <b>{ep}-qism</b>")
+        history_text = "\n".join(h_lines)
+    else:
+        history_text = "<i>Hali birorta dorama ko'rilmagan</i>"
+
+    text = (
+        f"👤 <b>FOYDALANUVCHI PROFILI & STATISTIKASI</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🆔 <b>Telegram ID:</b> <code>{profile['tg_id']}</code>\n"
+        f"👤 <b>Ismi:</b> <b>{fname}</b>\n"
+        f"🔗 <b>Username:</b> {uname}\n"
+        f"⭐ <b>TG Premium:</b> {premium}\n"
+        f"📅 <b>Ro'yxatdan o'tgan:</b> <code>{joined}</code>\n"
+        f"⚡️ <b>Oxirgi faolligi:</b> <code>{last_act}</code>\n\n"
+        f"👑 <b>VIP MAQOMI:</b>\n"
+        f"{vip_text}\n\n"
+        f"📊 <b>BOTDAN FOYDALANISH HAJMI:</b>\n"
+        f"🎬 <b>Ko'rgan doramalari:</b> <b>{profile.get('watch_count', 0)} ta</b> dorama\n"
+        f"📌 <b>Xatcho'p (Saqlaganlari):</b> <b>{profile.get('bookmarks_count', 0)} ta</b>\n"
+        f"👥 <b>Taklif qilgan do'stlari:</b> <b>{profile.get('referrals_count', 0)} ta</b>\n"
+        f"🤝 <b>Kim taklif qilgan:</b> {inviter_text}\n\n"
+        f"📜 <b>Oxirgi ko'rgan doramalari:</b>\n"
+        f"{history_text}\n"
+        f"━━━━━━━━━━━━━━━━━━"
+    )
+
+    keyboard = kb.build_admin_user_card_kb(profile, filter_type=filter_type, page=page)
+    await render_text_screen(event, text, reply_markup=keyboard)
+
+
+@router.message(Command("view"))
+async def handle_view_command(message: Message):
+    """Admin /view buyrug'i - foydalanuvchilar ro'yxati yoki ID/username bo'yicha profil."""
+    user_id = message.from_user.id
+    if not is_admin_user(user_id):
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) > 1:
+        query = parts[1].strip()
+        matched = await db.search_admin_users(query, limit=1)
+        if matched:
+            await render_admin_user_card(message, matched[0]["tg_id"], filter_type="active", page=0)
+            return
+        await message.answer(f"🔍 <code>{query}</code> bo'yicha foydalanuvchi topilmadi. Ro'yxat ochilmoqda...")
+
+    await render_admin_users_view(message, filter_type="active", page=0)
+
+
+@router.callback_query(F.data.startswith("aview_f:"))
+async def cb_aview_filter(call: CallbackQuery):
+    """Toifani almashtirish (active, recent, refs, vip)."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    _, ftype, page_str = call.data.split(":")
+    await render_admin_users_view(call, filter_type=ftype, page=int(page_str))
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("aview_p:"))
+async def cb_aview_page(call: CallbackQuery):
+    """Sahifalash (pagination)."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    _, ftype, page_str = call.data.split(":")
+    await render_admin_users_view(call, filter_type=ftype, page=int(page_str))
+    await call.answer()
+
+
+@router.callback_query(F.data == "aview_noop")
+async def cb_aview_noop(call: CallbackQuery):
+    """Bo'sh tugma bosilganda."""
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("aview_u:"))
+async def cb_aview_user(call: CallbackQuery):
+    """Bitta foydalanuvchi profiliga o'tish."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    _, target_id_str, ftype, page_str = call.data.split(":")
+    await render_admin_user_card(call, int(target_id_str), filter_type=ftype, page=int(page_str))
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("aview_vip:"))
+async def cb_aview_grant_vip(call: CallbackQuery):
+    """User profilidan to'g'ridan-to'g'ri VIP berish."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    _, target_id_str, days_str, ftype, page_str = call.data.split(":")
+    target_id = int(target_id_str)
+    days = int(days_str)
+
+    await db.grant_vip(target_id, days=days)
+    await call.answer(f"👑 Foydalanuvchiga {days} kunlik VIP berildi!", show_alert=True)
+    await render_admin_user_card(call, target_id, filter_type=ftype, page=int(page_str))
+
+
+@router.callback_query(F.data.startswith("aview_unvip:"))
+async def cb_aview_revoke_vip(call: CallbackQuery):
+    """User profilidan VIP maqomini bekor qilish."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    _, target_id_str, ftype, page_str = call.data.split(":")
+    target_id = int(target_id_str)
+
+    await db.revoke_vip(target_id)
+    await call.answer("🚫 VIP maqomi bekor qilindi!", show_alert=True)
+    await render_admin_user_card(call, target_id, filter_type=ftype, page=int(page_str))
+
+
+@router.callback_query(F.data.startswith("aview_msg:"))
+async def cb_aview_msg_prompt(call: CallbackQuery, state: FSMContext):
+    """Userga shaxsiy xabar yuborishni boshlash."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    target_id = int(call.data.split(":")[1])
+    await state.update_data(direct_msg_target_id=target_id)
+    await state.set_state(BotStates.waiting_for_direct_user_msg)
+
+    cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"aview_u:{target_id}:active:0")]
+    ])
+    await call.message.answer(
+        f"✉️ <b>Foydalanuvchi <code>{target_id}</code> ga xabar yuborish</b>\n\n"
+        f"Xabar matnini yozib yuboring (bot orqali unga yetkaziladi):",
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_kb
+    )
+    await call.answer()
+
+
+@router.message(BotStates.waiting_for_direct_user_msg)
+async def process_direct_user_msg(message: Message, state: FSMContext, bot: Bot):
+    """Admin yozgan xabarni userga yetkazish."""
+    data = await state.get_data()
+    target_id = data.get("direct_msg_target_id")
+    await state.clear()
+
+    if not target_id:
+        await message.answer("Xatolik: User ID topilmadi.")
+        return
+
+    msg_text = (
+        f"🔔 <b>ADMINISTRATSIYADAN XABAR:</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{message.text}\n"
+        f"━━━━━━━━━━━━━━━━━━"
+    )
+    try:
+        await bot.send_message(chat_id=target_id, text=msg_text, parse_mode=ParseMode.HTML)
+        await message.answer(f"✅ Xabar <code>{target_id}</code> ga muvaffaqiyatli yetkazildi!")
+    except Exception as e:
+        await message.answer(f"❌ Xabarni yuborib bo'lmadi: {e}")
+
+    await render_admin_user_card(message, target_id, filter_type="active", page=0)
+
+
+@router.callback_query(F.data == "aview_search")
+async def cb_aview_search_prompt(call: CallbackQuery, state: FSMContext):
+    """User qidirish rejimini faollashtirish."""
+    user_id = call.from_user.id
+    if not is_admin_user(user_id):
+        await call.answer("Ruxsat berilmagan!", show_alert=True)
+        return
+
+    await state.set_state(BotStates.waiting_for_user_search)
+    cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="aview_f:active:0")]
+    ])
+    await call.message.answer(
+        "🔍 <b>Foydalanuvchi qidirish</b>\n\n"
+        "Foydalanuvchining <b>Telegram ID</b> raqamini yoki <b>username</b>'ini yuboring:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_kb
+    )
+    await call.answer()
+
+
+@router.message(BotStates.waiting_for_user_search)
+async def process_user_search(message: Message, state: FSMContext):
+    """Qidiruv natijalarini ko'rsatish."""
+    await state.clear()
+    query = (message.text or "").strip()
+    matched = await db.search_admin_users(query, limit=8)
+
+    if not matched:
+        cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Ro'yxatga qaytish", callback_data="aview_f:active:0")]
+        ])
+        await message.answer(f"🔍 <code>{query}</code> bo'yicha hech kim topilmadi.", parse_mode=ParseMode.HTML, reply_markup=cancel_kb)
+        return
+
+    if len(matched) == 1:
+        await render_admin_user_card(message, matched[0]["tg_id"], filter_type="active", page=0)
+        return
+
+    # Ko'p natija chiqsa tanlash uchun ro'yxat
+    builder = InlineKeyboardBuilder()
+    for u in matched:
+        fname = (u.get("first_name") or "User")[:14]
+        uname = f"@{u['username']}" if u.get("username") else f"ID:{u['tg_id']}"
+        builder.row(InlineKeyboardButton(text=f"👤 {fname} ({uname})", callback_data=f"aview_u:{u['tg_id']}:active:0"))
+    builder.row(InlineKeyboardButton(text="🔙 Ro'yxatga qaytish", callback_data="aview_f:active:0"))
+
+    await message.answer(
+        f"🔍 <b>Qidiruv natijalari ({len(matched)} ta topildi):</b>\n\nQuyidagilardan birini tanlang:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=builder.as_markup()
     )
 
 

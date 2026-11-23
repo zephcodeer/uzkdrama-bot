@@ -1532,6 +1532,128 @@ async def grant_vip(tg_id: int, days: int = 30):
         await db.commit()
 
 
+async def revoke_vip(tg_id: int):
+    """Admin orqali VIP maqomini bekor qilish."""
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        await db.execute("UPDATE users SET is_vip = 0, vip_until = NULL WHERE tg_id = ?", (tg_id,))
+        await db.commit()
+
+
+async def get_admin_users_view(filter_type: str = "active", page: int = 0, per_page: int = 8):
+    """Admin /view paneli uchun foydalanuvchilar ro'yxati va statistikasi."""
+    offset = page * per_page
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        where_clause = ""
+        if filter_type == "active":
+            order_clause = "watch_count DESC, u.last_active_at DESC"
+        elif filter_type == "recent":
+            order_clause = "u.joined_at DESC"
+        elif filter_type == "refs":
+            order_clause = "u.referrals_count DESC, watch_count DESC"
+        elif filter_type == "vip":
+            where_clause = "WHERE u.is_vip = 1"
+            order_clause = "u.vip_until DESC"
+        else:
+            order_clause = "watch_count DESC, u.last_active_at DESC"
+
+        count_sql = f"SELECT COUNT(*) FROM users u {where_clause}"
+        async with db.execute(count_sql) as ccur:
+            total_users = (await ccur.fetchone())[0]
+
+        sql = f"""
+            SELECT u.tg_id, u.username, u.first_name, u.is_vip, u.vip_until, u.referrals_count, u.last_active_at, u.joined_at,
+                   COUNT(h.dorama_id) as watch_count
+            FROM users u
+            LEFT JOIN user_history h ON u.tg_id = h.user_id
+            {where_clause}
+            GROUP BY u.tg_id
+            ORDER BY {order_clause}
+            LIMIT ? OFFSET ?
+        """
+        async with db.execute(sql, (per_page, offset)) as cur:
+            rows = await cur.fetchall()
+            users = [dict(r) for r in rows]
+
+    return users, total_users
+
+
+async def get_admin_user_profile(user_id: int):
+    """Admin /view da bitta foydalanuvchi haqidagi barcha batafsil ma'lumotlar."""
+    async with aiosqlite.connect(USER_DB_PATH) as udb:
+        udb.row_factory = aiosqlite.Row
+        async with udb.execute("SELECT * FROM users WHERE tg_id = ?", (user_id,)) as cur:
+            user_row = await cur.fetchone()
+        if not user_row:
+            return None
+        user = dict(user_row)
+
+        # Inviter info
+        inviter = None
+        if user.get("invited_by"):
+            async with udb.execute("SELECT tg_id, first_name, username FROM users WHERE tg_id = ?", (user["invited_by"],)) as icur:
+                irow = await icur.fetchone()
+                if irow:
+                    inviter = dict(irow)
+
+        # Watch count
+        async with udb.execute("SELECT COUNT(*) FROM user_history WHERE user_id = ?", (user_id,)) as wcur:
+            user["watch_count"] = (await wcur.fetchone())[0]
+
+        # Bookmarks count
+        async with udb.execute("SELECT COUNT(*) FROM bookmarks WHERE user_id = ?", (user_id,)) as bcur:
+            user["bookmarks_count"] = (await bcur.fetchone())[0]
+
+        # History list (oxirgi 5 ta ko'rgan doramasi)
+        async with udb.execute("SELECT dorama_id, last_episode, updated_at FROM user_history WHERE user_id = ? ORDER BY updated_at DESC LIMIT 5", (user_id,)) as hcur:
+            history_rows = [dict(r) for r in await hcur.fetchall()]
+
+    # Resolve dorama titles from doramas.db
+    async with aiosqlite.connect(DB_PATH) as ddb:
+        ddb.row_factory = aiosqlite.Row
+        for h in history_rows:
+            async with ddb.execute("SELECT title, code FROM doramas WHERE id = ?", (h["dorama_id"],)) as dcur:
+                drow = await dcur.fetchone()
+                h["dorama_title"] = drow["title"] if drow else f"Dorama #{h['dorama_id']}"
+                h["dorama_code"] = drow["code"] if drow else h["dorama_id"]
+
+    user["history"] = history_rows
+    user["inviter"] = inviter
+    return user
+
+
+async def search_admin_users(query: str, limit: int = 8):
+    """Admin qidiruv uchun foydalanuvchilarni topish."""
+    q = query.strip().lstrip("@")
+    async with aiosqlite.connect(USER_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if q.isdigit():
+            sql = """
+                SELECT u.tg_id, u.username, u.first_name, u.is_vip, u.vip_until, u.referrals_count,
+                       COUNT(h.dorama_id) as watch_count
+                FROM users u
+                LEFT JOIN user_history h ON u.tg_id = h.user_id
+                WHERE u.tg_id = ?
+                GROUP BY u.tg_id
+                LIMIT ?
+            """
+            params = (int(q), limit)
+        else:
+            sql = """
+                SELECT u.tg_id, u.username, u.first_name, u.is_vip, u.vip_until, u.referrals_count,
+                       COUNT(h.dorama_id) as watch_count
+                FROM users u
+                LEFT JOIN user_history h ON u.tg_id = h.user_id
+                WHERE lower(u.username) LIKE ? OR lower(u.first_name) LIKE ?
+                GROUP BY u.tg_id
+                ORDER BY watch_count DESC
+                LIMIT ?
+            """
+            params = (f"%{q.lower()}%", f"%{q.lower()}%", limit)
+        async with db.execute(sql, params) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
 async def resolve_vip_order(order_id: int, approve: bool, plans: dict):
     """Resolve a pending order exactly once and grant VIP in the same transaction."""
     async with aiosqlite.connect(USER_DB_PATH) as db:
