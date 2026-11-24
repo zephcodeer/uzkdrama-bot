@@ -2298,6 +2298,21 @@ async def handle_admin_autopilot(event: Message | CallbackQuery):
         await event.answer()
 
 
+@router.message(F.chat.type == "private", F.video | (F.document & F.document.mime_type.startswith("video/")))
+async def handle_admin_direct_video_drop(message: Message, bot: Bot):
+    if not is_admin_user(message.from_user.id):
+        return
+    try:
+        fwd = await message.copy_to(chat_id=config.STORAGE_CHANNEL_ID)
+        await message.reply(
+            f"⚡ <b>Video 'Dramalar' omboriga joylandi! (ID: {fwd.message_id})</b>\n\n"
+            f"Avtopilot uni bir necha soniyada aniqlab, dorama va qismini botga ulaydi...",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        await message.reply(f"❌ Xatolik yuz berdi: {e}")
+
+
 @router.message(Command("admin"))
 
 @router.callback_query(F.data == "menu_admin")

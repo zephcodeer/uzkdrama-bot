@@ -559,6 +559,7 @@ async def ingest_episodes_to_db(
     storage_msg_id: int,
     quality: str,
     file_size: int,
+    allow_same_quality_update: bool = False,
 ):
     """Asynchronously ingests episodes into SQLite with quality regression protection."""
     async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
@@ -589,10 +590,12 @@ async def ingest_episodes_to_db(
                 existing_ep = await cur.fetchone()
 
             if existing_ep and existing_ep[0] and existing_ep[0] > 0:
+                old_msg_id = existing_ep[0]
                 old_qual = existing_ep[1] or "720p"
                 old_qual_rank = QUALITY_RANKS.get(old_qual.lower(), 1)
-                # Strict upgrade only: if old is equal or better (e.g. 1080p >= 1080p), SKIP!
-                if old_qual_rank >= new_qual_rank:
+                if old_msg_id == storage_msg_id:
+                    continue
+                if not allow_same_quality_update and old_qual_rank >= new_qual_rank:
                     logger.info(
                         f"Skipped overwrite for Dorama {dorama_id} Ep {ep_num}: existing {old_qual} >= incoming {quality}"
                     )
@@ -947,6 +950,107 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
     return True
 
 
+async def process_direct_storage_message(client: TelegramClient, msg: Message) -> bool:
+    """Instant Ingestion Hub for our own STORAGE_CHANNEL ('Dramalar').
+    When admin drops or forwards videos (single or batch of 1-22 episodes) directly into Dramalar,
+    this function immediately parses title, episodes, links to DB, and syncs the catalog.
+    Zero donor heuristic blocks.
+    """
+    text = msg.text or msg.message or ""
+    is_video, duration, w, h, size = get_video_attributes(msg)
+    if not is_video:
+        return False
+
+    if not text:
+        media = msg.video or msg.document
+        if media and hasattr(media, "attributes"):
+            for attr in media.attributes:
+                if isinstance(attr, DocumentAttributeFilename):
+                    fname = getattr(attr, "file_name", "") or ""
+                    if fname:
+                        text = fname.replace("_", " ").rsplit(".", 1)[0]
+                        break
+
+    if not text:
+        logger.warning(f"⚠️ [DIRECT DROP] Video message {msg.id} in Dramalar has no caption or filename.")
+        return False
+
+    raw_title = clean_dorama_title(text)
+    if not raw_title or len(raw_title) < 2:
+        logger.warning(f"⚠️ [DIRECT DROP] Could not parse dorama title from: {text[:50]}")
+        return False
+
+    ep_list = parse_episodes(text)
+    if not ep_list:
+        logger.warning(f"⚠️ [DIRECT DROP] Could not parse episode number(s) from: {text[:50]}")
+        return False
+
+    quality = f"{h}p" if h in (480, 720, 1080) else ("1080p" if h > 720 else "720p")
+    storage_msg_id = msg.id
+
+    logger.info(
+        f"🎯 [DIRECT DROP DETECTED] '{raw_title}' Ep {ep_list} ({quality}, {size}b) in Dramalar (msg_id={storage_msg_id})"
+    )
+
+    async with _CREATE_LOCK:
+        async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
+            dorama_id = await find_dorama_id(db, raw_title)
+            if not dorama_id:
+                is_micro = bool(duration <= 600 and duration > 0 and h > w)
+                dorama_id = await create_new_dorama(db, raw_title, is_micro_drama=is_micro)
+                logger.info(f"✨ [DIRECT DROP] Created NEW Dorama for '{raw_title}' (ID={dorama_id})")
+
+    if not dorama_id:
+        logger.error(f"❌ [DIRECT DROP] Failed to find or create dorama for '{raw_title}'")
+        return False
+
+    ingested = await ingest_episodes_to_db(
+        dorama_id, ep_list, storage_msg_id, quality, size, allow_same_quality_update=True
+    )
+    if not ingested:
+        logger.info(f"ℹ️ [DIRECT DROP] Ep {ep_list} already up to date in DB.")
+        return True
+
+    try:
+        database.invalidate_search_cache()
+    except Exception:
+        pass
+
+    schedule_catalog_sync(client)
+
+    # Deliver Telegram notification to admin
+    try:
+        async with aiosqlite.connect(str(DB_PATH)) as db:
+            async with db.execute(
+                "SELECT title, code FROM doramas WHERE id = ?", (dorama_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                d_title = row[0] if row else raw_title
+                d_code = row[1] if row else 0
+
+        ep_str = f"{min(ep_list)}-{max(ep_list)}-qismlar" if len(ep_list) > 1 else f"{ep_list[0]}-qism"
+        notif_text = (
+            f"⚡ <b>DRAMALAR HUB: YANGI QISM TAYYOR!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🎬 <b>Dorama:</b> {d_title} (Kod: <b>{d_code}</b>)\n"
+            f"🎞 <b>Qism:</b> {ep_str} ({quality})\n"
+            f"💾 <b>Storage ID:</b> {storage_msg_id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🚀 Bot katalogi avtomatik yangilandi va tomoshaga tayyor!"
+        )
+        if notify_subscribers_async:
+            for admin_id in config.ADMIN_IDS:
+                track_background_task(
+                    notify_subscribers_async(
+                        admin_id, notif_text, dorama_id=dorama_id, is_admin_report=True
+                    )
+                )
+    except Exception as ne:
+        logger.debug(f"[DIRECT DROP] Admin notification error: {ne}")
+
+    return True
+
+
 async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int], channel_locks: dict, dry_run: bool = False):
     """Background incremental sentinel: checks channels for any missed episodes during downtime with anti-flood throttling."""
     logger.info("Initializing Staggered Catchup Sentinel...")
@@ -1013,19 +1117,34 @@ async def run_listener(dry_run: bool = False):
     logger.info(f"Loaded {len(target_ids)} filtered Kdrama donor channels.")
 
     # 1. Warm up entity cache for reliable event dispatch
-    await warm_up_channel_entities(client, target_ids)
+    await warm_up_channel_entities(client, target_ids + [STORAGE_CHANNEL_ID])
     channel_locks = {cid: asyncio.Lock() for cid in target_ids}
+    storage_lock = asyncio.Lock()
 
-    # 2. Register real-time push event listener
+    # 2. Register real-time push event listener for donor channels
     @client.on(events.NewMessage(chats=target_ids))
     async def handle_new_media(event: events.NewMessage.Event):
         async with channel_locks[event.chat_id]:
             await process_donor_message(client, event.message, dry_run=dry_run, advance_state=False)
 
-    # 3. Start background staggered catchup sentinel
+    # 3. Register real-time push event listener for our own Dramalar storage channel (Instant Admin Drop)
+    @client.on(events.NewMessage(chats=[STORAGE_CHANNEL_ID]))
+    async def handle_direct_storage_drop(event: events.NewMessage.Event):
+        async with storage_lock:
+            await process_direct_storage_message(client, event.message)
+
+    # Check recent storage channel messages in case any was dropped while offline
+    try:
+        logger.info("Checking recent Dramalar storage messages for pending direct drops...")
+        async for m in client.iter_messages(STORAGE_CHANNEL_ID, limit=20):
+            await process_direct_storage_message(client, m)
+    except Exception as se:
+        logger.debug(f"Storage initial scan error: {se}")
+
+    # 4. Start background staggered catchup sentinel
     track_background_task(staggered_catchup_sync(client, target_ids, channel_locks, dry_run=dry_run))
 
-    logger.info("⚡ Autopilot Kdrama Listener is LIVE and actively monitoring with Hybrid Sentinel...")
+    logger.info("⚡ Autopilot Kdrama Listener is LIVE (Monitoring Donors + Dramalar Direct Drop Hub)...")
     while True:
         try:
             if not client.is_connected():
