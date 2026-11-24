@@ -1,6 +1,5 @@
 import asyncio
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 from pathlib import Path
 import sys
 
@@ -11,7 +10,6 @@ sys.path.insert(0, str(BASE_DIR / "scripts"))
 from autopilot_donor_listener import (
     clean_dorama_title,
     parse_episodes,
-    process_direct_storage_message,
 )
 
 
@@ -31,6 +29,20 @@ def test_direct_drop_batch_range_parsing():
     assert len(eps) == 22
     assert eps[0] == 1
     assert eps[-1] == 22
+
+
+def test_direct_drop_qisim_spelling():
+    text = "🎥 Nomi: Qayta tugilgan ruhlar (1-qisim)"
+    title = clean_dorama_title(text)
+    eps = parse_episodes(text)
+    assert title.lower() == "qayta tugilgan ruhlar"
+    assert eps == [1]
+
+    text16 = "🎥 Nomi: Qayta tugilgan ruhlar (16-qisim)"
+    title16 = clean_dorama_title(text16)
+    eps16 = parse_episodes(text16)
+    assert title16.lower() == "qayta tugilgan ruhlar"
+    assert eps16 == [16]
 
 
 def test_direct_drop_filename_fallback():

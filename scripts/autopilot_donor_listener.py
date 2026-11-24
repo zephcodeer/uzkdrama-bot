@@ -219,11 +219,11 @@ RE_TITLE_PREFIX = re.compile(
 
 # Episode Parsing Regexes
 RE_RANGE_EP = re.compile(
-    r"(?:^|[^\d])(\d{1,3})\s*[-–—]\s*(\d{1,3})\s*[-–—/]?\s*(?:qism(?:lar)?|ep(?:isodes?)?|seriya(?:lar)?)\b",
+    r"(?:^|[^\d])(\d{1,3})\s*[-–—]\s*(\d{1,3})\s*[-–—/]?\s*(?:qis[i]?m(?:lar)?|қис[и]?м(?:лар)?|ep(?:isodes?)?|seriya(?:lar)?|серия(?:лар)?)\b",
     re.IGNORECASE,
 )
 RE_RANGE_PREFIX = re.compile(
-    r"\b(?:qism(?:lar)?|ep(?:isodes?)?|seriya(?:lar)?)\s*[:#-]?\s*(\d{1,3})\s*[-–—]\s*(\d{1,3})\b",
+    r"\b(?:qis[i]?m(?:lar)?|қис[и]?м(?:лар)?|ep(?:isodes?)?|seriya(?:lar)?|серия(?:лар)?)\s*[:#-]?\s*(\d{1,3})\s*[-–—]\s*(\d{1,3})\b",
     re.IGNORECASE,
 )
 RE_BARE_RANGE = re.compile(
@@ -232,11 +232,11 @@ RE_BARE_RANGE = re.compile(
 )
 RE_AGE_FILTER = re.compile(r"\b\d{1,2}\s*[-–—]\s*\d{1,2}\s*(?:yosh|\+)", re.IGNORECASE)
 RE_SINGLE_EP = re.compile(
-    r"(?:^|[^\d])(\d{1,3})\s*[-–—/]?\s*(?:qism(?:lar)?|ep(?:isodes?)?|seriya)\b",
+    r"(?:^|[^\d])(\d{1,3})\s*[-–—/]?\s*(?:qis[i]?m(?:lar)?|қис[и]?м(?:лар)?|ep(?:isodes?)?|seriya|серия)\b",
     re.IGNORECASE,
 )
 RE_EP_PREFIX = re.compile(
-    r"\b(?:qism(?:lar)?|ep(?:isodes?)?|seriya)\s*[-–—#:]*\s*(\d{1,3})\b",
+    r"\b(?:qis[i]?m(?:lar)?|қис[и]?м(?:лар)?|ep(?:isodes?)?|seriya|серия)\s*[-–—#:]*\s*(\d{1,3})\b",
     re.IGNORECASE,
 )
 
@@ -382,9 +382,9 @@ def clean_dorama_title(text: str) -> str:
     # Re-apply prefix stripping in case of nested labels
     candidate = RE_TITLE_PREFIX.sub("", candidate).strip()
 
-    # Remove bracketed ranges (e.g. '(1-20)')
+    # Remove bracketed episode numbers (e.g. '(1-qisim)', '[1-qism]', '(1-20)')
     candidate = re.sub(
-        r"\(\s*\d{1,3}\s*[-–—]\s*\d{1,3}\s*\).*$",
+        r"[\(\[]\s*\d{1,3}(?:\s*[-–—]\s*\d{1,3})?(?:\s*[-–—/]?\s*(?:qis[i]?m[a-z]*|қис[и]?м[а-я]*|ep(?:isodes?)?|seriya[a-z]*|серия[а-я]*))?\s*[\)\]].*$",
         "",
         candidate,
         flags=re.I,
@@ -392,13 +392,13 @@ def clean_dorama_title(text: str) -> str:
 
     # Remove episode ranges and tokens (both with keyword and bare numbers like 1-11, 1-15)
     candidate = re.sub(
-        r"\b\d{1,3}\s*[-–—]\s*\d{1,3}(?:\s*[-–—/]?\s*(?:qism(?:lar)?|ep(?:isodes?)?|seriya(?:lar)?))?\b.*$",
+        r"\b\d{1,3}\s*[-–—]\s*\d{1,3}(?:\s*[-–—/]?\s*(?:qis[i]?m(?:lar)?|қис[и]?м(?:лар)?|ep(?:isodes?)?|seriya(?:lar)?|серия(?:лар)?))?\b.*$",
         "",
         candidate,
         flags=re.I,
     )
     candidate = re.sub(
-        r"\b\d{1,3}\s*[-–—/]?\s*(?:qism(?:lar)?|ep(?:isodes?)?|seriya(?:lar)?)\b.*$",
+        r"\b\d{1,3}\s*[-–—/]?\s*(?:qis[i]?m(?:lar)?|қис[и]?м(?:lar)?|ep(?:isodes?)?|seriya(?:lar)?|серия(?:лар)?)\b.*$",
         "",
         candidate,
         flags=re.I,
@@ -1136,7 +1136,8 @@ async def run_listener(dry_run: bool = False):
     # Check recent storage channel messages in case any was dropped while offline
     try:
         logger.info("Checking recent Dramalar storage messages for pending direct drops...")
-        async for m in client.iter_messages(STORAGE_CHANNEL_ID, limit=20):
+        recent_storage = await client.get_messages(STORAGE_CHANNEL_ID, limit=30)
+        for m in reversed(recent_storage or []):
             await process_direct_storage_message(client, m)
     except Exception as se:
         logger.debug(f"Storage initial scan error: {se}")
