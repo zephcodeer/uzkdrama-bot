@@ -124,21 +124,86 @@ API_HASH = getattr(config, "API_HASH", "b18441a1ff607e10a989891a5462e627")
 DONOR_FILTERED_PATH = BASE_DIR / "donor_channels_filtered.json"
 
 # Strict Subtitle Regex (Latin & Cyrillic, with prefixes/suffixes & known sub channels)
-RE_SUBTITLE = re.compile(
-    r"(?:^|[^a-zA-Z0-9а-яА-ЯёЁ])(?:hard|soft)?(?:sub(?:lar)?|subtitr[a-z]*|subtitles?|саб[ыа-я]*|субтитр[а-я]*|uzbsub[0-9]*|uzsub[0-9]*|redsky)(?:[^a-zA-Z0-9а-яА-ЯёЁ]|$)",
-    re.IGNORECASE,
-)
+RE_SUBTITLE_PATTERNS = [
+    r"\b(?:hard|soft)?sub(?:lar)?\b",
+    r"\b(?:hard|soft)?subtitr[a-z]*\b",
+    r"\bsubtitles?\b",
+    r"\b(?:uzb|uz|eng|rus|kor)[-_ ]?sub(?:s)?\b",
+    r"\b(?:uzbsub|uzsub)[0-9]*\b",
+    r"\bredsky\b",
+    r"\b(?:хард|софт)?саб(?:ы|лар)?\b",
+    r"\b(?:хард|софт)?суб(?:ы|лар)?\b",
+    r"\bсубтитр[а-я]*\b",
+    r"\b(?:узб|уз)[-_ ]?(?:саб|суб)\b",
+]
+RE_SUBTITLE = re.compile("|".join(RE_SUBTITLE_PATTERNS), re.IGNORECASE)
 
 # Strict Uzbek Dubbed Indicators (Latin, Cyrillic, All Apostrophe variants, Known Studio tags)
 RE_UZB_DUB = re.compile(
-    r"(?:o['ʻ`’ʼ]?zbek\s*tilida(?:\s*dublyaj[a-z]*)?|uzbek\s*tilida|uzb\s*tilida|o['ʻ`’ʼ]?zbekcha|uzbekcha|"
+    r"(?:(?:o['ʻ`’ʼ]?zbek|özbek|ozbek|uzbek|uzb|ўзбек|узбек)\s*tilida(?:\s*dublyaj[a-z]*)?|"
+    r"(?:o['ʻ`’ʼ]?zbek|özbek|ozbek|uzbek|ўзбек|узбек)cha|"
     r"dublyaj[a-z]*|prof(?:f)?\s*dub[a-z]*|tarjima\s*(?:kino|serial|dorama)?|"
-    r"ўзбек\s*тилида|узбек\s*тилида|ўзбекча|узбекча|дубляж|таржима|"
+    r"ўзбек\s*тилида|узбек\s*тилида|дубляж|таржима|"
     r"ovoz\s*berild[i-z]*|tomonidan\s*ovoz|"
-    r"#?choson\s*tv|#?minxo\s*tv|#?souls\s*studio|#?idub|#?iduptv|#?salomtv|#?af\s*tv|#?sevar\s*studio|#?uzdub|#?dramma_uzbdub|"
-    r"#tarjima_serial|#tarjima_kino)",
+    r"(?:\b|[#@])(?:choson(?:\s*tv|\s*media)?|minxo\s*tv|souls\s*studio|idub(?:tv)?|idup(?:tv)?|salom\s*tv|af\s*tv|sevar\s*studio|uzdub|dramma_uzbdub|asilmedia|asil_media)(?:\b|_))",
     re.IGNORECASE,
 )
+
+METADATA_TAGS = {
+    "uzb", "sub", "dub", "1080p", "720p", "480p", "qism", "ep", "seriya",
+    "choson_tv", "chosontv", "manba", "kino", "serial", "dorama", "kdrama", "yonu",
+    "idub", "salomtv", "premyera", "film", "top", "tarjima", "koreya", "korea"
+}
+
+
+def normalize_for_filter(text: str) -> str:
+    """Normalizes text for robust token-boundary regex matching."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"https?://\S+", " ", text)
+    cleaned = re.sub(r"@\w+", " ", cleaned)
+    cleaned = re.sub(r"['ʻ`’ʼ]", "'", cleaned)
+    cleaned = re.sub(r"[(){}\[\]<>/\\]", " ", cleaned)
+    cleaned = re.sub(r"[:;,!?\"«»“”#•·|~_\-*+=]", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip().lower()
+
+
+def is_subtitle_release(text: str) -> Tuple[bool, str]:
+    """Strictly identifies subtitle-only releases with deny-first precedence."""
+    if not text:
+        return False, ""
+    norm = normalize_for_filter(text)
+    m = RE_SUBTITLE.search(norm)
+    if m:
+        return True, m.group(0)
+    # Direct raw keyword search for safety
+    raw_sub = re.search(r"\b(?:uzbsub|uzsub|hardsub|softsub)\b", text, re.IGNORECASE)
+    if raw_sub:
+        return True, raw_sub.group(0)
+    # Check for #yonu or yonutv (known sub creator) when not explicitly marked as dubbed
+    if re.search(r"(?:#yonu|yonutv\s*\(\s*subtitr\s*\)|yonu\s*tv\s*sub)", text, re.IGNORECASE):
+        return True, "yonu_sub"
+    return False, ""
+
+
+def is_uzbek_dubbed(text: str, chat_title: str = "", chat_username: str = "") -> Tuple[bool, str]:
+    """Determines if a post qualifies as an Uzbek dubbed release."""
+    if not text:
+        return False, ""
+    m = RE_UZB_DUB.search(text)
+    if m:
+        return True, m.group(0)
+    norm = normalize_for_filter(text)
+    m_norm = RE_UZB_DUB.search(norm)
+    if m_norm:
+        return True, m_norm.group(0)
+    title_lower = (chat_title or "").lower()
+    if any(k in title_lower for k in ["o'zbek tilida", "oʻzbek tilida", "ozbek tilida", "uzbek tilida"]):
+        return True, f"channel_title:{chat_title}"
+    uname_lower = (chat_username or "").lower()
+    if any(k in uname_lower for k in ["uzbdub", "dublaj"]):
+        return True, f"channel_username:{chat_username}"
+    return False, ""
 
 # Micro-Drama / Duanju Platform & Keyword Identifier
 RE_MICRO_DRAMA = re.compile(
@@ -252,7 +317,7 @@ def parse_episodes(text: str) -> Optional[List[int]]:
 
 
 def clean_dorama_title(text: str) -> str:
-    """Extracts authentic dorama title, stripping markdown formatting, label prefixes, boilerplate headers, and emojies."""
+    """Extracts authentic dorama title, stripping markdown formatting, label prefixes, boilerplate headers, hashtags, and emojies."""
     if not text:
         return ""
 
@@ -261,10 +326,28 @@ def clean_dorama_title(text: str) -> str:
         return ""
 
     candidate = ""
-    for line in lines[:3]:
-        # Strip hashtags, channel mentions, and square brackets
-        cleaned = re.sub(r"#\w+|@\w+|\[.*?\]", "", line).strip()
-        # Strip markdown syntax: __text__, **text**, ~~text~~, `text`
+    for line in lines[:4]:
+        raw_line = line
+        cleaned = re.sub(r"@\w+|\[.*?\]", "", raw_line).strip()
+
+        # If line contains hashtags (e.g. #Doktor_X or #niqobdagi_muhabbat/ #Mening_aybdor_insonim)
+        if "#" in cleaned:
+            non_tag_text = re.sub(r"#\w+", "", cleaned).strip(" /|-_~*`")
+            if len(non_tag_text) < 2:
+                # Line is purely/predominantly hashtags! Extract title candidate
+                tags = re.findall(r"#([a-zA-Z0-9_а-яА-ЯёЁ]+)", cleaned)
+                valid_tags = []
+                for t in tags:
+                    t_lower = t.lower().strip("_")
+                    if t_lower not in METADATA_TAGS and not any(
+                        m in t_lower for m in ["qism", "seriya", "1080p", "720p", "480p", "choson", "yonu"]
+                    ):
+                        valid_tags.append(t.replace("_", " ").strip())
+                if valid_tags:
+                    cleaned = valid_tags[0]
+
+        # Strip remaining hashtags and markdown syntax
+        cleaned = re.sub(r"#\w+", "", cleaned).strip()
         cleaned = re.sub(r"[_*~`]+", " ", cleaned).strip()
         # Strip emojies, variation selectors, and decorative symbols
         cleaned = re.sub(
@@ -281,10 +364,20 @@ def clean_dorama_title(text: str) -> str:
 
     if not candidate:
         candidate = lines[0]
-        candidate = re.sub(r"#\w+|@\w+|\[.*?\]", "", candidate).strip()
-        candidate = re.sub(r"[_*~`]+", " ", candidate).strip()
-        candidate = re.sub(r"[\U00010000-\U0010ffff\u2000-\u3300\ufe00-\ufe0f•*►«»|“”]+", " ", candidate).strip()
-        candidate = RE_TITLE_PREFIX.sub("", candidate).strip()
+        cleaned = re.sub(r"@\w+|\[.*?\]", "", candidate).strip()
+        if "#" in cleaned:
+            tags = re.findall(r"#([a-zA-Z0-9_а-яА-ЯёЁ]+)", cleaned)
+            valid_tags = [
+                t.replace("_", " ").strip()
+                for t in tags
+                if t.lower().strip("_") not in METADATA_TAGS
+            ]
+            if valid_tags:
+                cleaned = valid_tags[0]
+        cleaned = re.sub(r"#\w+", "", cleaned).strip()
+        cleaned = re.sub(r"[_*~`]+", " ", cleaned).strip()
+        cleaned = re.sub(r"[\U00010000-\U0010ffff\u2000-\u3300\ufe00-\ufe0f•*►«»|“”]+", " ", cleaned).strip()
+        candidate = RE_TITLE_PREFIX.sub("", cleaned).strip()
 
     # Re-apply prefix stripping in case of nested labels
     candidate = RE_TITLE_PREFIX.sub("", candidate).strip()
@@ -703,21 +796,22 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
             mark_done()
             return False
 
-    # 3. Uzbek Dubbed & Subtitle Evaluation
-    # Strip URLs and usernames before checking subtitle markers to avoid false positives on channel handles (e.g. uzb_dub_sub)
-    cleaned_for_sub = re.sub(r"https?://\S+|@\w+", " ", text)
-    has_explicit_sub = bool(RE_SUBTITLE.search(cleaned_for_sub))
-    has_dub = bool(RE_UZB_DUB.search(text))
-
-    if has_explicit_sub and not has_dub:
-        logger.info(f"⏭ [SUBTITLE BLOCKED] Post has subtitle indicator from '{chat_title}': {text[:45]}")
+    # 3. Deny-First Subtitle Evaluation (Strict Rejection Precedence)
+    is_sub, sub_reason = is_subtitle_release(text)
+    if is_sub:
+        logger.info(
+            f"⏭ [SUBTITLE BLOCKED] Subtitle marker '{sub_reason}' detected from '{chat_title}': {text[:45]}"
+        )
         mark_done()
         return False
 
     # 4. Mandatory Uzbek Dubbed indicator for TV doramas and movies
+    has_dub, dub_reason = is_uzbek_dubbed(text, chat_title, chat_username)
     if not is_micro:
         if not has_dub:
-            logger.info(f"⏭ [NON-DUBBED BLOCKED] Post lacks explicit Uzbek dubbed indicator from '{chat_title}': {text[:45]}")
+            logger.info(
+                f"⏭ [NON-DUBBED BLOCKED] Post lacks explicit Uzbek dubbed indicator from '{chat_title}': {text[:45]}"
+            )
             mark_done()
             return False
 
