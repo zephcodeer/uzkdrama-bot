@@ -992,6 +992,19 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
         f"🎯 [DIRECT DROP DETECTED] '{raw_title}' Ep {ep_list} ({quality}, {size}b) in Dramalar (msg_id={storage_msg_id})"
     )
 
+    # Check cross-collision BEFORE creating a new dorama row in DB
+    async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as check_db:
+        async with check_db.execute(
+            "SELECT dorama_id, episode_number FROM episodes WHERE channel_message_id = ?",
+            (storage_msg_id,),
+        ) as cur:
+            collision = await cur.fetchone()
+            if collision:
+                logger.info(
+                    f"ℹ️ [DIRECT DROP] Msg {storage_msg_id} already bound to Dorama {collision[0]} Ep {collision[1]}. Skipping redundant creation."
+                )
+                return True
+
     async with _CREATE_LOCK:
         async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
             dorama_id = await find_dorama_id(db, raw_title)
