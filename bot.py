@@ -1652,18 +1652,14 @@ def format_flash_promo_content(user_id: int, first_name: str, current_refs: int,
 @router.callback_query(F.data == "menu_flash_promo")
 async def cb_menu_flash_promo(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    user_id = call.from_user.id
-    user = await db.get_user(user_id)
-    current_refs = user.get("referrals_count", 0) if user else 0
-
-    slots_str = await db.get_system_setting("promo_remaining_slots")
-    remaining_slots = int(slots_str) if slots_str and slots_str.isdigit() else 50
-    winners_str = await db.get_system_setting("promo_winners_count")
-    winners_count = int(winners_str) if winners_str and winners_str.isdigit() else 0
-
-    text = format_flash_promo_content(user_id, call.from_user.first_name or "Foydalanuvchi", current_refs, remaining_slots, winners_count)
-    await render_text_screen(call, text, reply_markup=kb.flash_promo_kb(user_id))
-    await safe_answer(call)
+    await call.answer("Aksiya yakunlandi!", show_alert=True)
+    is_admin = is_admin_user(call.from_user.id)
+    is_promo = await db.is_promo_free_mode()
+    welcome_text = (
+        f"{ce('sparkles')} <b>Asosiy menyu</b>\n\n"
+        f"Aksiya o'z nihoyasiga yetdi. Dorama va filmlarni qidiruv yoki katalog orqali tomosha qilishingiz mumkin!"
+    )
+    await render_text_screen(call, welcome_text, reply_markup=kb.main_menu_kb(is_admin=is_admin, is_promo=is_promo))
 
 
 @router.callback_query(F.data == "promo_check_my_refs")

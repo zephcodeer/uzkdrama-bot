@@ -142,15 +142,6 @@ def main_menu_kb(is_admin: bool = False, is_promo: bool = True) -> InlineKeyboar
             )
         )
 
-    # 1 Kunlik VIP Aksiya (50 ta joy)
-    builder.row(
-        InlineKeyboardButton(
-            text="🔥 1 Kunlik VIP Aksiya (50 ta joy)",
-            callback_data="menu_flash_promo",
-            icon_custom_emoji_id="5380026930055653272"
-        )
-    )
-
     vip_label = "Aksiya: Barcha Qismlar Bepul!" if is_promo else "VIP A'zolik (Qulflarsiz)"
     vip_icon = ICON_GIFT if is_promo else ICON_VIP
     builder.row(
