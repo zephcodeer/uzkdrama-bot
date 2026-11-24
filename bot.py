@@ -728,6 +728,9 @@ async def show_dorama_detail(
 
 
 
+    status_raw = (d.get("status") or "").strip().lower()
+    is_ongoing = ("ongoing" in status_raw) or ("davom" in status_raw) or ("kutilmoqda" in status_raw)
+
     markup = kb.dorama_detail_kb(
         dorama_id=dorama_id,
         episodes=episodes,
@@ -738,7 +741,8 @@ async def show_dorama_detail(
         subscribed=subscribed,
         related_seasons=related_seasons,
         back_cb=back_cb,
-        is_random=is_random
+        is_random=is_random,
+        is_ongoing=is_ongoing
     )
 
 

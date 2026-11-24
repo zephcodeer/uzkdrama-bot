@@ -335,7 +335,8 @@ def dorama_detail_kb(
     subscribed: bool = False,
     related_seasons: list = None,
     back_cb: str = "menu_home",
-    is_random: bool = False
+    is_random: bool = False,
+    is_ongoing: bool = True
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
@@ -425,22 +426,24 @@ def dorama_detail_kb(
     if nav_buttons:
         builder.row(*nav_buttons)
 
-    # Xatcho'p va Bildirishnoma
+    # Xatcho'p va Bildirishnoma (Bildirishnoma faqat davom etayotgan / ongoing doramalar uchun)
     bm_text = "Saqlangan" if bookmarked else "Saqlab qo'yish"
-    sub_text = "O'chirish" if subscribed else "Yangi qismlarni kuzatish"
+    bm_btn = InlineKeyboardButton(
+        text=bm_text,
+        callback_data=f"toggle_bm:{dorama_id}",
+        icon_custom_emoji_id=ICON_BOOKMARK
+    )
 
-    builder.row(
-        InlineKeyboardButton(
-            text=bm_text,
-            callback_data=f"toggle_bm:{dorama_id}",
-            icon_custom_emoji_id=ICON_BOOKMARK
-        ),
-        InlineKeyboardButton(
+    if is_ongoing:
+        sub_text = "O'chirish" if subscribed else "Yangi qismlarni kuzatish"
+        sub_btn = InlineKeyboardButton(
             text=sub_text,
             callback_data=f"toggle_sub:{dorama_id}",
             icon_custom_emoji_id=ICON_BELL
-        ),
-    )
+        )
+        builder.row(bm_btn, sub_btn)
+    else:
+        builder.row(bm_btn)
 
     # Ulashish tugmasi
     dorama_link = f"https://t.me/{bot_username}?start=d_{dorama_id}"
