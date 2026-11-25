@@ -1089,7 +1089,7 @@ def build_admin_users_view_kb(users: list, filter_type: str, page: int, total_us
         InlineKeyboardButton(text="🔄 Yangilash", callback_data=f"aview_f:{filter_type}:{page}")
     )
     builder.row(
-        InlineKeyboardButton(text="🔙 Boshqaruv paneli", callback_data="admin_panel")
+        InlineKeyboardButton(text="🔙 Boshqaruv paneli", callback_data="menu_admin")
     )
 
     return builder.as_markup()

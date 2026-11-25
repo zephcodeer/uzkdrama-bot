@@ -15,14 +15,20 @@ Guarantees:
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 from difflib import SequenceMatcher
 import html
 import json
 import logging
+import os
 from pathlib import Path
 import re
+import sqlite3
 import sys
+import tempfile
+import threading
 from typing import List, Optional, Tuple
+import unicodedata
 
 import aiosqlite
 from telethon import TelegramClient, events
@@ -56,8 +62,39 @@ except ImportError:
 
 _BACKGROUND_TASKS = set()
 _CREATE_LOCK = asyncio.Lock()
+_STATE_LOCK = threading.Lock()
+_RESTRICTED_LOCK = threading.Lock()
 _SYNC_TASK = None
 _SYNC_REVISION = 0
+
+
+def _atomic_write_json(path: Path, data: dict):
+    """Atomically write JSON to disk using a temporary file and os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.stem}_", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+@asynccontextmanager
+async def _open_db():
+    """Open an async SQLite connection configured with WAL mode and busy timeout."""
+    async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
+        await db.execute("PRAGMA journal_mode = WAL;")
+        await db.execute("PRAGMA busy_timeout = 30000;")
+        yield db
 
 def track_background_task(coro):
     """Schedules an async task and retains a strong reference to prevent garbage collection."""
@@ -89,8 +126,8 @@ async def sync_catalog_worker(client: TelegramClient):
     pending_bot_update = False
     while True:
         revision = _SYNC_REVISION
-        await asyncio.sleep(5)
         try:
+            await asyncio.sleep(5)
             changed = await asyncio.to_thread(publish_catalog_snapshot, DB_PATH)
             pending_bot_update |= changed
             if pending_bot_update:
@@ -99,6 +136,12 @@ async def sync_catalog_worker(client: TelegramClient):
                 pending_bot_update = False
             if revision == _SYNC_REVISION:
                 return
+        except asyncio.CancelledError:
+            return
+        except FloodWaitError as fe:
+            wait_s = max(int(getattr(fe, "seconds", 60)) + 2, 60)
+            logger.warning(f"Catalog sync FloodWait; retrying in {wait_s} seconds")
+            await asyncio.sleep(wait_s)
         except Exception as exc:
             logger.error(f"Catalog sync failed; retrying in 60 seconds: {exc}")
             await asyncio.sleep(60)
@@ -144,7 +187,7 @@ RE_UZB_DUB = re.compile(
     r"(?:o['ʻ`’ʼ]?zbek|özbek|ozbek|uzbek|ўзбек|узбек)cha|"
     r"dublyaj[a-z]*|prof(?:f)?\s*dub[a-z]*|tarjima\s*(?:kino|serial|dorama)?|"
     r"ўзбек\s*тилида|узбек\s*тилида|дубляж|таржима|"
-    r"ovoz\s*berild[i-z]*|tomonidan\s*ovoz|"
+    r"ovoz\s*beril(?:gan|di|adi|moqda|[a-z]*)|tomonidan\s*ovoz|"
     r"(?:\b|[#@])(?:choson(?:\s*tv|\s*media)?|minxo\s*tv|souls\s*studio|idub(?:tv)?|idup(?:tv)?|salom\s*tv|af\s*tv|sevar\s*studio|uzdub|dramma_uzbdub|asilmedia|asil_media)(?:\b|_))",
     re.IGNORECASE,
 )
@@ -160,11 +203,12 @@ def normalize_for_filter(text: str) -> str:
     """Normalizes text for robust token-boundary regex matching."""
     if not text:
         return ""
-    cleaned = re.sub(r"https?://\S+", " ", text)
+    cleaned = unicodedata.normalize("NFKC", text)
+    cleaned = re.sub(r"https?://\S+", " ", cleaned)
     cleaned = re.sub(r"@\w+", " ", cleaned)
-    cleaned = re.sub(r"['ʻ`’ʼ]", "'", cleaned)
+    cleaned = re.sub(r"['ʻ`’ʼ‘]", "'", cleaned)
     cleaned = re.sub(r"[(){}\[\]<>/\\]", " ", cleaned)
-    cleaned = re.sub(r"[:;,!?\"«»“”#•·|~_\-*+=]", " ", cleaned)
+    cleaned = re.sub(r"[:;,!?.\"«»“”#•·|~_\-*+=]", " ", cleaned)
     return re.sub(r"\s+", " ", cleaned).strip().lower()
 
 
@@ -172,33 +216,34 @@ def is_subtitle_release(text: str) -> Tuple[bool, str]:
     """Strictly identifies subtitle-only releases with deny-first precedence."""
     if not text:
         return False, ""
-    norm = normalize_for_filter(text)
+    norm_unicode = unicodedata.normalize("NFKC", text)
+    norm = normalize_for_filter(norm_unicode)
     m = RE_SUBTITLE.search(norm)
     if m:
         return True, m.group(0)
     # Direct raw keyword search for safety
-    raw_sub = re.search(r"\b(?:uzbsub|uzsub|hardsub|softsub)\b", text, re.IGNORECASE)
+    raw_sub = re.search(r"\b(?:uzbsub|uzsub|hardsub|softsub)\b", norm_unicode, re.IGNORECASE)
     if raw_sub:
         return True, raw_sub.group(0)
     # Check for #yonu or yonutv (known sub creator) when not explicitly marked as dubbed
-    if re.search(r"(?:#yonu|yonutv\s*\(\s*subtitr\s*\)|yonu\s*tv\s*sub)", text, re.IGNORECASE):
+    if re.search(r"(?:#yonu|yonutv\s*\(\s*subtitr\s*\)|yonu\s*tv\s*sub)", norm_unicode, re.IGNORECASE):
         return True, "yonu_sub"
     return False, ""
 
 
 def is_uzbek_dubbed(text: str, chat_title: str = "", chat_username: str = "") -> Tuple[bool, str]:
     """Determines if a post qualifies as an Uzbek dubbed release."""
-    if not text:
-        return False, ""
-    m = RE_UZB_DUB.search(text)
-    if m:
-        return True, m.group(0)
-    norm = normalize_for_filter(text)
-    m_norm = RE_UZB_DUB.search(norm)
-    if m_norm:
-        return True, m_norm.group(0)
-    title_lower = (chat_title or "").lower()
-    if any(k in title_lower for k in ["o'zbek tilida", "oʻzbek tilida", "ozbek tilida", "uzbek tilida"]):
+    if text:
+        norm_unicode = unicodedata.normalize("NFKC", text)
+        m = RE_UZB_DUB.search(norm_unicode)
+        if m:
+            return True, m.group(0)
+        norm = normalize_for_filter(norm_unicode)
+        m_norm = RE_UZB_DUB.search(norm)
+        if m_norm:
+            return True, m_norm.group(0)
+    title_lower = unicodedata.normalize("NFKC", chat_title or "").lower()
+    if any(k in title_lower for k in ["o'zbek tilida", "oʻzbek tilida", "o‘zbek tilida", "ozbek tilida", "uzbek tilida"]):
         return True, f"channel_title:{chat_title}"
     uname_lower = (chat_username or "").lower()
     if any(k in uname_lower for k in ["uzbdub", "dublaj"]):
@@ -227,10 +272,11 @@ RE_RANGE_PREFIX = re.compile(
     re.IGNORECASE,
 )
 RE_BARE_RANGE = re.compile(
-    r"(?:^|[^\d(])\(?\s*(\d{1,3})\s*[-–—]\s*(\d{1,3})\s*\)?(?!\s*(?:yosh|yoshlar|\+|yil|so['ʻ`]?m|ming|mln))\b",
+    r"(?:^|[^\d(])\(?\s*(\d{1,3})\s*[-–—]\s*(\d{1,3})\s*\)?(?!\s*(?:yosh|yoshlar|\+|yil|yillar|asr|so['ʻ`’ʼ]?m|ming|mln|mlrd|%))(?:\b|$)",
     re.IGNORECASE,
 )
 RE_AGE_FILTER = re.compile(r"\b\d{1,2}\s*[-–—]\s*\d{1,2}\s*(?:yosh|\+)", re.IGNORECASE)
+RE_YEAR_RANGE_FILTER = re.compile(r"\b(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)?\d{2}\b")
 RE_SINGLE_EP = re.compile(
     r"(?:^|[^\d])(\d{1,3})\s*[-–—/]?\s*(?:qis[i]?m(?:lar)?|қис[и]?м(?:лар)?|ep(?:isodes?)?|seriya|серия)\b",
     re.IGNORECASE,
@@ -281,13 +327,40 @@ def get_video_attributes(msg: Message) -> Tuple[bool, int, int, int, int]:
     return is_video, duration, width, height, size
 
 
-def parse_episodes(text: str, is_micro: bool = True) -> Optional[List[int]]:
+def determine_quality(w: int, h: int, text: str = "", filename: str = "") -> str:
+    """Determine video quality tier using short-side resolution for vertical & landscape videos."""
+    if w > 0 and h > 0:
+        short_side = min(w, h)
+        if short_side >= 1000:
+            return "1080p"
+        if short_side >= 680:
+            return "720p"
+        if short_side >= 400:
+            return "480p"
+        return "unknown"
+
+    meta_text = unicodedata.normalize("NFKC", f"{text or ''} {filename or ''}")
+    m = re.search(r"\b(1080p|720p|480p)\b", meta_text, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    return "unknown"
+
+
+def parse_episodes(
+    text: str,
+    is_micro: bool = True,
+    allow_large_explicit_range: bool = False,
+) -> Optional[List[int]]:
     """Accurately parses episode numbers and ranges ('1-11', '1-15', '12-25 qismlar')."""
     if not text:
         return None
 
-    # Strip age limits like '16-18 yosh' or '18+' to prevent false range match
-    cleaned_text = RE_AGE_FILTER.sub("", text)
+    # Normalize Unicode (e.g., mathematical bold '𝐪𝐢𝐬𝐦' -> 'qism')
+    norm_text = unicodedata.normalize("NFKC", text)
+
+    # Strip age limits like '16-18 yosh' and year ranges like '2024-2025'
+    cleaned_text = RE_AGE_FILTER.sub("", norm_text)
+    cleaned_text = RE_YEAR_RANGE_FILTER.sub("", cleaned_text)
 
     # Filter out promo/CTA lines (e.g. "1-50-qismlar botga joylandi")
     non_promo_lines = [
@@ -306,7 +379,7 @@ def parse_episodes(text: str, is_micro: bool = True) -> Optional[List[int]]:
                 if 1 <= ep <= 300:
                     return [ep]
 
-    max_range_span = 300 if is_micro else 8
+    max_range_span = 300 if (is_micro or allow_large_explicit_range) else 8
 
     # 1. Explicit keyword range ('1-11 qism', '1-15 qismlar', 'qism 1-11')
     m_range = RE_RANGE_EP.search(eval_text) or RE_RANGE_PREFIX.search(eval_text)
@@ -316,29 +389,71 @@ def parse_episodes(text: str, is_micro: bool = True) -> Optional[List[int]]:
         if 1 <= start_ep < end_ep <= 300 and (end_ep - start_ep + 1) <= max_range_span:
             return list(range(start_ep, end_ep + 1))
 
-    # 2. Bundled batch range e.g. '1-11', '1-15', '(1-11)' (Micro-dramas / Duanju)
-    m_bare = RE_BARE_RANGE.search(eval_text)
-    if m_bare:
-        start_ep = int(m_bare.group(1))
-        end_ep = int(m_bare.group(2))
-        if 1 <= start_ep < end_ep <= 300 and (end_ep - start_ep + 1) <= max_range_span:
-            return list(range(start_ep, end_ep + 1))
-
-    # 3. Single episode check
+    # 2. Explicit single episode check (takes precedence over bare number ranges like '24-25' in body)
     m_single = RE_SINGLE_EP.search(eval_text)
     if m_single:
         ep = int(m_single.group(1))
         if 1 <= ep <= 300:
             return [ep]
 
-    # 4. Prefix episode check
+    # 3. Explicit prefix episode check
     m_pref = RE_EP_PREFIX.search(eval_text)
     if m_pref:
         ep = int(m_pref.group(1))
         if 1 <= ep <= 300:
             return [ep]
 
+    # 4. Bundled batch range e.g. '1-11', '1-15', '(1-11)' (Micro-dramas / Duanju)
+    m_bare = RE_BARE_RANGE.search(eval_text)
+    if m_bare:
+        start_ep = int(m_bare.group(1))
+        end_ep = int(m_bare.group(2))
+        bare_max_span = 300 if is_micro else 8
+        if 1 <= start_ep < end_ep <= 300 and (end_ep - start_ep + 1) <= bare_max_span:
+            return list(range(start_ep, end_ep + 1))
+
     return None
+
+
+_RE_DECORATIVE_SYMBOLS = re.compile(
+    r"[\U00010000-\U0010ffff\u2000-\u2012\u2014-\u2017\u201a-\u201b\u201e-\u206f\u2100-\u3300\ufe00-\ufe0f•*►«»|“”]+"
+)
+
+
+def _smart_title_case(text: str) -> str:
+    """Title-case words without uppercasing characters immediately after apostrophes (e.g. Oʻrinbosar)."""
+    if not text:
+        return ""
+    return re.sub(
+        r"(?:^|(?<=[\s(\[/:\-–—]))([^\s(\[/:\-–—'ʻ`’ʼ‘])",
+        lambda m: m.group(1).upper(),
+        text.lower(),
+    )
+
+
+def _strip_line_for_title(raw_line: str) -> str:
+    cleaned = re.sub(r"https?://\S+|t\.me/\S+", " ", raw_line)
+    cleaned = re.sub(r"@\w+|\[.*?\]", "", cleaned).strip()
+
+    if "#" in cleaned:
+        non_tag_text = re.sub(r"#\w+", "", cleaned).strip(" /|-_~*`")
+        if len(non_tag_text) < 2:
+            tags = re.findall(r"#([a-zA-Z0-9_а-яА-ЯёЁ]+)", cleaned)
+            valid_tags = []
+            for t in tags:
+                t_lower = t.lower().strip("_")
+                if t_lower not in METADATA_TAGS and not any(
+                    m in t_lower for m in ["qism", "seriya", "1080p", "720p", "480p", "choson", "yonu"]
+                ):
+                    valid_tags.append(t.replace("_", " ").strip())
+            if valid_tags:
+                cleaned = valid_tags[0]
+
+    cleaned = re.sub(r"#\w+", "", cleaned).strip()
+    cleaned = re.sub(r"[_*~`]+", " ", cleaned).strip()
+    cleaned = _RE_DECORATIVE_SYMBOLS.sub(" ", cleaned).strip()
+    cleaned = RE_TITLE_PREFIX.sub("", cleaned).strip()
+    return cleaned
 
 
 def clean_dorama_title(text: str) -> str:
@@ -346,63 +461,20 @@ def clean_dorama_title(text: str) -> str:
     if not text:
         return ""
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    norm_text = unicodedata.normalize("NFKC", text)
+    lines = [line.strip() for line in norm_text.splitlines() if line.strip()]
     if not lines:
         return ""
 
     candidate = ""
-    for line in lines[:4]:
-        raw_line = line
-        cleaned = re.sub(r"@\w+|\[.*?\]", "", raw_line).strip()
-
-        # If line contains hashtags (e.g. #Doktor_X or #niqobdagi_muhabbat/ #Mening_aybdor_insonim)
-        if "#" in cleaned:
-            non_tag_text = re.sub(r"#\w+", "", cleaned).strip(" /|-_~*`")
-            if len(non_tag_text) < 2:
-                # Line is purely/predominantly hashtags! Extract title candidate
-                tags = re.findall(r"#([a-zA-Z0-9_а-яА-ЯёЁ]+)", cleaned)
-                valid_tags = []
-                for t in tags:
-                    t_lower = t.lower().strip("_")
-                    if t_lower not in METADATA_TAGS and not any(
-                        m in t_lower for m in ["qism", "seriya", "1080p", "720p", "480p", "choson", "yonu"]
-                    ):
-                        valid_tags.append(t.replace("_", " ").strip())
-                if valid_tags:
-                    cleaned = valid_tags[0]
-
-        # Strip remaining hashtags and markdown syntax
-        cleaned = re.sub(r"#\w+", "", cleaned).strip()
-        cleaned = re.sub(r"[_*~`]+", " ", cleaned).strip()
-        # Strip emojies, variation selectors, and decorative symbols
-        cleaned = re.sub(
-            r"[\U00010000-\U0010ffff\u2000-\u3300\ufe00-\ufe0f•*►«»|“”]+",
-            " ",
-            cleaned,
-        ).strip()
-        # Strip label prefixes (e.g. 'Drama nomi:', 'Dorama nomi:', 'Nomi:')
-        cleaned = RE_TITLE_PREFIX.sub("", cleaned).strip()
-
+    for line in lines[:6]:
+        cleaned = _strip_line_for_title(line)
         if cleaned and not RE_BOILERPLATE.search(cleaned):
             candidate = cleaned
             break
 
     if not candidate:
-        candidate = lines[0]
-        cleaned = re.sub(r"@\w+|\[.*?\]", "", candidate).strip()
-        if "#" in cleaned:
-            tags = re.findall(r"#([a-zA-Z0-9_а-яА-ЯёЁ]+)", cleaned)
-            valid_tags = [
-                t.replace("_", " ").strip()
-                for t in tags
-                if t.lower().strip("_") not in METADATA_TAGS
-            ]
-            if valid_tags:
-                cleaned = valid_tags[0]
-        cleaned = re.sub(r"#\w+", "", cleaned).strip()
-        cleaned = re.sub(r"[_*~`]+", " ", cleaned).strip()
-        cleaned = re.sub(r"[\U00010000-\U0010ffff\u2000-\u3300\ufe00-\ufe0f•*►«»|“”]+", " ", cleaned).strip()
-        candidate = RE_TITLE_PREFIX.sub("", cleaned).strip()
+        candidate = _strip_line_for_title(lines[0])
 
     # Re-apply prefix stripping in case of nested labels
     candidate = RE_TITLE_PREFIX.sub("", candidate).strip()
@@ -429,18 +501,20 @@ def clean_dorama_title(text: str) -> str:
         flags=re.I,
     )
     candidate = re.sub(
-        r"\b(?:uzbek|o['ʻ`’ʼ]?zbek)\s*tilida\b.*$",
+        r"\b(?:uzbek|o['ʻ`’ʼ‘]?zbek)\s*tilida\b.*$",
         "",
         candidate,
         flags=re.I,
     )
-    candidate = re.sub(r"\s+", " ", candidate).strip(" _*~`-–—:/|\"'«»“”")
+    candidate = re.sub(r"\s+", " ", candidate).strip(" _*~`-–—:/|\"'«»“”()")
     candidate = re.sub(
         r"\s+\b(?:seriali|doramasi|dramasi|filmi|multfilmi)\b$",
         "",
         candidate,
         flags=re.I,
-    ).strip(" _*~`-–—:/|\"'«»“”")
+    ).strip(" _*~`-–—:/|\"'«»“”()")
+    if re.search(r"(?:https?://|t\.me/)", candidate, re.I):
+        return ""
     return candidate
 
 
@@ -449,13 +523,17 @@ async def find_dorama_id(
     raw_title: str,
     is_micro_drama: bool = False,
 ) -> Optional[int]:
-    """High-accuracy anti-collision dorama lookup."""
+    """High-accuracy anti-collision read-only dorama lookup."""
     clean_target = clean_dorama_title(raw_title)
     if not clean_target or len(clean_target) < 2:
         return None
 
     norm_target = normalize_search_text(clean_target)
+    if not norm_target:
+        return None
+    norm_target_no_num = re.sub(r"\s+\d{1,4}$", "", norm_target).strip()
     target_tokens = set(norm_target.split())
+    collapsed_target = norm_target.replace(" ", "")
 
     async with db.execute("SELECT id, title, aliases, code FROM doramas") as cur:
         rows = await cur.fetchall()
@@ -470,23 +548,16 @@ async def find_dorama_id(
         # Exact match (or match against title without parenthetical suffix like 'Daha 17 (Hali 17)')
         base_title = re.sub(r"\s*\([^)]*\)", "", title or "").strip()
         norm_base = normalize_search_text(base_title)
-        if norm_target == norm_t or (len(norm_base) >= 4 and norm_target == norm_base):
-            if is_micro_drama:
-                await db.execute(
-                    "UPDATE doramas SET category = 'duanju', genre = 'Vertikal Micro-Drama, Duanju' WHERE id = ? AND (category = 'korea' OR category = '' OR category IS NULL)",
-                    (d_id,),
-                )
-                await db.commit()
+        if (
+            norm_target == norm_t
+            or (len(norm_base) >= 4 and norm_target == norm_base)
+            or (len(collapsed_target) >= 6 and collapsed_target == norm_t.replace(" ", ""))
+            or (len(norm_target_no_num) >= 4 and (norm_target_no_num == norm_t or norm_target_no_num == norm_base))
+        ):
             return d_id
 
         # Token set match (prevents 'Baxt' from matching 'Baxt qasri')
         if target_tokens == db_tokens:
-            if is_micro_drama:
-                await db.execute(
-                    "UPDATE doramas SET category = 'duanju', genre = 'Vertikal Micro-Drama, Duanju' WHERE id = ? AND (category = 'korea' OR category = '' OR category IS NULL)",
-                    (d_id,),
-                )
-                await db.commit()
             return d_id
 
         # High-threshold SequenceMatcher only when token counts are very close
@@ -500,25 +571,27 @@ async def find_dorama_id(
         if aliases:
             for alias in str(aliases).split(","):
                 norm_a = normalize_search_text(alias.strip())
-                if norm_target == norm_a:
-                    if is_micro_drama:
-                        await db.execute(
-                            "UPDATE doramas SET category = 'duanju', genre = 'Vertikal Micro-Drama, Duanju' WHERE id = ? AND (category = 'korea' OR category = '' OR category IS NULL)",
-                            (d_id,),
-                        )
-                        await db.commit()
+                if norm_a and (
+                    norm_target == norm_a
+                    or (len(collapsed_target) >= 6 and collapsed_target == norm_a.replace(" ", ""))
+                    or (len(norm_target_no_num) >= 4 and norm_target_no_num == norm_a)
+                ):
                     return d_id
 
     if best_match_id and best_score >= 0.88:
-        if is_micro_drama:
-            await db.execute(
-                "UPDATE doramas SET category = 'duanju', genre = 'Vertikal Micro-Drama, Duanju' WHERE id = ? AND (category = 'korea' OR category = '' OR category IS NULL)",
-                (best_match_id,),
-            )
-            await db.commit()
         return best_match_id
 
     return None
+
+
+async def upgrade_dorama_to_micro(db: aiosqlite.Connection, dorama_id: int):
+    """Upgrade an existing dorama's category/genre to duanju if not already categorized."""
+    await db.execute(
+        "UPDATE doramas SET category = 'duanju', genre = 'Vertikal Micro-Drama, Duanju' "
+        "WHERE id = ? AND (category = 'korea' OR category = '' OR category IS NULL)",
+        (dorama_id,),
+    )
+    await db.commit()
 
 
 async def create_new_dorama(
@@ -531,47 +604,62 @@ async def create_new_dorama(
     if not clean_target or len(clean_target) < 2:
         return None
 
-    # Safe code allocation
-    async with db.execute("SELECT code FROM doramas WHERE code IS NOT NULL") as cur:
-        existing_codes = set(r[0] for r in await cur.fetchall())
-    new_code = max(existing_codes, default=500) + 1
-    while new_code in existing_codes:
-        new_code += 1
-
-    clean_name = clean_target.title()
-    base_slug = slugify(clean_name) or f"dorama-{new_code}"
-    slug = base_slug
-    counter = 1
-
-    while True:
-        async with db.execute(
-            "SELECT id FROM doramas WHERE slug = ?",
-            (slug,),
-        ) as cur:
-            exists = await cur.fetchone()
-            if not exists:
-                break
-            counter += 1
-            slug = f"{base_slug}-{counter}"
-
+    clean_name = _smart_title_case(clean_target)
     category = "duanju" if is_micro_drama else "korea"
     genre = "Vertikal Micro-Drama, Duanju" if is_micro_drama else "Dorama"
     country = "DramaBox / Micro-Drama" if is_micro_drama else "Janubiy Koreya"
     description = "DramaBox 9:16 vertikal formatdagi micro-drama (qismlar to'plami)" if is_micro_drama else ""
 
-    async with db.execute(
-        """
-        INSERT INTO doramas (code, title, slug, status, country, total_episodes, views, category, genre, description)
-        VALUES (?, ?, ?, 'Ongoing', ?, 1, 0, ?, ?, ?)
-    """,
-        (new_code, clean_name, slug, country, category, genre, description),
-    ) as cur:
-        await db.commit()
-        new_id = cur.lastrowid
-        logger.info(
-            f"✨ Created NEW Dorama [Code {new_code}] '{clean_name}' (ID={new_id}, slug='{slug}', cat='{category}')"
-        )
-        return new_id
+    for attempt in range(5):
+        # Check if another writer just inserted this dorama
+        existing_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro_drama)
+        if existing_id:
+            if is_micro_drama:
+                await upgrade_dorama_to_micro(db, existing_id)
+            return existing_id
+
+        try:
+            await db.execute("BEGIN IMMEDIATE")
+        except sqlite3.OperationalError:
+            # In case a transaction is already active on this connection
+            pass
+
+        async with db.execute("SELECT code FROM doramas WHERE code IS NOT NULL") as cur:
+            existing_codes = set(r[0] for r in await cur.fetchall())
+        new_code = max(existing_codes, default=500) + 1 + attempt
+        while new_code in existing_codes:
+            new_code += 1
+
+        base_slug = slugify(clean_name) or f"dorama-{new_code}"
+        slug = base_slug
+        counter = 1
+        while True:
+            async with db.execute("SELECT id FROM doramas WHERE slug = ?", (slug,)) as cur:
+                if not await cur.fetchone():
+                    break
+                counter += 1
+                slug = f"{base_slug}-{counter}"
+
+        try:
+            async with db.execute(
+                """
+                INSERT INTO doramas (code, title, slug, status, country, total_episodes, views, category, genre, description)
+                VALUES (?, ?, ?, 'Ongoing', ?, 1, 0, ?, ?, ?)
+                """,
+                (new_code, clean_name, slug, country, category, genre, description),
+            ) as cur:
+                await db.commit()
+                new_id = cur.lastrowid
+                logger.info(
+                    f"✨ Created NEW Dorama [Code {new_code}] '{clean_name}' (ID={new_id}, slug='{slug}', cat='{category}')"
+                )
+                return new_id
+        except sqlite3.IntegrityError as exc:
+            await db.rollback()
+            logger.warning(f"IntegrityError creating dorama '{clean_name}' (attempt {attempt + 1}/5): {exc}")
+            await asyncio.sleep(0.05 * (attempt + 1))
+
+    return None
 
 
 async def find_or_create_dorama(
@@ -744,29 +832,40 @@ RESTRICTED_CHANNELS_FILE = BASE_DIR / "scripts" / "autopilot_restricted_channels
 
 
 def load_sync_state() -> dict:
-    if STATE_FILE.exists():
-        try:
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.warning(f"Error loading {STATE_FILE}: {e}")
-    return {}
+    with _STATE_LOCK:
+        if STATE_FILE.exists():
+            try:
+                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Error loading {STATE_FILE}: {e}")
+        return {}
 
 
 def save_sync_state(state: dict):
-    try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logger.warning(f"Error saving {STATE_FILE}: {e}")
+    with _STATE_LOCK:
+        try:
+            _atomic_write_json(STATE_FILE, state)
+        except Exception as e:
+            logger.warning(f"Error saving {STATE_FILE}: {e}")
 
 
 def update_channel_state(chat_id: int, msg_id: int):
-    state = load_sync_state()
-    cid_str = str(chat_id)
-    if msg_id > state.get(cid_str, 0):
-        state[cid_str] = msg_id
-        save_sync_state(state)
+    with _STATE_LOCK:
+        state = {}
+        if STATE_FILE.exists():
+            try:
+                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+            except Exception as e:
+                logger.warning(f"Error loading {STATE_FILE}: {e}")
+        cid_str = str(chat_id)
+        if msg_id > state.get(cid_str, 0):
+            state[cid_str] = msg_id
+            try:
+                _atomic_write_json(STATE_FILE, state)
+            except Exception as e:
+                logger.warning(f"Error saving {STATE_FILE}: {e}")
 
 
 async def warm_up_channel_entities(client: TelegramClient, target_ids: List[int]):
@@ -777,10 +876,26 @@ async def warm_up_channel_entities(client: TelegramClient, target_ids: List[int]
         try:
             await client.get_input_entity(cid)
             warmed += 1
+        except FloodWaitError as fe:
+            logger.warning(f"Warm-up FloodWait ({cid}): sleeping {fe.seconds + 1}s")
+            await asyncio.sleep(fe.seconds + 1)
+            try:
+                await client.get_input_entity(cid)
+                warmed += 1
+            except Exception as e:
+                logger.debug(f"Could not warm entity for {cid} after FloodWait: {e}")
         except Exception:
             try:
                 await client.get_entity(cid)
                 warmed += 1
+            except FloodWaitError as fe:
+                logger.warning(f"Warm-up get_entity FloodWait ({cid}): sleeping {fe.seconds + 1}s")
+                await asyncio.sleep(fe.seconds + 1)
+                try:
+                    await client.get_entity(cid)
+                    warmed += 1
+                except Exception as e:
+                    logger.debug(f"Could not warm entity for {cid} after FloodWait: {e}")
             except Exception as e:
                 logger.debug(f"Could not warm entity for {cid}: {e}")
         if (idx + 1) % 15 == 0:
@@ -864,7 +979,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         mark_done()
         return False
 
-    quality = f"{h}p" if h in (480, 720, 1080) else ("1080p" if h > 720 else "720p")
+    quality = determine_quality(w, h, text=text)
 
     logger.info(
         f"🎬 DETECTED: '{raw_title}' Ep {ep_list} ({quality}, {duration}s, {size}b, micro={is_micro}) from '{chat_title}'"
@@ -878,7 +993,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
     # 7. DB Pre-resolution & Orphan Guard
     new_qual_rank = QUALITY_RANKS.get(quality.lower(), 1)
     needed_eps = []
-    async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
+    async with _open_db() as db:
         dorama_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro)
         if not dorama_id:
             # If incoming episode is NOT starting from 1 (e.g. Ep 3 or 8), prevent creating a broken orphan dorama!
@@ -920,13 +1035,13 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
     except ChatForwardsRestrictedError:
         logger.warning(f"Skipped restricted channel '{chat_title}': Forwarding disabled.")
         try:
-            restricted = {}
-            if RESTRICTED_CHANNELS_FILE.exists():
-                with open(RESTRICTED_CHANNELS_FILE, "r", encoding="utf-8") as rf:
-                    restricted = json.load(rf)
-            restricted[str(chat_id)] = {"title": chat_title, "username": chat_username}
-            with open(RESTRICTED_CHANNELS_FILE, "w", encoding="utf-8") as rf:
-                json.dump(restricted, rf, indent=2, ensure_ascii=False)
+            with _RESTRICTED_LOCK:
+                restricted = {}
+                if RESTRICTED_CHANNELS_FILE.exists():
+                    with open(RESTRICTED_CHANNELS_FILE, "r", encoding="utf-8") as rf:
+                        restricted = json.load(rf)
+                restricted[str(chat_id)] = {"title": chat_title, "username": chat_username}
+                _atomic_write_json(RESTRICTED_CHANNELS_FILE, restricted)
         except Exception:
             pass
         mark_done()
@@ -940,16 +1055,18 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         return False
 
     # 9. Ingest into DB
-    if not dorama_id:
-        # Do not leave an empty catalog entry when Telegram rejects the forward.
-        async with _CREATE_LOCK:
-            async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
+    async with _CREATE_LOCK:
+        async with _open_db() as db:
+            if not dorama_id:
+                # Do not leave an empty catalog entry when Telegram rejects the forward.
                 dorama_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro)
                 if not dorama_id:
                     dorama_id = await create_new_dorama(db, raw_title, is_micro_drama=is_micro)
-        if not dorama_id:
-            logger.error(f"Could not create dorama for '{raw_title}' after forwarding")
-            return False
+            elif is_micro:
+                await upgrade_dorama_to_micro(db, dorama_id)
+    if not dorama_id:
+        logger.error(f"Could not create dorama for '{raw_title}' after forwarding")
+        return False
 
     ingested = await ingest_episodes_to_db(dorama_id, needed_eps, storage_msg_id, quality, size)
     mark_done()
@@ -960,7 +1077,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
 
     # 10. Instant Admin Notification
     try:
-        async with aiosqlite.connect(str(DB_PATH)) as db:
+        async with _open_db() as db:
             async with db.execute(
                 "SELECT title, code FROM doramas WHERE id = ?", (dorama_id,)
             ) as cur:
@@ -994,15 +1111,15 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
     if not is_video:
         return False
 
-    if not text:
-        media = msg.video or msg.document
-        if media and hasattr(media, "attributes"):
-            for attr in media.attributes:
-                if isinstance(attr, DocumentAttributeFilename):
-                    fname = getattr(attr, "file_name", "") or ""
-                    if fname:
-                        text = fname.replace("_", " ").rsplit(".", 1)[0]
-                        break
+    fname = ""
+    media = msg.video or msg.document
+    if media and hasattr(media, "attributes"):
+        for attr in media.attributes:
+            if isinstance(attr, DocumentAttributeFilename):
+                fname = getattr(attr, "file_name", "") or ""
+                if not text and fname:
+                    text = fname.replace("_", " ").rsplit(".", 1)[0]
+                break
 
     if not text:
         logger.warning(f"⚠️ [DIRECT DROP] Video message {msg.id} in Dramalar has no caption or filename.")
@@ -1013,12 +1130,18 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
         logger.warning(f"⚠️ [DIRECT DROP] Could not parse dorama title from: {text[:50]}")
         return False
 
-    ep_list = parse_episodes(text)
+    is_vertical = bool(h > 0 and w > 0 and h > w)
+    has_micro_kw = bool(RE_MICRO_DRAMA.search(text))
+    is_micro = bool(
+        (duration == 0 or duration <= 600) and is_vertical
+    ) or bool(has_micro_kw and (duration == 0 or duration <= 900))
+
+    ep_list = parse_episodes(text, is_micro=is_micro, allow_large_explicit_range=True)
     if not ep_list:
         logger.warning(f"⚠️ [DIRECT DROP] Could not parse episode number(s) from: {text[:50]}")
         return False
 
-    quality = f"{h}p" if h in (480, 720, 1080) else ("1080p" if h > 720 else "720p")
+    quality = determine_quality(w, h, text=text, filename=fname)
     storage_msg_id = msg.id
 
     logger.info(
@@ -1026,7 +1149,7 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
     )
 
     # Check cross-collision BEFORE creating a new dorama row in DB
-    async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as check_db:
+    async with _open_db() as check_db:
         async with check_db.execute(
             "SELECT dorama_id, episode_number FROM episodes WHERE channel_message_id = ?",
             (storage_msg_id,),
@@ -1039,12 +1162,55 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
                 return True
 
     async with _CREATE_LOCK:
-        async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
-            dorama_id = await find_dorama_id(db, raw_title)
-            if not dorama_id:
-                is_micro = bool(duration <= 600 and duration > 0 and h > w)
-                dorama_id = await create_new_dorama(db, raw_title, is_micro_drama=is_micro)
-                logger.info(f"✨ [DIRECT DROP] Created NEW Dorama for '{raw_title}' (ID={dorama_id})")
+        async with _open_db() as db:
+            dorama_id = await find_dorama_id(db, raw_title, is_micro_drama=is_micro)
+
+    if not dorama_id:
+        # Ask admin for confirmation instead of blindly creating a duplicate dorama
+        pending_file = BASE_DIR / "scripts" / "pending_drops.json"
+        with _STATE_LOCK:
+            pending = {}
+            if pending_file.exists():
+                try:
+                    with open(pending_file, "r", encoding="utf-8") as pf:
+                        pending = json.load(pf)
+                except Exception:
+                    pending = {}
+            pending[str(storage_msg_id)] = {
+                "raw_title": raw_title,
+                "ep_list": ep_list,
+                "quality": quality,
+                "size": size,
+                "storage_msg_id": storage_msg_id,
+                "is_micro": is_micro,
+            }
+            _atomic_write_json(pending_file, pending)
+
+        ep_str = f"{min(ep_list)}-{max(ep_list)}-qismlar" if len(ep_list) > 1 else f"{ep_list[0]}-qism"
+        ask_text = (
+            f"❓ <b>YANGI DORAMA TOPILDI (TASDIQLASH KERAK)</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"🎬 <b>Nomi:</b> {raw_title}\n"
+            f"🎞 <b>Qism:</b> {ep_str} ({quality})\n"
+            f"💾 <b>Storage ID:</b> {storage_msg_id}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"Bazadan mos dorama topilmadi. Nima qilamiz?"
+        )
+        try:
+            from aiogram import Bot
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            ask_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Yangi dorama qo'shish", callback_data=f"dd_new:{storage_msg_id}")],
+                [InlineKeyboardButton(text="🔗 Mavjud doramaga ulash (Kod)", callback_data=f"dd_attach:{storage_msg_id}")],
+                [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"dd_cancel:{storage_msg_id}")],
+            ])
+            async with Bot(token=config.BOT_TOKEN) as tmp_bot:
+                for admin_id in config.ADMIN_IDS:
+                    await tmp_bot.send_message(admin_id, ask_text, parse_mode="HTML", reply_markup=ask_kb)
+        except Exception as e:
+            logger.error(f"Failed to send direct-drop confirmation to admin: {e}")
+        logger.info(f"⏸ [DIRECT DROP PENDING] Awaiting admin confirmation for '{raw_title}' (msg_id={storage_msg_id})")
+        return True
 
     if not dorama_id:
         logger.error(f"❌ [DIRECT DROP] Failed to find or create dorama for '{raw_title}'")
@@ -1057,16 +1223,11 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
         logger.info(f"ℹ️ [DIRECT DROP] Ep {ep_list} already up to date in DB.")
         return True
 
-    try:
-        database.invalidate_search_cache()
-    except Exception:
-        pass
-
     schedule_catalog_sync(client)
 
     # Deliver Telegram notification to admin
     try:
-        async with aiosqlite.connect(str(DB_PATH)) as db:
+        async with _open_db() as db:
             async with db.execute(
                 "SELECT title, code FROM doramas WHERE id = ?", (dorama_id,)
             ) as cur:
@@ -1074,23 +1235,15 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
                 d_title = row[0] if row else raw_title
                 d_code = row[1] if row else 0
 
-        ep_str = f"{min(ep_list)}-{max(ep_list)}-qismlar" if len(ep_list) > 1 else f"{ep_list[0]}-qism"
-        notif_text = (
-            f"⚡ <b>DRAMALAR HUB: YANGI QISM TAYYOR!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🎬 <b>Dorama:</b> {d_title} (Kod: <b>{d_code}</b>)\n"
-            f"🎞 <b>Qism:</b> {ep_str} ({quality})\n"
-            f"💾 <b>Storage ID:</b> {storage_msg_id}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🚀 Bot katalogi avtomatik yangilandi va tomoshaga tayyor!"
+        await send_admin_notification(
+            title=d_title,
+            code=d_code,
+            ep_list=ingested,
+            quality=quality,
+            file_size=size,
+            chat_title="Dramalar Hub (Direct Drop)",
+            storage_msg_id=storage_msg_id,
         )
-        if notify_subscribers_async:
-            for admin_id in config.ADMIN_IDS:
-                track_background_task(
-                    notify_subscribers_async(
-                        admin_id, notif_text, dorama_id=dorama_id, is_admin_report=True
-                    )
-                )
     except Exception as ne:
         logger.debug(f"[DIRECT DROP] Admin notification error: {ne}")
 
@@ -1117,10 +1270,12 @@ async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int], 
                             if not dry_run and load_sync_state().get(cid_str, 0) < msg.id:
                                 break
                     else:
-                        # Cold start: capture latest msg id to anchor future queries
+                        # Cold start: process latest message and anchor state
                         async for msg in client.iter_messages(cid, limit=1):
-                            if not dry_run:
-                                update_channel_state(cid, msg.id)
+                            async with channel_locks[cid]:
+                                await process_donor_message(
+                                    client, msg, dry_run=dry_run, advance_state=not dry_run
+                                )
                 except FloodWaitError as fe:
                     logger.warning(f"Catchup FloodWait: sleeping {fe.seconds + 2}s")
                     await asyncio.sleep(fe.seconds + 2)
@@ -1129,13 +1284,14 @@ async def staggered_catchup_sync(client: TelegramClient, target_ids: List[int], 
                 
                 # Polite throttle: 2.0s pause between channel history queries to stay 100% flood-free
                 await asyncio.sleep(2.0)
+
+            # Periodic sync every 20 minutes
+            await asyncio.sleep(1200)
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.warning(f"Staggered catchup loop error: {e}")
-        
-        # Periodic sync every 20 minutes
-        await asyncio.sleep(1200)
+            await asyncio.sleep(60)
 
 
 async def run_listener(dry_run: bool = False):
@@ -1168,44 +1324,80 @@ async def run_listener(dry_run: bool = False):
     storage_lock = asyncio.Lock()
 
     # 2. Register real-time push event listener for donor channels
-    @client.on(events.NewMessage(chats=target_ids))
-    async def handle_new_media(event: events.NewMessage.Event):
-        async with channel_locks[event.chat_id]:
-            await process_donor_message(client, event.message, dry_run=dry_run, advance_state=False)
+    if target_ids:
+        @client.on(events.NewMessage(chats=target_ids))
+        async def handle_new_media(event: events.NewMessage.Event):
+            lock = channel_locks.get(event.chat_id)
+            if lock is None:
+                return
+            async with lock:
+                await process_donor_message(client, event.message, dry_run=dry_run, advance_state=not dry_run)
+    else:
+        logger.warning("No donor target_ids configured; skipping donor NewMessage handler.")
 
     # 3. Register real-time push event listener for our own Dramalar storage channel (Instant Admin Drop)
     @client.on(events.NewMessage(chats=[STORAGE_CHANNEL_ID]))
     async def handle_direct_storage_drop(event: events.NewMessage.Event):
         async with storage_lock:
             await process_direct_storage_message(client, event.message)
+            if not dry_run and event.message and event.message.id:
+                update_channel_state(STORAGE_CHANNEL_ID, event.message.id)
 
     # Check recent storage channel messages in case any was dropped while offline
     try:
-        logger.info("Checking recent Dramalar storage messages for pending direct drops...")
-        recent_storage = await client.get_messages(STORAGE_CHANNEL_ID, limit=30)
-        for m in reversed(recent_storage or []):
-            await process_direct_storage_message(client, m)
+        last_storage_id = load_sync_state().get(str(STORAGE_CHANNEL_ID), 0)
+        logger.info(f"Checking Dramalar storage messages for pending direct drops (since msg_id={last_storage_id})...")
+        if last_storage_id > 0:
+            async for m in client.iter_messages(STORAGE_CHANNEL_ID, min_id=last_storage_id, limit=30, reverse=True):
+                async with storage_lock:
+                    await process_direct_storage_message(client, m)
+                    if not dry_run and m.id:
+                        update_channel_state(STORAGE_CHANNEL_ID, m.id)
+        else:
+            recent_storage = await client.get_messages(STORAGE_CHANNEL_ID, limit=30)
+            for m in reversed(recent_storage or []):
+                async with storage_lock:
+                    await process_direct_storage_message(client, m)
+                    if not dry_run and m.id:
+                        update_channel_state(STORAGE_CHANNEL_ID, m.id)
     except Exception as se:
         logger.debug(f"Storage initial scan error: {se}")
 
     # 4. Start background staggered catchup sentinel
-    track_background_task(staggered_catchup_sync(client, target_ids, channel_locks, dry_run=dry_run))
+    catchup_task = track_background_task(
+        staggered_catchup_sync(client, target_ids, channel_locks, dry_run=dry_run)
+    )
 
     logger.info("⚡ Autopilot Kdrama Listener is LIVE (Monitoring Donors + Dramalar Direct Drop Hub)...")
+    was_disconnected = False
     while True:
         try:
             if not client.is_connected():
                 await client.connect()
+                if was_disconnected:
+                    logger.info("Reconnected to Telegram; catching up and refreshing entity cache...")
+                    try:
+                        await client.catch_up()
+                    except Exception as cu_err:
+                        logger.debug(f"catch_up error after reconnect: {cu_err}")
+                    await warm_up_channel_entities(client, target_ids + [STORAGE_CHANNEL_ID])
+            was_disconnected = False
             await client.run_until_disconnected()
+            was_disconnected = True
         except asyncio.CancelledError:
             break
         except Exception as e:
+            was_disconnected = True
             logger.warning(f"Connection interrupted ({e}), auto-reconnecting in 5 seconds...")
             await asyncio.sleep(5)
 
+    for bg_task in (catchup_task, _SYNC_TASK):
+        if bg_task and not bg_task.done():
+            bg_task.cancel()
+
     if _BACKGROUND_TASKS:
         logger.info(f"Waiting for {len(_BACKGROUND_TASKS)} active background notification tasks to finish...")
-        await asyncio.gather(*_BACKGROUND_TASKS, return_exceptions=True)
+        await asyncio.gather(*list(_BACKGROUND_TASKS), return_exceptions=True)
 
     await client.disconnect()
 

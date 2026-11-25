@@ -14,6 +14,29 @@ import aiosqlite
 from config import DB_PATH, USER_DB_PATH
 
 
+_BACKGROUND_TASKS = set()
+
+
+def _create_logged_task(coro):
+    """Create a background task, retain a strong reference, and log any unhandled exception."""
+    task = asyncio.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+
+    def _on_done(t):
+        _BACKGROUND_TASKS.discard(t)
+        try:
+            exc = t.exception()
+            if exc:
+                logger.error(f"Background task failed: {exc}")
+        except asyncio.CancelledError:
+            pass
+        except Exception as err:
+            logger.error(f"Background task check failed: {err}")
+
+    task.add_done_callback(_on_done)
+    return task
+
+
 
 
 
@@ -295,6 +318,7 @@ async def check_and_reward_qualified_referral(referee_id: int, bot=None):
     """
     try:
         async with aiosqlite.connect(USER_DB_PATH) as db:
+            await apply_sqlite_pragmas(db)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS promo_qualified_referrals (
                     referee_id INTEGER PRIMARY KEY,
@@ -304,18 +328,27 @@ async def check_and_reward_qualified_referral(referee_id: int, bot=None):
             """)
             await db.commit()
 
+            await db.execute("BEGIN IMMEDIATE")
             async with db.execute("SELECT referee_id FROM promo_qualified_referrals WHERE referee_id = ?", (referee_id,)) as cur:
                 already_qualified = await cur.fetchone()
             if already_qualified:
+                await db.rollback()
                 return
 
             async with db.execute("SELECT invited_by FROM users WHERE tg_id = ?", (referee_id,)) as cur:
                 row = await cur.fetchone()
             if not row or not row[0]:
+                await db.rollback()
                 return
 
             inviter_id = row[0]
-            await db.execute("INSERT INTO promo_qualified_referrals (referee_id, inviter_id) VALUES (?, ?)", (referee_id, inviter_id))
+            async with db.execute(
+                "INSERT INTO promo_qualified_referrals (referee_id, inviter_id) VALUES (?, ?) ON CONFLICT(referee_id) DO NOTHING",
+                (referee_id, inviter_id),
+            ) as cur:
+                if cur.rowcount == 0:
+                    await db.rollback()
+                    return
             await db.commit()
 
             async with db.execute("SELECT COUNT(*) FROM promo_qualified_referrals WHERE inviter_id = ?", (inviter_id,)) as cur:
@@ -374,6 +407,7 @@ async def get_system_setting(key: str, default: str = "") -> str:
 async def set_system_setting(key: str, value: str):
     """Tizim sozlamasini yozish (userdata.db)."""
     async with aiosqlite.connect(USER_DB_PATH) as udb:
+        await apply_sqlite_pragmas(udb)
         await udb.execute("""
             INSERT INTO system_settings (key, value) VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
@@ -428,6 +462,8 @@ async def add_or_get_dorama(title: str, genre: str = "Dorama", year: int = 2026,
     slug = slugify(title)
 
     async with aiosqlite.connect(DB_PATH) as db:
+
+        await apply_sqlite_pragmas(db)
 
         async with db.execute("SELECT id FROM doramas WHERE slug = ?", (slug,)) as cursor:
 
@@ -500,6 +536,8 @@ async def add_episode(dorama_id: int, episode_number: int, channel_message_id: i
 
     async with aiosqlite.connect(DB_PATH) as db:
 
+        await apply_sqlite_pragmas(db)
+
         await db.execute(
 
             """INSERT INTO episodes (dorama_id, episode_number, channel_message_id, file_id, file_size, quality)
@@ -537,9 +575,9 @@ async def add_episode(dorama_id: int, episode_number: int, channel_message_id: i
         invalidate_search_cache()
         try:
             from notifications import notify_subscribers_async
-            asyncio.create_task(notify_subscribers_async(dorama_id, [episode_number], quality))
-        except Exception:
-            pass
+            _create_logged_task(notify_subscribers_async(dorama_id, [episode_number], quality))
+        except Exception as exc:
+            logger.debug(f"Could not schedule subscriber notification: {exc}")
 
 
 
@@ -1286,13 +1324,15 @@ async def register_user(tg_id: int, username: str, first_name: str, is_premium: 
 
     async with aiosqlite.connect(USER_DB_PATH) as db:
 
+        await apply_sqlite_pragmas(db)
+
         db.row_factory = aiosqlite.Row
+
+        await db.execute("BEGIN IMMEDIATE")
 
         async with db.execute("SELECT id, tg_id FROM users WHERE tg_id = ?", (tg_id,)) as cursor:
 
             existing = await cursor.fetchone()
-
-
 
         if existing:
 
@@ -1310,8 +1350,6 @@ async def register_user(tg_id: int, username: str, first_name: str, is_premium: 
 
             return False, None
 
-
-
         # Yangi foydalanuvchi
 
         rewarded_ref = None
@@ -1326,23 +1364,27 @@ async def register_user(tg_id: int, username: str, first_name: str, is_premium: 
 
                 rewarded_ref = referrer_id
 
-                await db.execute("UPDATE users SET referrals_count = referrals_count + 1 WHERE tg_id = ?", (referrer_id,))
-
-
-
-        await db.execute(
+        async with db.execute(
 
             """INSERT INTO users (tg_id, username, first_name, is_premium, invited_by, last_active_at)
 
-               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+
+               ON CONFLICT(tg_id) DO NOTHING""",
 
             (tg_id, username or "", first_name or "", 1 if is_premium else 0, rewarded_ref)
 
-        )
+        ) as insert_cur:
+
+            inserted = insert_cur.rowcount > 0
+
+        if inserted and rewarded_ref:
+
+            await db.execute("UPDATE users SET referrals_count = referrals_count + 1 WHERE tg_id = ?", (rewarded_ref,))
 
         await db.commit()
 
-        return True, rewarded_ref
+        return inserted, (rewarded_ref if inserted else None)
 
 
 
@@ -1352,6 +1394,7 @@ async def touch_user_activity(tg_id: int, username: str = "", first_name: str = 
     """Foydalanuvchi faolligini yangilash (DAU/WAU/MAU uchun)."""
     try:
         async with aiosqlite.connect(USER_DB_PATH) as db:
+            await apply_sqlite_pragmas(db)
             await db.execute(
                 """INSERT INTO users (tg_id, username, first_name, is_premium, joined_at, last_active_at)
                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -1432,30 +1475,19 @@ async def is_user_unlocked(tg_id: int, episode_number: int, admin_id: int = 0) -
             return True, "vip", user.get("referrals_count", 0), 0
 
         try:
-
             import datetime
 
             v_str = str(vip_until).strip()
-
-            if "T" in v_str:
-
-                exp = datetime.datetime.fromisoformat(v_str)
-
-            else:
-
-                exp = datetime.datetime.strptime(v_str.split(".")[0], "%Y-%m-%d %H:%M:%S")
-
+            if v_str.endswith("Z"):
+                v_str = v_str[:-1]
+            exp = datetime.datetime.fromisoformat(v_str)
+            if exp.tzinfo is not None:
+                exp = exp.replace(tzinfo=None)
             now = datetime.datetime.now()
-
             if exp > now:
-
                 return True, "vip", user.get("referrals_count", 0), 0
-
-        except Exception:
-
-            # Har qanday parsing xatosida ham is_vip aktiv bo'lsa ochib berish
-
-            return True, "vip", user.get("referrals_count", 0), 0
+        except Exception as exc:
+            logger.warning(f"Invalid vip_until in is_user_unlocked for {tg_id}: {vip_until} ({exc})")
 
 
 
@@ -1481,6 +1513,7 @@ async def is_vip(tg_id: int) -> bool:
     """Foydalanuvchi hozir VIP maqomiga ega ekanligini tekshiradi."""
     import datetime
     async with aiosqlite.connect(USER_DB_PATH) as db:
+        await apply_sqlite_pragmas(db)
         async with db.execute("SELECT is_vip, vip_until FROM users WHERE tg_id = ?", (tg_id,)) as cur:
             row = await cur.fetchone()
             if not row:
@@ -1492,15 +1525,20 @@ async def is_vip(tg_id: int) -> bool:
                 return True
             try:
                 now = datetime.datetime.now()
-                expire = datetime.datetime.strptime(vip_until, "%Y-%m-%d %H:%M:%S")
+                v_str = str(vip_until).strip()
+                if v_str.endswith("Z"):
+                    v_str = v_str[:-1]
+                expire = datetime.datetime.fromisoformat(v_str)
+                if expire.tzinfo is not None:
+                    expire = expire.replace(tzinfo=None)
                 if now < expire:
                     return True
-                else:
-                    await db.execute("UPDATE users SET is_vip = 0 WHERE tg_id = ?", (tg_id,))
-                    await db.commit()
-                    return False
-            except Exception:
-                return bool(is_vip_val)
+                await db.execute("UPDATE users SET is_vip = 0 WHERE tg_id = ?", (tg_id,))
+                await db.commit()
+                return False
+            except Exception as exc:
+                logger.warning(f"Invalid vip_until in is_vip for {tg_id}: {vip_until} ({exc})")
+                return False
 
 
 async def _grant_vip_in_transaction(db, tg_id: int, days: int):
@@ -1527,6 +1565,7 @@ async def _grant_vip_in_transaction(db, tg_id: int, days: int):
 
 async def grant_vip(tg_id: int, days: int = 30):
     async with aiosqlite.connect(USER_DB_PATH) as db:
+        await apply_sqlite_pragmas(db)
         await db.execute("BEGIN IMMEDIATE")
         await _grant_vip_in_transaction(db, tg_id, days)
         await db.commit()
@@ -1535,6 +1574,7 @@ async def grant_vip(tg_id: int, days: int = 30):
 async def revoke_vip(tg_id: int):
     """Admin orqali VIP maqomini bekor qilish."""
     async with aiosqlite.connect(USER_DB_PATH) as db:
+        await apply_sqlite_pragmas(db)
         await db.execute("UPDATE users SET is_vip = 0, vip_until = NULL WHERE tg_id = ?", (tg_id,))
         await db.commit()
 
@@ -1657,6 +1697,7 @@ async def search_admin_users(query: str, limit: int = 8):
 async def resolve_vip_order(order_id: int, approve: bool, plans: dict):
     """Resolve a pending order exactly once and grant VIP in the same transaction."""
     async with aiosqlite.connect(USER_DB_PATH) as db:
+        await apply_sqlite_pragmas(db)
         await db.execute("BEGIN IMMEDIATE")
         async with db.execute("SELECT user_id, plan, status FROM vip_orders WHERE id = ?", (order_id,)) as cur:
             row = await cur.fetchone()
@@ -1712,6 +1753,8 @@ async def create_vip_order(user_id: int, plan: str, amount: int, receipt_file_id
 
     async with aiosqlite.connect(USER_DB_PATH) as db:
 
+        await apply_sqlite_pragmas(db)
+
         async with db.execute(
 
             """INSERT INTO vip_orders (user_id, plan, amount, receipt_file_id, status)
@@ -1759,6 +1802,8 @@ async def update_order_status(order_id: int, status: str):
 
     async with aiosqlite.connect(USER_DB_PATH) as db:
 
+        await apply_sqlite_pragmas(db)
+
         await db.execute("UPDATE vip_orders SET status = ? WHERE id = ?", (status, order_id))
 
         await db.commit()
@@ -1772,6 +1817,8 @@ async def update_order_status(order_id: int, status: str):
 async def toggle_bookmark(user_id: int, dorama_id: int) -> bool:
 
     async with aiosqlite.connect(USER_DB_PATH) as db:
+
+        await apply_sqlite_pragmas(db)
 
         async with db.execute(
 
@@ -1860,6 +1907,8 @@ async def save_last_watched(user_id: int, dorama_id: int, episode_num: int):
 
     async with aiosqlite.connect(USER_DB_PATH) as db:
 
+        await apply_sqlite_pragmas(db)
+
         await db.execute(
 
             """INSERT INTO user_history (user_id, dorama_id, last_episode, updated_at)
@@ -1907,6 +1956,8 @@ async def get_last_watched(user_id: int, dorama_id: int) -> int | None:
 async def toggle_subscription(user_id: int, dorama_id: int) -> bool:
 
     async with aiosqlite.connect(USER_DB_PATH) as db:
+
+        await apply_sqlite_pragmas(db)
 
         async with db.execute(
 

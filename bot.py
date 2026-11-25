@@ -53,7 +53,42 @@ from aiogram.enums import ParseMode
 
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+
+
+_BACKGROUND_TASKS = set()
+_PENDING_DROPS_LOCK = asyncio.Lock()
+
+
+def _create_logged_task(coro):
+    """Create a background task, retain a strong reference, and log any exception."""
+    task = asyncio.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+
+    def _on_done(t):
+        _BACKGROUND_TASKS.discard(t)
+        try:
+            exc = t.exception()
+            if exc:
+                logger.error(f"Background task failed: {exc}")
+        except asyncio.CancelledError:
+            pass
+        except Exception as err:
+            logger.error(f"Background task inspection failed: {err}")
+
+    task.add_done_callback(_on_done)
+    return task
+
+
+def _parse_cb_ints(data: str, count: int, start: int = 1) -> list[int] | None:
+    """Safely parse `count` integer segments from colon-delimited callback_data."""
+    parts = (data or "").split(":")
+    if len(parts) < start + count:
+        return None
+    try:
+        return [int(parts[i]) for i in range(start, start + count)]
+    except (ValueError, TypeError):
+        return None
 
 from aiogram.fsm.context import FSMContext
 
@@ -124,7 +159,7 @@ class UserActivityMiddleware(BaseMiddleware):
             msg_text = getattr(event, "text", "") or ""
             is_ref = msg_text.startswith("/start ref_") or msg_text.startswith("/start r_")
             if not is_ref:
-                asyncio.create_task(db.touch_user_activity(
+                _create_logged_task(db.touch_user_activity(
                     tg_id=user.id,
                     username=user.username or "",
                     first_name=user.first_name or "",
@@ -160,6 +195,11 @@ class BotStates(StatesGroup):
 class VipStates(StatesGroup):
 
     waiting_for_receipt = State()
+
+
+class AdminDirectDropState(StatesGroup):
+
+    waiting_code = State()
 
 
 
@@ -1045,7 +1085,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
         except Exception:
             logger.exception("Oxirgi ko'rilgan qismni saqlashda xatolik")
         try:
-            asyncio.create_task(db.check_and_reward_qualified_referral(user_id, bot))
+            _create_logged_task(db.check_and_reward_qualified_referral(user_id, bot))
         except Exception:
             logger.exception("Referralni tekshirish va taqdirlashda xatolik")
 
@@ -1159,7 +1199,7 @@ async def cb_menu_random(event: Message | CallbackQuery, bot: Bot):
                         break
                     except Exception:
                         pass
-                elif btn.callback_data and btn.callback_data.startswith("toggle_bookmark:"):
+                elif btn.callback_data and btn.callback_data.startswith("toggle_bm:"):
                     try:
                         curr_id = int(btn.callback_data.split(":")[1])
                         break
@@ -1184,7 +1224,11 @@ async def cb_menu_random(event: Message | CallbackQuery, bot: Bot):
 @router.callback_query(F.data.startswith("view_dorama:"))
 async def cb_view_dorama(call: CallbackQuery, bot: Bot):
     parts = call.data.split(":", 2)
-    d_id = int(parts[1])
+    try:
+        d_id = int(parts[1])
+    except (ValueError, IndexError):
+        await safe_answer(call, "Noto'g'ri dorama ID!", show_alert=True)
+        return
     source = parts[2] if len(parts) > 2 else ""
 
     page = 0
@@ -1217,8 +1261,11 @@ async def cb_view_dorama(call: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data.startswith("ep_page:"))
 async def cb_ep_page(call: CallbackQuery, bot: Bot):
-    parts = call.data.split(":")
-    d_id, page = int(parts[1]), max(0, int(parts[2]))
+    parsed = _parse_cb_ints(call.data, 2)
+    if not parsed:
+        await safe_answer(call, "Noto'g'ri sahifa so'rovi!", show_alert=True)
+        return
+    d_id, page = parsed[0], max(0, parsed[1])
     back_cb, is_random = extract_dorama_nav_context(call.message)
     await show_dorama_detail(call, d_id, bot, user_id=call.from_user.id, page=page, back_cb=back_cb, is_random=is_random)
     await safe_answer(call)
@@ -1226,12 +1273,16 @@ async def cb_ep_page(call: CallbackQuery, bot: Bot):
 
 @router.callback_query(F.data.startswith("get_ep:"))
 async def cb_get_ep(call: CallbackQuery, bot: Bot):
-    parts = call.data.split(":")
-    d_id, ep_num = int(parts[1]), int(parts[2])
+    parsed = _parse_cb_ints(call.data, 2)
+    if not parsed:
+        await safe_answer(call, "Noto'g'ri qism so'rovi!", show_alert=True)
+        return
+    d_id, ep_num = parsed
 
     # Majburiy obunani birinchi navbatda tekshirish
     if not await is_user_channel_member(bot, call.from_user.id):
         await send_sub_required_notice(call, bot, payload=f"ep_{d_id}_{ep_num}")
+        await safe_answer(call)
         return
 
     unlocked, reason, current_refs, req_refs = await db.is_user_unlocked(call.from_user.id, ep_num, config.ADMIN_ID)
@@ -1863,37 +1914,26 @@ async def process_receipt(message: Message, state: FSMContext, bot: Bot):
 
     try:
 
-        if message.photo:
-
-            await bot.send_photo(
-
-                chat_id=config.ADMIN_ID,
-
-                photo=file_id,
-
-                caption=admin_caption,
-
-                reply_markup=admin_markup,
-
-                parse_mode=ParseMode.HTML
-
-            )
-
-        else:
-
-            await bot.send_document(
-
-                chat_id=config.ADMIN_ID,
-
-                document=file_id,
-
-                caption=admin_caption,
-
-                reply_markup=admin_markup,
-
-                parse_mode=ParseMode.HTML
-
-            )
+        for admin_id in config.ADMIN_IDS:
+            try:
+                if message.photo:
+                    await bot.send_photo(
+                        chat_id=admin_id,
+                        photo=file_id,
+                        caption=admin_caption,
+                        reply_markup=admin_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    await bot.send_document(
+                        chat_id=admin_id,
+                        document=file_id,
+                        caption=admin_caption,
+                        reply_markup=admin_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            except Exception as admin_err:
+                logger.warning(f"Admin {admin_id} ga chek yuborishda xatolik: {admin_err}")
 
     except Exception as e:
         logger.error("Adminga chek yuborishda xatolik: %s", e)
@@ -2051,23 +2091,24 @@ async def cb_admin_approve(call: CallbackQuery, bot: Bot):
 
 
 
-    caption_base = call.message.caption or ""
-
-    await call.message.edit_caption(
-
-        caption=(
-
-            f"{caption_base}\n\n"
-
-            f"{ce('check_green')} <b>BUYURTMA #{order_id} TASDIQLANDI! (+{days} kun VIP berildi)</b>"
-
-        ),
-
-        reply_markup=None,
-
-        parse_mode=ParseMode.HTML
-
-    )
+    status_suffix = f"{ce('check_green')} <b>BUYURTMA #{order_id} TASDIQLANDI! (+{days} kun VIP berildi)</b>"
+    try:
+        if call.message.photo or call.message.document:
+            caption_base = call.message.caption or ""
+            await call.message.edit_caption(
+                caption=f"{caption_base}\n\n{status_suffix}",
+                reply_markup=None,
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            text_base = call.message.text or ""
+            await call.message.edit_text(
+                text=f"{text_base}\n\n{status_suffix}",
+                reply_markup=None,
+                parse_mode=ParseMode.HTML,
+            )
+    except TelegramBadRequest as e:
+        logger.debug(f"cb_admin_approve message edit skipped: {e}")
 
     await safe_answer(call, "VIP muvaffaqiyatli berildi!", show_alert=True)
 
@@ -2131,23 +2172,24 @@ async def cb_admin_reject(call: CallbackQuery, bot: Bot):
 
 
 
-    caption_base = call.message.caption or ""
-
-    await call.message.edit_caption(
-
-        caption=(
-
-            f"{caption_base}\n\n"
-
-            f"{ce('cross_red')} <b>BUYURTMA #{order_id} RAD ETILDI.</b>"
-
-        ),
-
-        reply_markup=None,
-
-        parse_mode=ParseMode.HTML
-
-    )
+    reject_suffix = f"{ce('cross_red')} <b>BUYURTMA #{order_id} RAD ETILDI.</b>"
+    try:
+        if call.message.photo or call.message.document:
+            caption_base = call.message.caption or ""
+            await call.message.edit_caption(
+                caption=f"{caption_base}\n\n{reject_suffix}",
+                reply_markup=None,
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            text_base = call.message.text or ""
+            await call.message.edit_text(
+                text=f"{text_base}\n\n{reject_suffix}",
+                reply_markup=None,
+                parse_mode=ParseMode.HTML,
+            )
+    except TelegramBadRequest as e:
+        logger.debug(f"cb_admin_reject message edit skipped: {e}")
 
     await safe_answer(call, "Buyurtma rad etildi.", show_alert=True)
 
@@ -2221,7 +2263,7 @@ async def handle_admin_ongoing_list(event: Message | CallbackQuery):
 
         text += (
 
-            f"<b>{i}. [{d['code']}] {d['title']}</b>\n"
+            f"<b>{i}. [{d['code']}] {html.escape(str(d.get('title', '')))}</b>\n"
 
             f"   └ {ce('tray')} Yuklangan: <b>{d['uploaded_episodes']} ta</b> qism\n"
 
@@ -2355,9 +2397,7 @@ async def admin_panel_handler(event: Message | CallbackQuery, state: FSMContext)
 
         f"{ce('tv')} <b>Yuklangan qismlar:</b> {stats['total_episodes']} ta\n"
 
-        f"━━━━━━━━━━━━━━━━━━\n"
-
-        f"Quyidagi amallardan birini tanlang:"
+        f"━━━━━━━━━━━━━━━━━━"
 
     )
 
@@ -2414,7 +2454,7 @@ async def handle_set_vip_command(message: Message):
 
     if not target_id_str.isdigit():
 
-        await message.answer(f"{ce('warning')} Format noto'g'ri! Masalan: <code>/vip 123456789 30</code>")
+        await message.answer(f"{ce('warning')} Format noto'g'ri! Masalan: <code>/setvip 123456789 30</code>")
 
         return
 
@@ -2555,7 +2595,7 @@ async def handle_view_command(message: Message):
         if matched:
             await render_admin_user_card(message, matched[0]["tg_id"], filter_type="active", page=0)
             return
-        await message.answer(f"🔍 <code>{query}</code> bo'yicha foydalanuvchi topilmadi. Ro'yxat ochilmoqda...")
+        await message.answer(f"🔍 <code>{html.escape(query)}</code> bo'yicha foydalanuvchi topilmadi. Ro'yxat ochilmoqda...")
 
     await render_admin_users_view(message, filter_type="active", page=0)
 
@@ -2568,8 +2608,13 @@ async def cb_aview_filter(call: CallbackQuery):
         await call.answer("Ruxsat berilmagan!", show_alert=True)
         return
 
-    _, ftype, page_str = call.data.split(":")
-    await render_admin_users_view(call, filter_type=ftype, page=int(page_str))
+    try:
+        _, ftype, page_str = call.data.split(":")
+        page = max(0, int(page_str))
+    except (ValueError, IndexError):
+        await safe_answer(call, "Noto'g'ri filtr so'rovi!", show_alert=True)
+        return
+    await render_admin_users_view(call, filter_type=ftype, page=page)
     await call.answer()
 
 
@@ -2581,8 +2626,13 @@ async def cb_aview_page(call: CallbackQuery):
         await call.answer("Ruxsat berilmagan!", show_alert=True)
         return
 
-    _, ftype, page_str = call.data.split(":")
-    await render_admin_users_view(call, filter_type=ftype, page=int(page_str))
+    try:
+        _, ftype, page_str = call.data.split(":")
+        page = max(0, int(page_str))
+    except (ValueError, IndexError):
+        await safe_answer(call, "Noto'g'ri sahifa so'rovi!", show_alert=True)
+        return
+    await render_admin_users_view(call, filter_type=ftype, page=page)
     await call.answer()
 
 
@@ -2600,8 +2650,14 @@ async def cb_aview_user(call: CallbackQuery):
         await call.answer("Ruxsat berilmagan!", show_alert=True)
         return
 
-    _, target_id_str, ftype, page_str = call.data.split(":")
-    await render_admin_user_card(call, int(target_id_str), filter_type=ftype, page=int(page_str))
+    try:
+        _, target_id_str, ftype, page_str = call.data.split(":")
+        target_id = int(target_id_str)
+        page = max(0, int(page_str))
+    except (ValueError, IndexError):
+        await safe_answer(call, "Noto'g'ri foydalanuvchi so'rovi!", show_alert=True)
+        return
+    await render_admin_user_card(call, target_id, filter_type=ftype, page=page)
     await call.answer()
 
 
@@ -2613,13 +2669,18 @@ async def cb_aview_grant_vip(call: CallbackQuery):
         await call.answer("Ruxsat berilmagan!", show_alert=True)
         return
 
-    _, target_id_str, days_str, ftype, page_str = call.data.split(":")
-    target_id = int(target_id_str)
-    days = int(days_str)
+    try:
+        _, target_id_str, days_str, ftype, page_str = call.data.split(":")
+        target_id = int(target_id_str)
+        days = int(days_str)
+        page = max(0, int(page_str))
+    except (ValueError, IndexError):
+        await safe_answer(call, "Noto'g'ri VIP so'rovi!", show_alert=True)
+        return
 
     await db.grant_vip(target_id, days=days)
     await call.answer(f"👑 Foydalanuvchiga {days} kunlik VIP berildi!", show_alert=True)
-    await render_admin_user_card(call, target_id, filter_type=ftype, page=int(page_str))
+    await render_admin_user_card(call, target_id, filter_type=ftype, page=page)
 
 
 @router.callback_query(F.data.startswith("aview_unvip:"))
@@ -2630,12 +2691,17 @@ async def cb_aview_revoke_vip(call: CallbackQuery):
         await call.answer("Ruxsat berilmagan!", show_alert=True)
         return
 
-    _, target_id_str, ftype, page_str = call.data.split(":")
-    target_id = int(target_id_str)
+    try:
+        _, target_id_str, ftype, page_str = call.data.split(":")
+        target_id = int(target_id_str)
+        page = max(0, int(page_str))
+    except (ValueError, IndexError):
+        await safe_answer(call, "Noto'g'ri VIP bekor qilish so'rovi!", show_alert=True)
+        return
 
     await db.revoke_vip(target_id)
     await call.answer("🚫 VIP maqomi bekor qilindi!", show_alert=True)
-    await render_admin_user_card(call, target_id, filter_type=ftype, page=int(page_str))
+    await render_admin_user_card(call, target_id, filter_type=ftype, page=page)
 
 
 @router.callback_query(F.data.startswith("aview_msg:"))
@@ -2646,7 +2712,11 @@ async def cb_aview_msg_prompt(call: CallbackQuery, state: FSMContext):
         await call.answer("Ruxsat berilmagan!", show_alert=True)
         return
 
-    target_id = int(call.data.split(":")[1])
+    parsed = _parse_cb_ints(call.data, 1)
+    if not parsed:
+        await safe_answer(call, "Noto'g'ri foydalanuvchi ID!", show_alert=True)
+        return
+    target_id = parsed[0]
     await state.update_data(direct_msg_target_id=target_id)
     await state.set_state(BotStates.waiting_for_direct_user_msg)
 
@@ -2665,6 +2735,9 @@ async def cb_aview_msg_prompt(call: CallbackQuery, state: FSMContext):
 @router.message(BotStates.waiting_for_direct_user_msg)
 async def process_direct_user_msg(message: Message, state: FSMContext, bot: Bot):
     """Admin yozgan xabarni userga yetkazish."""
+    if not is_admin_user(message.from_user.id):
+        await state.clear()
+        return
     data = await state.get_data()
     target_id = data.get("direct_msg_target_id")
     await state.clear()
@@ -2676,14 +2749,14 @@ async def process_direct_user_msg(message: Message, state: FSMContext, bot: Bot)
     msg_text = (
         f"🔔 <b>ADMINISTRATSIYADAN XABAR:</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{message.text}\n"
+        f"{html.escape(message.text or '')}\n"
         f"━━━━━━━━━━━━━━━━━━"
     )
     try:
         await bot.send_message(chat_id=target_id, text=msg_text, parse_mode=ParseMode.HTML)
         await message.answer(f"✅ Xabar <code>{target_id}</code> ga muvaffaqiyatli yetkazildi!")
     except Exception as e:
-        await message.answer(f"❌ Xabarni yuborib bo'lmadi: {e}")
+        await message.answer(f"❌ Xabarni yuborib bo'lmadi: {html.escape(str(e))}")
 
     await render_admin_user_card(message, target_id, filter_type="active", page=0)
 
@@ -2712,6 +2785,9 @@ async def cb_aview_search_prompt(call: CallbackQuery, state: FSMContext):
 @router.message(BotStates.waiting_for_user_search)
 async def process_user_search(message: Message, state: FSMContext):
     """Qidiruv natijalarini ko'rsatish."""
+    if not is_admin_user(message.from_user.id):
+        await state.clear()
+        return
     await state.clear()
     query = (message.text or "").strip()
     matched = await db.search_admin_users(query, limit=8)
@@ -2720,7 +2796,7 @@ async def process_user_search(message: Message, state: FSMContext):
         cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Ro'yxatga qaytish", callback_data="aview_f:active:0")]
         ])
-        await message.answer(f"🔍 <code>{query}</code> bo'yicha hech kim topilmadi.", parse_mode=ParseMode.HTML, reply_markup=cancel_kb)
+        await message.answer(f"🔍 <code>{html.escape(query)}</code> bo'yicha hech kim topilmadi.", parse_mode=ParseMode.HTML, reply_markup=cancel_kb)
         return
 
     if len(matched) == 1:
@@ -2845,32 +2921,29 @@ async def process_broadcast(message: Message, state: FSMContext, bot: Bot):
 
 
     for uid in user_ids:
-
-        try:
-
-            await message.copy_to(chat_id=uid)
-
-            sent += 1
-
-            await asyncio.sleep(0.04)  # Telegram limitiga tushmaslik uchun
-
-        except Exception:
-
+        for _attempt in range(2):
+            try:
+                await message.copy_to(chat_id=uid)
+                sent += 1
+                await asyncio.sleep(0.04)  # Telegram limitiga tushmaslik uchun
+                break
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after + 0.5)
+            except Exception:
+                failed += 1
+                break
+        else:
             failed += 1
 
-
-
     report = (
-
         f"{ce('check_green')} <b>Ommaviy xabar yakunlandi!</b>\n\n"
-
         f"{ce('mailbox')} Yuborildi: <b>{sent}</b> ta\n"
-
         f"{ce('cross_red')} Yetib bormadi (sabablar turlicha bo'lishi mumkin): <b>{failed}</b> ta"
-
     )
-
-    await status_msg.edit_text(report, parse_mode=ParseMode.HTML)
+    try:
+        await status_msg.edit_text(report, parse_mode=ParseMode.HTML)
+    except Exception:
+        await message.answer(report, parse_mode=ParseMode.HTML)
 
 
 
@@ -2952,11 +3025,6 @@ async def cb_admin_broadcast_promo(call: CallbackQuery, bot: Bot):
 
 @router.message(Command("reward_promo", "promo_reward", "finish_promo"))
 async def cmd_admin_reward_promo(message: Message, bot: Bot):
-    await execute_promo_reward(message, bot)
-
-
-@router.message(Command("finish_promo"))
-async def cmd_admin_finish_promo(message: Message, bot: Bot):
     """Admin buyrug'i: Ilk 100 ta foydalanuvchiga 3 oylik VIP beradi, aksiyani to'xtatadi va xabar yuboradi."""
     await execute_promo_reward(message, bot)
 
@@ -3014,12 +3082,16 @@ async def execute_promo_reward(event: Message | CallbackQuery, bot: Bot):
     for uid in user_ids:
         if uid == user_id:
             continue
-        try:
-            await bot.send_message(uid, reward_text, reply_markup=kb_reward, parse_mode=ParseMode.HTML)
-            sent_cnt += 1
-            await asyncio.sleep(0.04)
-        except Exception:
-            pass
+        for _attempt in range(2):
+            try:
+                await bot.send_message(uid, reward_text, reply_markup=kb_reward, parse_mode=ParseMode.HTML)
+                sent_cnt += 1
+                await asyncio.sleep(0.04)
+                break
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after + 0.5)
+            except Exception:
+                break
 
     res_text = (
         f"{ce('check_green')} <b>AKSIYA MUVAFFAQIYATLI YAKUNLANDI!</b>\n"
@@ -3029,7 +3101,10 @@ async def execute_promo_reward(event: Message | CallbackQuery, bot: Bot):
         f"🔒 <b>Aksiya rejimi:</b> OʻCHIRILDI (VIP Paywall faollashtirildi)\n\n"
         f"<i>Bundan keyin botga qoʻshiladigan barcha yangi aʼzolar uchun VIP faqat pullik yoki doʻst taklif qilish orqali boʻladi!</i>"
     )
-    await status_msg.edit_text(res_text, parse_mode=ParseMode.HTML)
+    try:
+        await status_msg.edit_text(res_text, parse_mode=ParseMode.HTML)
+    except Exception:
+        await bot.send_message(user_id, res_text, parse_mode=ParseMode.HTML)
 
 
 
@@ -3108,13 +3183,13 @@ async def cmd_admin_send_dorama(message: Message, command: CommandObject, bot: B
         d = results[0] if results else None
 
     if not d:
-        await message.answer(f"{ce('cross_red')} Dorama topilmadi: {code_or_query}")
+        await message.answer(f"{ce('cross_red')} Dorama topilmadi: {html.escape(code_or_query)}")
         return
 
     try:
         await send_dorama_exists_notification(bot, target_uid, sug_id=0, d=d)
         await message.answer(
-            f"{ce('check_green')} <b>Foydalanuvchi ({target_uid}) ga [{d['code']}] «{d['title']}» haqida xabar muvaffaqiyatli yetkazildi!</b>",
+            f"{ce('check_green')} <b>Foydalanuvchi ({target_uid}) ga [{d['code']}] «{html.escape(str(d['title']))}» haqida xabar muvaffaqiyatli yetkazildi!</b>",
             parse_mode=ParseMode.HTML
         )
     except Exception as e:
@@ -3183,7 +3258,7 @@ async def cmd_admin_send(message: Message, bot: Bot):
 
     target_id_str, payload = args[1].strip(), args[2].strip()
     if not target_id_str.isdigit():
-        await bot.send_message(chat_id=message.chat.id, text=f"{ce('cross_red')} Noto'g'ri foydalanuvchi ID raqami: <code>{target_id_str}</code>", parse_mode=ParseMode.HTML)
+        await bot.send_message(chat_id=message.chat.id, text=f"{ce('cross_red')} Noto'g'ri foydalanuvchi ID raqami: <code>{html.escape(target_id_str)}</code>", parse_mode=ParseMode.HTML)
         return
 
     target_user_id = int(target_id_str)
@@ -3503,7 +3578,7 @@ async def handle_admin_git_update(event: Message | CallbackQuery, bot: Bot):
 
             f"{ce('cross_red')} <b>Yangilashda xatolik yuz berdi:</b>\n\n"
 
-            f"<code>{result_text}</code>",
+            f"<code>{html.escape(str(result_text))}</code>",
 
             parse_mode=ParseMode.HTML
 
@@ -3694,7 +3769,7 @@ async def process_dorama_feedback(message: Message, state: FSMContext, bot: Bot)
     feedback_text = (message.text or message.caption or "").strip()
     if feedback_text.lower() in ["/cancel", "bekor qilish"]:
         await state.clear()
-        await message.answer("Bekor qilindi.", reply_markup=kb.main_menu_kb())
+        await message.answer("Bekor qilindi.", reply_markup=kb.main_menu_kb(is_admin=is_admin_user(message.from_user.id)))
         return
 
     if not feedback_text:
@@ -3773,7 +3848,7 @@ async def cb_fb_read(call: CallbackQuery):
     await db.update_feedback_status(fb_id, "read")
     await safe_answer(call, "Fikr o'qildi deb belgilandi.", show_alert=True)
     try:
-        await call.message.edit_text(call.message.text + f"\n\n{ce('check_green')} <b>[ADMIN: O'QILDI]</b>", parse_mode=ParseMode.HTML)
+        await call.message.edit_text(html.escape(call.message.text or "") + f"\n\n{ce('check_green')} <b>[ADMIN: O'QILDI]</b>", parse_mode=ParseMode.HTML)
     except Exception:
         pass
 
@@ -3955,7 +4030,7 @@ async def cb_sug_accept(call: CallbackQuery, bot: Bot):
         pass
 
     try:
-        await call.message.edit_text(call.message.text + f"\n\n{ce('check_green')} <b>[ADMIN: QABUL QILINDI]</b>", parse_mode=ParseMode.HTML)
+        await call.message.edit_text(html.escape(call.message.text or "") + f"\n\n{ce('check_green')} <b>[ADMIN: QABUL QILINDI]</b>", parse_mode=ParseMode.HTML)
     except Exception:
         pass
 
@@ -3970,7 +4045,7 @@ async def cb_sug_reject(call: CallbackQuery):
     await db.update_suggestion_status(sug_id, "rejected", "Rad etildi")
     await safe_answer(call, "Taklif rad etildi deb belgilandi.", show_alert=True)
     try:
-        await call.message.edit_text(call.message.text + f"\n\n{ce('cross_red')} <b>[ADMIN: RAD ETILDI]</b>", parse_mode=ParseMode.HTML)
+        await call.message.edit_text(html.escape(call.message.text or "") + f"\n\n{ce('cross_red')} <b>[ADMIN: RAD ETILDI]</b>", parse_mode=ParseMode.HTML)
     except Exception:
         pass
 
@@ -4050,7 +4125,7 @@ async def cb_sug_exist(call: CallbackQuery, bot: Bot):
         await safe_answer(call, f"Foydalanuvchiga [{code}] {d['title']} haqida xabar yuborildi!", show_alert=True)
         try:
             await call.message.edit_text(
-                call.message.text + f"\n\n{ce('check_green')} <b>[ADMIN: ALLAQACHON MAVJUD ({code}-KOD) DEB JAVOB YUBORILDI]</b>",
+                html.escape(call.message.text or "") + f"\n\n{ce('check_green')} <b>[ADMIN: ALLAQACHON MAVJUD ({code}-KOD) DEB JAVOB YUBORILDI]</b>",
                 parse_mode=ParseMode.HTML
             )
         except Exception:
@@ -4150,7 +4225,7 @@ async def process_suggestion_reply(message: Message, state: FSMContext, bot: Bot
                 user_id,
                 f"{ce('broadcast')} <b>Dorama taklifingiz bo'yicha Admin javobi:</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
-                f"<blockquote>{reply_text}</blockquote>\n\n"
+                f"<blockquote>{html.escape(reply_text)}</blockquote>\n\n"
                 f"<i>Maroqli tomosha tilaymiz! {ce('popcorn')}</i>",
                 reply_markup=kb.back_to_menu_kb(),
                 parse_mode=ParseMode.HTML
@@ -4498,15 +4573,15 @@ async def handle_inline_search(inline_query: InlineQuery, bot: Bot):
 
         msg_text = (
             f'<a href="{thumb}">&#8203;</a>'
-            f"🎬 <b>{title}</b>\n\n"
+            f"🎬 <b>{html.escape(str(title))}</b>\n\n"
             f"🔑 <b>Kino kodi:</b> <code>{code}</code>\n"
             f"🎞 <b>Qismlar soni:</b> {total_ep} qism\n"
             f"📊 <b>Holati:</b> {status_badge} {status_text}\n"
-            f"🎭 <b>Janri:</b> {genre}\n"
-            f"🌍 <b>Davlat:</b> {country} ({year})\n"
+            f"🎭 <b>Janri:</b> {html.escape(str(genre))}\n"
+            f"🌍 <b>Davlat:</b> {html.escape(str(country))} ({year})\n"
         )
         if short_desc:
-            msg_text += f"\n<i>{short_desc}</i>\n"
+            msg_text += f"\n<i>{html.escape(short_desc)}</i>\n"
         msg_text += f"\n👇 <b>Tomosha qilish uchun pastdagi tugmani bosing:</b>"
 
         item_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -4612,12 +4687,13 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
         ep_text = f"{ep_num}-qism"
         btn_text = f"🎬 1–{ep_num} qismgacha ko'rish"
 
-    title = d.get("title", "")
+    title = str(d.get("title", ""))
+    safe_title = html.escape(title)
     caption = (
         "🔔 <b>Yangi qism yuklandi!</b>\n"
         "<i>(Oʻzbek tilida)</i>\n"
         "————————————\n"
-        f"« <b>{title}</b> »\n\n"
+        f"« <b>{safe_title}</b> »\n\n"
         f"<blockquote><b>1-fasl | {ep_text}</b>\n"
         f"🔑 Kodi: <code>{code}</code></blockquote>\n\n"
         "👇 <b>Tomosha qilish uchun pastdagi tugmani bosing:</b>"
@@ -4660,7 +4736,7 @@ async def cmd_admin_post_episode(message: Message, command: CommandObject, bot: 
                 parse_mode=ParseMode.HTML
             )
         await message.answer(
-            f"✅ <b>{title}</b> ({ep_text}) muvaffaqiyatli kanalga joylandi!\n"
+            f"✅ <b>{safe_title}</b> ({ep_text}) muvaffaqiyatli kanalga joylandi!\n"
             f"🔗 Post ID: <code>{sent.message_id}</code>",
             parse_mode=ParseMode.HTML
         )
@@ -4729,10 +4805,10 @@ async def cmd_admin_post_card(message: Message, command: CommandObject, bot: Bot
         f"<blockquote>“<b>{title} 🔥</b>”\n"
         f"{sub_title}</blockquote>\n\n"
         f"► <b>Tili:</b> Oʻzbek tilida\n"
-        f"► <b>Davlati:</b> {country_name} {flag}\n"
+        f"► <b>Davlati:</b> {html.escape(str(country_name))} {flag}\n"
         f"► <b>Yili:</b> {year}\n"
         f"► <b>Qismlar:</b> {status_txt}\n"
-        f"► <b>Janri:</b> {genre}\n"
+        f"► <b>Janri:</b> {html.escape(str(genre))}\n"
         f"► <b>Kodi:</b> <code>{code}</code>\n\n"
         f"<blockquote expandable>🎬 <b>Qisqacha syujet:</b>\n"
         f"{safe_desc}</blockquote>\n\n"
@@ -4827,7 +4903,7 @@ async def cmd_admin_restore_button(message: Message, command: CommandObject, bot
             reply_markup=kb_restored
         )
         await message.answer(
-            f"✅ Post <code>{post_id}</code> ga «<b>{d['title']}</b>» tugmasi muvaffaqiyatli ulandi!",
+            f"✅ Post <code>{post_id}</code> ga «<b>{html.escape(str(d['title']))}</b>» tugmasi muvaffaqiyatli ulandi!",
             parse_mode=ParseMode.HTML
         )
     except Exception as e:
@@ -4876,17 +4952,17 @@ async def auto_git_update_loop(bot: Bot):
             success, result_text = await asyncio.to_thread(execute_git_update)
             if success and result_text != "ALREADY_UP_TO_DATE":
                 logger.info(f"🚀 [AUTO-UPDATE] Yangilanish muvaffaqiyatli yuklandi: {result_text}")
-                admin_id = getattr(config, "ADMIN_ID", None)
-                if admin_id:
+                summary_lines = [l.strip() for l in result_text.splitlines() if l.strip()][:5]
+                update_msg = (
+                    f"{ce('party')} <b>AVTOMATIK YANGILANISH (15-minutlik foniy sikl):</b>\n\n"
+                    f"<code>{html.escape(chr(10).join(summary_lines))}</code>\n\n"
+                    f"{ce('restart')} Bot yangi kod va baza bilan avtomatik qayta ishga tushmoqda..."
+                )
+                for admin_id in config.ADMIN_IDS:
                     try:
-                        summary_lines = [l.strip() for l in result_text.splitlines() if l.strip()][:5]
                         await bot.send_message(
                             chat_id=admin_id,
-                            text=(
-                                f"{ce('party')} <b>AVTOMATIK YANGILANISH (15-minutlik foniy sikl):</b>\n\n"
-                                f"<code>{html.escape(chr(10).join(summary_lines))}</code>\n\n"
-                                f"{ce('restart')} Bot yangi kod va baza bilan avtomatik qayta ishga tushmoqda..."
-                            ),
+                            text=update_msg,
                             parse_mode=ParseMode.HTML
                         )
                     except Exception:
@@ -4915,7 +4991,7 @@ async def auto_backup_loop(bot: Bot):
 
     while True:
         try:
-            admin_id = getattr(config, "ADMIN_ID", None)
+            admin_id = next(iter(config.ADMIN_IDS), None) if getattr(config, "ADMIN_IDS", None) else getattr(config, "ADMIN_ID", None)
             if admin_id:
                 userdata_path = os.path.join(config.BASE_DIR, "userdata.db")
                 if os.path.exists(userdata_path):
@@ -4951,6 +5027,127 @@ async def auto_backup_loop(bot: Bot):
         except Exception as e:
             logger.warning(f"Avtomatik backup siklida ogohlantirish: {e}")
             await asyncio.sleep(3600)
+
+
+PENDING_DROPS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "pending_drops.json")
+
+
+def _load_pending_drops() -> dict:
+    if os.path.exists(PENDING_DROPS_PATH):
+        try:
+            with open(PENDING_DROPS_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_pending_drops(data: dict) -> None:
+    tmp = PENDING_DROPS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, PENDING_DROPS_PATH)
+
+
+@router.callback_query(F.data.startswith("dd_cancel:"))
+async def cb_dd_cancel(call: CallbackQuery):
+    if call.from_user.id not in config.ADMIN_IDS:
+        return await call.answer("Ruxsat yo'q", show_alert=True)
+    msg_id = call.data.split(":", 1)[1]
+    async with _PENDING_DROPS_LOCK:
+        pending = _load_pending_drops()
+        pending.pop(msg_id, None)
+        _save_pending_drops(pending)
+    await call.message.edit_text("❌ Bekor qilindi. Yangi dorama qo'shilmadi.")
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("dd_new:"))
+async def cb_dd_new(call: CallbackQuery):
+    if call.from_user.id not in config.ADMIN_IDS:
+        return await call.answer("Ruxsat yo'q", show_alert=True)
+    msg_id = call.data.split(":", 1)[1]
+    async with _PENDING_DROPS_LOCK:
+        pending = _load_pending_drops()
+        item = pending.pop(msg_id, None)
+        if not item:
+            return await call.answer("Bu so'rov eskirgan yoki allaqachon bajarilgan.", show_alert=True)
+        _save_pending_drops(pending)
+
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
+    import autopilot_donor_listener as ap
+    async with ap._open_db() as conn:
+        dorama_id = await ap.create_new_dorama(conn, item["raw_title"], is_micro_drama=item.get("is_micro", False))
+    if not dorama_id:
+        return await call.answer("Dorama yaratib bo'lmadi.", show_alert=True)
+    await ap.ingest_episodes_to_db(
+        dorama_id, item["ep_list"], item["storage_msg_id"], item["quality"], item["size"], allow_same_quality_update=True
+    )
+    try:
+        await asyncio.to_thread(ap.publish_catalog_snapshot, ap.DB_PATH)
+    except Exception:
+        pass
+    await call.message.edit_text(
+        f"✅ <b>Yangi dorama qo'shildi!</b>\n🎬 {html.escape(item['raw_title'])} (ID: {dorama_id})\n🎞 Qismlar: {item['ep_list']}",
+        parse_mode="HTML",
+    )
+    await call.answer("Qo'shildi!")
+
+
+@router.callback_query(F.data.startswith("dd_attach:"))
+async def cb_dd_attach(call: CallbackQuery, state: FSMContext):
+    if call.from_user.id not in config.ADMIN_IDS:
+        return await call.answer("Ruxsat yo'q", show_alert=True)
+    msg_id = call.data.split(":", 1)[1]
+    async with _PENDING_DROPS_LOCK:
+        pending = _load_pending_drops()
+        if msg_id not in pending:
+            return await call.answer("Bu so'rov eskirgan.", show_alert=True)
+        raw_title = pending[msg_id]["raw_title"]
+    await state.set_state(AdminDirectDropState.waiting_code)
+    await state.update_data(dd_msg_id=msg_id)
+    await call.message.answer(
+        f"🔗 <b>{html.escape(raw_title)}</b> ni qaysi kino kodiga ulaymiz?\nKino kodini yozing (masalan: <code>168</code>):",
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@router.message(AdminDirectDropState.waiting_code)
+async def msg_dd_attach_code(message: Message, state: FSMContext):
+    if message.from_user.id not in config.ADMIN_IDS:
+        return
+    txt = (message.text or "").strip()
+    if not txt.isdigit():
+        return await message.answer("❌ Faqat kino kodini (raqam) yozing, masalan: <code>168</code>", parse_mode="HTML")
+    code = int(txt)
+    data = await state.get_data()
+    msg_id = str(data.get("dd_msg_id", ""))
+    d = await db.get_dorama_by_code(code)
+    if not d:
+        return await message.answer(f"❌ <code>{code}</code> kodli dorama topilmadi. Qayta kiriting:", parse_mode="HTML")
+
+    async with _PENDING_DROPS_LOCK:
+        pending = _load_pending_drops()
+        item = pending.pop(msg_id, None)
+        if not item:
+            await state.clear()
+            return await message.answer("❌ So'rov topilmadi yoki eskirgan.")
+        _save_pending_drops(pending)
+
+    await state.clear()
+
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
+    import autopilot_donor_listener as ap
+    await ap.ingest_episodes_to_db(
+        d["id"], item["ep_list"], item["storage_msg_id"], item["quality"], item["size"], allow_same_quality_update=True
+    )
+    await message.answer(
+        f"✅ <b>Biriktirildi!</b>\n🎬 {html.escape(d['title'])} (Kod: <code>{code}</code>)\n🎞 Qismlar: {item['ep_list']}",
+        parse_mode="HTML",
+    )
 
 
 async def main():
@@ -5073,7 +5270,11 @@ async def main():
             BotCommand(command="autopilot", description="⚡ Avtopilot holati va jurnali")
         ]
 
-            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=config.ADMIN_ID))
+            for admin_id in config.ADMIN_IDS:
+                try:
+                    await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+                except Exception as adm_err:
+                    logger.warning(f"Admin {admin_id} buyruqlarini sozlashda ogohlantirish: {adm_err}")
 
         except Exception as e:
 
@@ -5091,9 +5292,9 @@ async def main():
 
         await bot.delete_webhook(drop_pending_updates=False)
 
-        asyncio.create_task(memory_cleanup_loop())
-        asyncio.create_task(auto_git_update_loop(bot))
-        asyncio.create_task(auto_backup_loop(bot))
+        _create_logged_task(memory_cleanup_loop())
+        _create_logged_task(auto_git_update_loop(bot))
+        _create_logged_task(auto_backup_loop(bot))
         await dp.start_polling(bot)
 
     finally:

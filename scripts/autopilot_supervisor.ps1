@@ -52,8 +52,8 @@ Write-SupervisorLog "Supervisor started with PID $currentPid. Target script: $Sc
 
 # 2. Resolve Python Executable
 $PythonCandidates = @(
-    "C:\Users\MuhammadSodiq\.gemini\antigravity\scratch\TG AI PERSON\.venv\Scripts\python.exe",
     "C:\Python313\python.exe",
+    "C:\Users\MuhammadSodiq\.gemini\antigravity\scratch\TG AI PERSON\.venv\Scripts\python.exe",
     (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue)
 )
 
@@ -115,11 +115,13 @@ try {
             $argsList += "--dry-run"
         }
 
+        $StderrLogPath = Join-Path $BaseDir "scripts\autopilot_stderr.log"
         Write-SupervisorLog "Spawning autopilot_donor_listener process..." "INFO"
         $startTime = Get-Date
         $process = Start-Process -FilePath $PythonExe `
             -ArgumentList $argsList `
             -WorkingDirectory $BaseDir `
+            -RedirectStandardError $StderrLogPath `
             -WindowStyle Hidden `
             -PassThru
 

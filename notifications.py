@@ -126,9 +126,10 @@ async def notify_subscribers_async(
     try:
         for user_id in subscribers:
             delivered = False
-            for attempt in range(2):
+            use_photo = photo is not None
+            for attempt in range(3):
                 try:
-                    if photo is not None:
+                    if use_photo:
                         try:
                             await active_bot.send_photo(
                                 chat_id=user_id,
@@ -142,12 +143,15 @@ async def notify_subscribers_async(
                             logger.warning(f"TelegramRetryAfter: user {user_id} uchun {e.retry_after}s kutish.")
                             await asyncio.sleep(e.retry_after + 1)
                             continue
-                        except (TelegramForbiddenError, TelegramBadRequest) as e:
-                            logger.debug(f"User {user_id} ga yuborib bo'lmadi (bloklangan/mavjud emas): {e}")
+                        except TelegramForbiddenError as e:
+                            logger.debug(f"User {user_id} botni bloklagan: {e}")
                             break
+                        except TelegramBadRequest as e:
+                            logger.debug(f"send_photo TelegramBadRequest ({e}), matn ko'rinishida yuboriladi.")
+                            use_photo = False
                         except Exception as e:
                             logger.debug(f"send_photo xatolik ({e}), matn ko'rinishida yuboriladi.")
-                            # Rasmsiz matnli xabarga o'tamiz
+                            use_photo = False
 
                     await active_bot.send_message(
                         chat_id=user_id,
