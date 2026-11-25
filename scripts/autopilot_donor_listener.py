@@ -246,6 +246,12 @@ RE_BOILERPLATE = re.compile(
     re.IGNORECASE,
 )
 
+# Promo / CTA line filter so "1-50-qismlar botga joylandi" never overrides an explicit episode
+RE_PROMO_LINE = re.compile(
+    r"(?:botga\s*(?:joylandi|yuklandi|qo['ʻ`’ʼ]?shildi)|botimizda|tomosha\s*qiling|t\.me/|https?://)",
+    re.IGNORECASE,
+)
+
 # Quality Ranking for Regression Protection
 QUALITY_RANKS = {"1080p": 3, "720p": 2, "480p": 1, "unknown": 0}
 
@@ -275,7 +281,7 @@ def get_video_attributes(msg: Message) -> Tuple[bool, int, int, int, int]:
     return is_video, duration, width, height, size
 
 
-def parse_episodes(text: str) -> Optional[List[int]]:
+def parse_episodes(text: str, is_micro: bool = True) -> Optional[List[int]]:
     """Accurately parses episode numbers and ranges ('1-11', '1-15', '12-25 qismlar')."""
     if not text:
         return None
@@ -283,31 +289,50 @@ def parse_episodes(text: str) -> Optional[List[int]]:
     # Strip age limits like '16-18 yosh' or '18+' to prevent false range match
     cleaned_text = RE_AGE_FILTER.sub("", text)
 
+    # Filter out promo/CTA lines (e.g. "1-50-qismlar botga joylandi")
+    non_promo_lines = [
+        ln for ln in cleaned_text.splitlines()
+        if ln.strip() and not RE_PROMO_LINE.search(ln)
+    ]
+    eval_text = "\n".join(non_promo_lines) if non_promo_lines else cleaned_text
+
+    # 0. Explicit single episode in the header/first line takes precedence over body ranges
+    if non_promo_lines:
+        header_line = non_promo_lines[0]
+        if not (RE_RANGE_EP.search(header_line) or RE_RANGE_PREFIX.search(header_line)):
+            m_hdr_single = RE_SINGLE_EP.search(header_line) or RE_EP_PREFIX.search(header_line)
+            if m_hdr_single:
+                ep = int(m_hdr_single.group(1))
+                if 1 <= ep <= 300:
+                    return [ep]
+
+    max_range_span = 300 if is_micro else 8
+
     # 1. Explicit keyword range ('1-11 qism', '1-15 qismlar', 'qism 1-11')
-    m_range = RE_RANGE_EP.search(cleaned_text) or RE_RANGE_PREFIX.search(cleaned_text)
+    m_range = RE_RANGE_EP.search(eval_text) or RE_RANGE_PREFIX.search(eval_text)
     if m_range:
         start_ep = int(m_range.group(1))
         end_ep = int(m_range.group(2))
-        if 1 <= start_ep < end_ep <= 300:
+        if 1 <= start_ep < end_ep <= 300 and (end_ep - start_ep + 1) <= max_range_span:
             return list(range(start_ep, end_ep + 1))
 
     # 2. Bundled batch range e.g. '1-11', '1-15', '(1-11)' (Micro-dramas / Duanju)
-    m_bare = RE_BARE_RANGE.search(cleaned_text)
+    m_bare = RE_BARE_RANGE.search(eval_text)
     if m_bare:
         start_ep = int(m_bare.group(1))
         end_ep = int(m_bare.group(2))
-        if 1 <= start_ep < end_ep <= 300:
+        if 1 <= start_ep < end_ep <= 300 and (end_ep - start_ep + 1) <= max_range_span:
             return list(range(start_ep, end_ep + 1))
 
     # 3. Single episode check
-    m_single = RE_SINGLE_EP.search(cleaned_text)
+    m_single = RE_SINGLE_EP.search(eval_text)
     if m_single:
         ep = int(m_single.group(1))
         if 1 <= ep <= 300:
             return [ep]
 
     # 4. Prefix episode check
-    m_pref = RE_EP_PREFIX.search(cleaned_text)
+    m_pref = RE_EP_PREFIX.search(eval_text)
     if m_pref:
         ep = int(m_pref.group(1))
         if 1 <= ep <= 300:
@@ -410,6 +435,12 @@ def clean_dorama_title(text: str) -> str:
         flags=re.I,
     )
     candidate = re.sub(r"\s+", " ", candidate).strip(" _*~`-–—:/|\"'«»“”")
+    candidate = re.sub(
+        r"\s+\b(?:seriali|doramasi|dramasi|filmi|multfilmi)\b$",
+        "",
+        candidate,
+        flags=re.I,
+    ).strip(" _*~`-–—:/|\"'«»“”")
     return candidate
 
 
@@ -436,8 +467,10 @@ async def find_dorama_id(
         norm_t = normalize_search_text(title or "")
         db_tokens = set(norm_t.split())
 
-        # Exact match
-        if norm_target == norm_t:
+        # Exact match (or match against title without parenthetical suffix like 'Daha 17 (Hali 17)')
+        base_title = re.sub(r"\s*\([^)]*\)", "", title or "").strip()
+        norm_base = normalize_search_text(base_title)
+        if norm_target == norm_t or (len(norm_base) >= 4 and norm_target == norm_base):
             if is_micro_drama:
                 await db.execute(
                     "UPDATE doramas SET category = 'duanju', genre = 'Vertikal Micro-Drama, Duanju' WHERE id = ? AND (category = 'korea' OR category = '' OR category IS NULL)",
@@ -819,7 +852,7 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
             return False
 
     # 5. Episode Parsing
-    ep_list = parse_episodes(text)
+    ep_list = parse_episodes(text, is_micro=is_micro)
     if not ep_list:
         logger.debug(f"Could not parse episode number from: {text[:40]}")
         mark_done()
