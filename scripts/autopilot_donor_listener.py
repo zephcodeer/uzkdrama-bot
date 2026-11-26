@@ -415,6 +415,43 @@ def parse_episodes(
     return None
 
 
+FINAL_EPISODE_MARKERS = re.compile(
+    r"\b(?:"
+    r"(?:final(?:e)?|yakuniy|oxirgi|so['ʻ’`]?nggi|последн(?:яя|ий)|финальн(?:ая|ый))"
+    r"\s+(?:qism(?:i)?|seriya|episode|epizod|серия|эпизод)"
+    r"|(?:qism(?:i)?|seriya|episode|epizod|серия|эпизод)"
+    r"\s+(?:final(?:e)?|yakuniy|oxirgi|so['ʻ’`]?nggi|последн(?:яя|ий)|финальн(?:ая|ый))"
+    r"|(?:series|serial|dorama)\s+(?:finale|yakunlandi|tugallandi|tugadi|ended|completed)"
+    r"|series\s+finale"
+    r")\b",
+    re.IGNORECASE,
+)
+EPISODE_FRACTION_MARKERS = (
+    re.compile(r"\b(?:qism|episode|epizod|seriya|ep)\s*(\d{1,3})\s*/\s*(\d{1,3})\b", re.IGNORECASE),
+    re.compile(r"\b(\d{1,3})\s*/\s*(\d{1,3})\s*(?:qism|episode|epizod|seriya)\b", re.IGNORECASE),
+)
+
+
+def is_final_episode_release(text: str, episode_numbers: List[int]) -> bool:
+    """Return True only when a release explicitly identifies itself as the finale."""
+    if not text or not episode_numbers:
+        return False
+
+    normalized = unicodedata.normalize("NFKC", text)
+    normalized = re.sub(r"['ʻ’ʼ`‘]", "'", normalized)
+    if FINAL_EPISODE_MARKERS.search(normalized):
+        return True
+
+    uploaded_numbers = set(episode_numbers)
+    for fraction_pattern in EPISODE_FRACTION_MARKERS:
+        for match in fraction_pattern.finditer(normalized):
+            episode_number, episode_total = map(int, match.groups())
+            if episode_number == episode_total and episode_number in uploaded_numbers:
+                return True
+
+    return False
+
+
 _RE_DECORATIVE_SYMBOLS = re.compile(
     r"[\U00010000-\U0010ffff\u2000-\u2012\u2014-\u2017\u201a-\u201b\u201e-\u206f\u2100-\u3300\ufe00-\ufe0f•*►«»|“”]+"
 )
@@ -681,11 +718,38 @@ async def ingest_episodes_to_db(
     quality: str,
     file_size: int,
     allow_same_quality_update: bool = False,
+    source_text: str = "",
 ):
     """Asynchronously ingests episodes into SQLite with quality regression protection."""
     async with aiosqlite.connect(str(DB_PATH), timeout=30.0) as db:
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.execute("PRAGMA busy_timeout = 30000;")
+
+        async with db.execute(
+            "SELECT status, total_episodes FROM doramas WHERE id = ?",
+            (dorama_id,),
+        ) as cur:
+            dorama_row = await cur.fetchone()
+        if not dorama_row:
+            logger.error(f"Cannot ingest episodes: Dorama ID={dorama_id} does not exist.")
+            return []
+
+        prior_status = (dorama_row[0] or "Ongoing").strip()
+        prior_total = int(dorama_row[1] or 0)
+        async with db.execute(
+            "SELECT COALESCE(MAX(episode_number), 0) FROM episodes WHERE dorama_id = ?",
+            (dorama_id,),
+        ) as cur:
+            previous_max_episode = int((await cur.fetchone())[0] or 0)
+
+        # total_episodes can also be the latest uploaded episode number. Treat it
+        # as an expected total only when it was already ahead of uploaded content.
+        expected_total = (
+            prior_total
+            if prior_total > 1 and prior_total > previous_max_episode
+            else 0
+        )
+        explicit_final_marker = is_final_episode_release(source_text, ep_list)
 
         # Cross-dorama collision check
         async with db.execute(
@@ -740,15 +804,36 @@ async def ingest_episodes_to_db(
             return []
 
         max_ep = max(actual_ingested)
+        completion_reason = ""
+        if explicit_final_marker:
+            completion_reason = "source marked this as the final episode"
+        elif expected_total and max_ep >= expected_total:
+            async with db.execute(
+                """
+                SELECT COUNT(*) FROM episodes
+                WHERE dorama_id = ? AND episode_number BETWEEN 1 AND ?
+                """,
+                (dorama_id, expected_total),
+            ) as cur:
+                uploaded_expected_episodes = int((await cur.fetchone())[0] or 0)
+            if uploaded_expected_episodes >= expected_total:
+                completion_reason = f"all {expected_total} declared episodes are uploaded"
+
+        status_after_ingest = "Tugallangan" if completion_reason else prior_status
         await db.execute(
             """
             UPDATE doramas
             SET total_episodes = MAX(COALESCE(total_episodes, 0), ?),
-                status = 'Ongoing'
+                status = ?
             WHERE id = ?
         """,
-            (max_ep, dorama_id),
+            (max_ep, status_after_ingest, dorama_id),
         )
+
+        if completion_reason:
+            logger.info(
+                f"🏁 Marked Dorama ID={dorama_id} completed: {completion_reason}."
+            )
 
         await db.commit()
         logger.info(
@@ -1068,7 +1153,14 @@ async def process_donor_message(client: TelegramClient, msg: Message, dry_run: b
         logger.error(f"Could not create dorama for '{raw_title}' after forwarding")
         return False
 
-    ingested = await ingest_episodes_to_db(dorama_id, needed_eps, storage_msg_id, quality, size)
+    ingested = await ingest_episodes_to_db(
+        dorama_id,
+        needed_eps,
+        storage_msg_id,
+        quality,
+        size,
+        source_text=text,
+    )
     mark_done()
     if not ingested:
         return False
@@ -1217,7 +1309,13 @@ async def process_direct_storage_message(client: TelegramClient, msg: Message) -
         return False
 
     ingested = await ingest_episodes_to_db(
-        dorama_id, ep_list, storage_msg_id, quality, size, allow_same_quality_update=True
+        dorama_id,
+        ep_list,
+        storage_msg_id,
+        quality,
+        size,
+        allow_same_quality_update=True,
+        source_text=text,
     )
     if not ingested:
         logger.info(f"ℹ️ [DIRECT DROP] Ep {ep_list} already up to date in DB.")
