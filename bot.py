@@ -930,13 +930,14 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
 
     if not ep or not ep.get("channel_message_id") or ep["channel_message_id"] <= 0:
         back_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"{ce('folder')} Doramaga qaytish", callback_data=f"view_dorama:{dorama_id}")],
-            [InlineKeyboardButton(text=f"{ce('home')} Bosh menyu", callback_data="menu_home")]
+            [InlineKeyboardButton(text="📁 Doramaga qaytish", callback_data=f"view_dorama:{dorama_id}")],
+            [InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="menu_home")]
         ])
         await bot.send_message(
             user_id,
             f"{ce('bell')} Ushbu qism hozircha bazaga yuklanmagan yoki tez orada joylanadi.\nIltimos, keyinroq qayta tekshiring!",
-            reply_markup=back_kb
+            reply_markup=back_kb,
+            parse_mode=ParseMode.HTML
         )
         return
 
@@ -1011,17 +1012,24 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
         watched_episode = 1
         has_next = False
         next_ep_target = None
+        prev_ep_target = None
     elif current_item:
         ep_label = current_item['label']
         watched_episode = current_item['end_ep']
         next_item = next((it for it in display_items if it['start_ep'] > current_item['end_ep']), None)
         has_next = next_item is not None
         next_ep_target = next_item['start_ep'] if next_item else None
+
+        prev_item = next((it for it in reversed(display_items) if it['end_ep'] < current_item['start_ep']), None)
+        prev_ep_target = prev_item['start_ep'] if prev_item else None
     else:
         ep_label = f"{ep_num}-qism"
         watched_episode = ep_num
         has_next = any(e['episode_number'] == ep_num + 1 for e in episodes)
         next_ep_target = ep_num + 1 if has_next else None
+
+        earlier_eps = [e['episode_number'] for e in episodes if e['episode_number'] < ep_num]
+        prev_ep_target = max(earlier_eps) if earlier_eps else None
 
     bookmarked = await db.is_bookmarked(user_id, dorama_id)
 
@@ -1031,6 +1039,7 @@ async def send_episode(user_id: int, dorama_id: int, ep_num: int, bot: Bot):
         has_next=has_next,
         bookmarked=bookmarked,
         next_ep=next_ep_target,
+        prev_ep=prev_ep_target,
         is_movie=is_movie
     )
 

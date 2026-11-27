@@ -587,20 +587,23 @@ def episode_player_kb(
     has_next: bool = False,
     bookmarked: bool = False,
     next_ep: int | None = None,
-    is_movie: bool = False
+    is_movie: bool = False,
+    prev_ep: int | None = None
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
     next_target = next_ep if next_ep is not None else (current_ep + 1)
+    prev_target = prev_ep if prev_ep is not None else (current_ep - 1)
     nav_row = []
-    if current_ep > 1 and not is_movie:
-        nav_row.append(
-            InlineKeyboardButton(
-                text="Oldingi qism",
-                callback_data=f"get_ep:{dorama_id}:{current_ep - 1}",
-                icon_custom_emoji_id=ICON_ARROW_LEFT
+    if (prev_ep is not None or current_ep > 1) and not is_movie:
+        if prev_target > 0:
+            nav_row.append(
+                InlineKeyboardButton(
+                    text="Oldingi qism",
+                    callback_data=f"get_ep:{dorama_id}:{prev_target}",
+                    icon_custom_emoji_id=ICON_ARROW_LEFT
+                )
             )
-        )
     if has_next and not is_movie:
         nav_row.append(
             InlineKeyboardButton(
