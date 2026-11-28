@@ -5076,12 +5076,30 @@ async def cb_dd_new(call: CallbackQuery):
     if call.from_user.id not in config.ADMIN_IDS:
         return await call.answer("Ruxsat yo'q", show_alert=True)
     msg_id = call.data.split(":", 1)[1]
+    item = None
     async with _PENDING_DROPS_LOCK:
         pending = _load_pending_drops()
         item = pending.pop(msg_id, None)
-        if not item:
-            return await call.answer("Bu so'rov eskirgan yoki allaqachon bajarilgan.", show_alert=True)
-        _save_pending_drops(pending)
+        if item:
+            _save_pending_drops(pending)
+
+    if not item:
+        # Fallback: parse info directly from call.message.text
+        txt = call.message.text or ""
+        m_title = re.search(r"Nomi:\s*(.+)", txt)
+        m_ep = re.search(r"Qism:\s*(\d+)", txt)
+        m_q = re.search(r"\((\d+p)\)", txt)
+        ep_num = int(m_ep.group(1)) if m_ep else 1
+        quality = m_q.group(1) if m_q else "720p"
+        raw_title = m_title.group(1).strip() if m_title else f"Dorama #{msg_id}"
+        item = {
+            "raw_title": raw_title,
+            "ep_list": [ep_num],
+            "quality": quality,
+            "size": 0,
+            "storage_msg_id": int(msg_id) if msg_id.isdigit() else 0,
+            "is_micro": False
+        }
 
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
@@ -5109,13 +5127,33 @@ async def cb_dd_attach(call: CallbackQuery, state: FSMContext):
     if call.from_user.id not in config.ADMIN_IDS:
         return await call.answer("Ruxsat yo'q", show_alert=True)
     msg_id = call.data.split(":", 1)[1]
+    raw_title = f"Storage #{msg_id}"
+    fallback_item = None
+
     async with _PENDING_DROPS_LOCK:
         pending = _load_pending_drops()
-        if msg_id not in pending:
-            return await call.answer("Bu so'rov eskirgan.", show_alert=True)
-        raw_title = pending[msg_id]["raw_title"]
+        if msg_id in pending:
+            raw_title = pending[msg_id].get("raw_title", raw_title)
+        else:
+            # Fallback: parse info directly from call.message.text
+            txt = call.message.text or ""
+            m_title = re.search(r"Nomi:\s*(.+)", txt)
+            m_ep = re.search(r"Qism:\s*(\d+)", txt)
+            m_q = re.search(r"\((\d+p)\)", txt)
+            ep_num = int(m_ep.group(1)) if m_ep else 1
+            quality = m_q.group(1) if m_q else "720p"
+            raw_title = m_title.group(1).strip() if m_title else raw_title
+            fallback_item = {
+                "raw_title": raw_title,
+                "ep_list": [ep_num],
+                "quality": quality,
+                "size": 0,
+                "storage_msg_id": int(msg_id) if msg_id.isdigit() else 0,
+                "is_micro": False
+            }
+
     await state.set_state(AdminDirectDropState.waiting_code)
-    await state.update_data(dd_msg_id=msg_id)
+    await state.update_data(dd_msg_id=msg_id, fallback_item=fallback_item)
     await call.message.answer(
         f"🔗 <b>{html.escape(raw_title)}</b> ni qaysi kino kodiga ulaymiz?\nKino kodini yozing (masalan: <code>168</code>):",
         parse_mode="HTML",
@@ -5133,17 +5171,24 @@ async def msg_dd_attach_code(message: Message, state: FSMContext):
     code = int(txt)
     data = await state.get_data()
     msg_id = str(data.get("dd_msg_id", ""))
+    fallback_item = data.get("fallback_item")
     d = await db.get_dorama_by_code(code)
     if not d:
         return await message.answer(f"❌ <code>{code}</code> kodli dorama topilmadi. Qayta kiriting:", parse_mode="HTML")
 
+    item = None
     async with _PENDING_DROPS_LOCK:
         pending = _load_pending_drops()
         item = pending.pop(msg_id, None)
-        if not item:
-            await state.clear()
-            return await message.answer("❌ So'rov topilmadi yoki eskirgan.")
-        _save_pending_drops(pending)
+        if item:
+            _save_pending_drops(pending)
+
+    if not item:
+        item = fallback_item
+
+    if not item:
+        await state.clear()
+        return await message.answer("❌ So'rov ma'lumotlari topilmadi.")
 
     await state.clear()
 
@@ -5151,7 +5196,7 @@ async def msg_dd_attach_code(message: Message, state: FSMContext):
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
     import autopilot_donor_listener as ap
     await ap.ingest_episodes_to_db(
-        d["id"], item["ep_list"], item["storage_msg_id"], item["quality"], item["size"], allow_same_quality_update=True
+        d["id"], item["ep_list"], item["storage_msg_id"], item["quality"], item.get("size", 0), allow_same_quality_update=True
     )
     await message.answer(
         f"✅ <b>Biriktirildi!</b>\n🎬 {html.escape(d['title'])} (Kod: <code>{code}</code>)\n🎞 Qismlar: {item['ep_list']}",
